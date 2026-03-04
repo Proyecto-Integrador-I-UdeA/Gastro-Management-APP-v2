@@ -10,18 +10,56 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: 18
-    - name: Install dependencies
-      run: npm install
-    - name: Build Frontend
-      working-directory: ./apps/frontend
-      run: npm run build
-    - name: Build Backend
-      working-directory: ./apps/backend
-      run: npm run build  # Asume script en package.json
-    - name: Run Tests
-      run: npm test  # Ejecuta tests en root o por app
+      - uses: actions/checkout@v4   # Usa v4 para mejor rendimiento
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: |
+            apps/frontend/package-lock.json
+            apps/backend/package-lock.json
+
+      - name: Install Frontend dependencies
+        working-directory: ./apps/frontend
+        run: npm ci   # o npm install si ci falla
+
+      - name: Install Backend dependencies
+        working-directory: ./apps/backend
+        run: npm ci
+
+      # Temporal: comentamos build hasta que agreguemos código real
+      # - name: Build Frontend
+      #   working-directory: ./apps/frontend
+      #   run: npm run build
+
+      # - name: Build Backend
+      #   working-directory: ./apps/backend
+      #   run: npm run build
+
+      # - name: Run Tests
+      #   run: npm test   # o ejecútalo por subdirectorio si tienes tests
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
