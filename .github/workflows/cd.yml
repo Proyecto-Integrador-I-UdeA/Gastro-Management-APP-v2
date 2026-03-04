@@ -1,0 +1,26 @@
+name: CD - Deploy to Vercel
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Deploy Frontend to Vercel
+      uses: amondnet/vercel-action@v20
+      with:
+        vercel-token: ${{ secrets.VERCEL_TOKEN }}
+        vercel-org-id: TU_ORG_ID  # De Vercel dashboard
+        vercel-project-id: TU_PROJECT_ID  # Crea proyecto en Vercel primero
+        working-directory: ./apps/frontend
+    - name: Deploy Backend
+      # Para backend Node.js, usa Vercel serverless o alternativa como Heroku; ajusta si backend es API separada
+      uses: amondnet/vercel-action@v20
+      with:
+        vercel-token: ${{ secrets.VERCEL_TOKEN }}
+        vercel-org-id: TU_ORG_ID
+        vercel-project-id: TU_PROJECT_ID_BACKEND
+        working-directory: ./apps/backend
