@@ -4,10 +4,12 @@
   "private": true,
   "scripts": {
     "start": "node dist/app.js",
-  "dev": "ts-node src/app.ts",
-  "build": "tsc",
-  "prisma:generate": "prisma generate",
-  "prisma:migrate": "prisma migrate dev"
+    "dev": "ts-node src/app.ts",
+    "start:local": "node -r dotenv/config bin/www",
+    "dev:local": "node -r dotenv/config bin/www",
+    "build": "tsc",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev"
   },
   "dependencies": {
     "@prisma/client": "^7.4.2",
@@ -23,6 +25,7 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.3.3",
+    "dotenv": "^16.4.5",
     "prisma": "^7.4.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
