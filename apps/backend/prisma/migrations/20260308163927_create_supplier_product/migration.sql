@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "Supplier" (
+CREATE TABLE "suppliers" (
     "id" SERIAL NOT NULL,
     "internalCode" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -8,11 +8,11 @@ CREATE TABLE "Supplier" (
     "address" TEXT NOT NULL,
     "contactPerson" TEXT NOT NULL,
 
-    CONSTRAINT "Supplier_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "suppliers_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "Product" (
+CREATE TABLE "products" (
     "id" SERIAL NOT NULL,
     "internalCode" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -28,8 +28,8 @@ CREATE TABLE "Product" (
     "unitCost" DECIMAL(10,2) NOT NULL,
     "supplierId" INTEGER NOT NULL,
 
-    CONSTRAINT "Product_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "products_pkey" PRIMARY KEY ("id")
 );
 
 -- AddForeignKey
-ALTER TABLE "Product" ADD CONSTRAINT "Product_supplierId_fkey" FOREIGN KEY ("supplierId") REFERENCES "Supplier"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "products" ADD CONSTRAINT "products_supplierId_fkey" FOREIGN KEY ("supplierId") REFERENCES "suppliers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

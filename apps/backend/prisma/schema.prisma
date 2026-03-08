@@ -24,6 +24,8 @@ model Supplier {
   contactPerson String
 
   products      Product[]
+
+  @@map("suppliers")
 }
 
 model Product {
@@ -42,5 +44,7 @@ model Product {
   unitCost           Decimal    @db.Decimal(10, 2)
 
   supplierId         Int
-  supplier Supplier @relation(fields: [supplierId], references: [id])
+  supplier           Supplier   @relation(fields: [supplierId], references: [id])
+
+  @@map("products")
 }
