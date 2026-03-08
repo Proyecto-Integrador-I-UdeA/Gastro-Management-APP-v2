@@ -5,11 +5,42 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model Supplier {
+  id            Int       @id @default(autoincrement())
+  internalCode  String
+  name          String
+  taxId         String
+  phone         String
+  address       String
+  contactPerson String
+
+  products      Product[]
+}
+
+model Product {
+  id                 Int       @id @default(autoincrement())
+  internalCode       String
+  name               String
+  isIngredient       Boolean
+  isSupply           Boolean
+  isFinishedProduct  Boolean
+  presentation       String
+  unitOfMeasure      String
+  expirationDate     DateTime?
+  minStock           Float
+  maxStock           Float
+  currentStock       Float
+  unitCost           Decimal    @db.Decimal(10, 2)
+
+  supplierId         Int
+  supplier Supplier @relation(fields: [supplierId], references: [id])
 }
