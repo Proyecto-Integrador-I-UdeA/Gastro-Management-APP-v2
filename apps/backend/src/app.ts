@@ -13,6 +13,9 @@ app.use('/auth', authRoutes);
 app.get('/', (req, res) => {
   res.json({ message: '¡Backend de Gastro Management API funcionando!' });
 });
+import userRoutes from './routes/users';
+
+app.use('/users', userRoutes);
 
 app.listen(PORT, () => {
   console.log(`Servidor backend corriendo en http://localhost:${PORT}`);
