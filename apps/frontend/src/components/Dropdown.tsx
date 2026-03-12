@@ -1,11 +1,11 @@
-
+// src/components/Dropdown.tsx
 interface DropdownProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label: string;
   error?: string;
-  options: { value: string | number; label: string }[];
+  options: { value: number | string; label: string }[];
 }
 
-export default function Dropdown({ label, error, options, ...props }: DropdownProps) {
+export default function Dropdown({ label, error, options, ...props }: Readonly<DropdownProps>) {
   return (
     <div className="flex flex-col">
       <label className="mb-1 text-sm font-medium text-gray-700">{label}</label>
