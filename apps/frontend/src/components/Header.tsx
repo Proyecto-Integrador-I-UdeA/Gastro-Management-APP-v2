@@ -1,8 +1,11 @@
 // src/components/Header.tsx
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
+import Button from './Button'; // ajusta la ruta si es necesario (ej: '../components/Button')
 
 export default function Header() {
   const [currentDateTime, setCurrentDateTime] = useState('');
+  const router = useRouter();
 
   useEffect(() => {
     const updateDateTime = () => {
@@ -25,10 +28,18 @@ export default function Header() {
     return () => clearInterval(interval);
   }, []);
 
+  const handleLogout = () => {
+    // Opcional: confirmación antes de cerrar
+    if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
+      localStorage.removeItem('token');
+      router.push('/login');
+    }
+  };
+
   return (
     <header className="bg-[#001F3F] text-white p-4 flex items-center justify-between shadow-md">
       <div className="flex items-center space-x-4">
-        {/* Logo placeholder */}
+        {/* Logo y título */}
         <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
           <span className="text-xl font-bold text-[#001F3F]">G</span>
         </div>
@@ -38,9 +49,20 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Fecha y hora actual */}
-      <div className="text-sm">
-        {currentDateTime || 'Cargando fecha...'}
+      {/* Fecha/hora + botón de logout */}
+      <div className="flex items-center space-x-6">
+        {/* Fecha y hora actual */}
+        <div className="text-sm">
+          {currentDateTime || 'Cargando fecha...'}
+        </div>
+
+        {/* Botón Cerrar Sesión usando tu componente Button */}
+        <Button
+          variant="danger"          // rojo para destacar que es acción de cierre
+          onClick={handleLogout}
+        >
+          Cerrar Sesión
+        </Button>
       </div>
     </header>
   );
