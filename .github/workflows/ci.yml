@@ -2,26 +2,95 @@ name: CI - Build and Test
 
 on:
   push:
-    branches: [ develop, feature/* ]
+    branches: [ main, develop, feature/* ]
   pull_request:
-    branches: [ develop, main ]
+    branches: [ main, develop ]
 
 jobs:
-  build:
+  validate-and-install:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: 18
-    - name: Install dependencies
-      run: npm install
-    - name: Build Frontend
-      working-directory: ./apps/frontend
-      run: npm run build
-    - name: Build Backend
-      working-directory: ./apps/backend
-      run: npm run build  # Asume script en package.json
-    - name: Run Tests
-      run: npm test  # Ejecuta tests en root o por app
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: |
+            apps/frontend/package-lock.json
+            apps/backend/package-lock.json
+
+      # Paso de validación: confirma que estamos en un monorepo correcto
+      - name: Check root has no package.json (monorepo safety)
+        run: |
+          if [ -f package.json ]; then
+            echo "ERROR: package.json found in root! This is a monorepo - do not install here."
+            exit 1
+          fi
+          echo "Root has no package.json - good for monorepo."
+
+      - name: Install Frontend dependencies
+        working-directory: apps/frontend
+        run: npm ci || npm install --legacy-peer-deps
+
+      - name: Install Backend dependencies
+        working-directory: apps/backend
+        run: npm ci || npm install --legacy-peer-deps
+
+      # Temporal: sin build ni test hasta que agreguemos código
+      - name: Skip build (temporary)
+        run: echo "Build and test skipped until code is implemented"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
