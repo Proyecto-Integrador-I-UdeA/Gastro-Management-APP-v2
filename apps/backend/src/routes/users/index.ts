@@ -1,11 +1,16 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '../../middlewares/auth';
-import { getUsers, updateUser, deleteUser } from '../../controllers/user/userController';
+import { updateUser, deleteUser } from '../../controllers/user/userController';
+import prisma from '../../lib/prisma';  // ruta típica si tienes un client exportado
 
 const router = Router();
 
-// Lista de usuarios (solo para roles con permiso 'users:read')
-router.get('/', authenticate, authorize(['users:read']), getUsers);
+router.get('/', authenticate, authorize(['users:read']), async (req, res) => {
+  const users = await prisma.user.findMany({
+    include: { role: { select: { name: true } } },
+  });
+  res.json(users);
+});
 
 // Editar usuario (solo para roles con permiso 'users:update')
 router.put('/:id', authenticate, authorize(['users:update']), updateUser);
