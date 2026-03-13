@@ -11,6 +11,10 @@ async function main() {
     { name: 'users:create', description: 'Registrar usuarios' },
     { name: 'users:update', description: 'Editar usuarios' },
     { name: 'users:delete', description: 'Inactivar usuarios' },
+    { name: 'suppliers:read', description: 'Ver proveedores' },
+    { name: 'suppliers:create', description: 'Crear proveedores' },
+    { name: 'suppliers:update', description: 'Editar proveedores' },
+    { name: 'suppliers:delete', description: 'Eliminar proveedores' },
     { name: 'products:read', description: 'Ver inventario' },
     { name: 'products:create', description: 'Agregar productos' },
     { name: 'products:update', description: 'Editar productos' },
@@ -37,13 +41,14 @@ async function main() {
     super: permissions.map(p => p.name), // todos los permisos
     admin: [
       'users:read', 'users:create', 'users:update', 'users:delete',
+      'suppliers:read', 'suppliers:create', 'suppliers:update', 'suppliers:delete',
       'products:read', 'products:create', 'products:update', 'products:delete',
       'recipes:read', 'recipes:create', 'recipes:update',
       'costs:read', 'costs:update',
       'pricing:read', 'pricing:update',
     ],
     chef: ['recipes:read', 'recipes:create', 'recipes:update', 'products:read'],
-    purchases: ['products:read', 'products:create', 'products:update', 'products:delete'],
+    purchases: ['suppliers:read', 'suppliers:create', 'suppliers:update', 'suppliers:delete', 'products:read', 'products:create', 'products:update', 'products:delete'],
     accounting: ['costs:read', 'costs:update', 'pricing:read', 'pricing:update', 'products:read'],
   };
 

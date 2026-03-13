@@ -7,13 +7,48 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Supplier {
+  id            Int       @id @default(autoincrement())
+  internalCode  String
+  name          String
+  taxId         String
+  phone         String
+  address       String
+  contactPerson String
+
+  products      Product[]
+
+  @@map("suppliers")
+}
+
+model Product {
+  id                 Int       @id @default(autoincrement())
+  internalCode       String
+  name               String
+  isIngredient       Boolean
+  isSupply           Boolean
+  isFinishedProduct  Boolean
+  presentation       String
+  unitOfMeasure      String
+  expirationDate     DateTime?
+  minStock           Float
+  maxStock           Float
+  currentStock       Float
+  unitCost           Decimal    @db.Decimal(10, 2)
+
+  supplierId         Int
+  supplier           Supplier   @relation(fields: [supplierId], references: [id])
+
+  @@map("products")
+}
+
 model User {
   id            Int       @id @default(autoincrement())
   email         String    @unique
   passwordHash  String
   fullName      String?
   roleId        Int?
-  active        Boolean   @default(true)  //
+  active        Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -21,16 +56,6 @@ model User {
 
   @@map("users")
 }
-
-
-
-
-
-
-
-
-
-
 
 model Role {
   id          Int              @id @default(autoincrement())
