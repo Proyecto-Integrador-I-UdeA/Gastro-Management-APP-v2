@@ -88,3 +88,16 @@ model RolePermission {
   @@unique([roleId, permissionId])
   @@map("role_permissions")
 }
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,12 +1,14 @@
 // src/components/Header.tsx
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import Button from './Button'; // ajusta la ruta si es necesario (ej: '../components/Button')
+import Button from './Button'; // ajusta la ruta si es necesario
 
 export default function Header() {
   const [currentDateTime, setCurrentDateTime] = useState('');
+  const [userName, setUserName] = useState('Cargando...'); // ← nuevo estado para el nombre
   const router = useRouter();
 
+  // Fecha y hora
   useEffect(() => {
     const updateDateTime = () => {
       const now = new Date();
@@ -23,13 +25,29 @@ export default function Header() {
     };
 
     updateDateTime();
-    const interval = setInterval(updateDateTime, 60000); // actualiza cada minuto
-
+    const interval = setInterval(updateDateTime, 60000);
     return () => clearInterval(interval);
   }, []);
 
+  // Obtener nombre del usuario desde el token (solo en cliente)
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        // Decodificar JWT sin librería externa (usando atob nativo)
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        // Priorizamos fullName, si no existe usamos email
+        setUserName(payload.fullName || payload.email || 'Usuario');
+      } catch (e) {
+        console.error('Error al decodificar token para nombre:', e);
+        setUserName('Usuario');
+      }
+    } else {
+      setUserName('No autenticado');
+    }
+  }, []);
+
   const handleLogout = () => {
-    // Opcional: confirmación antes de cerrar
     if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
       localStorage.removeItem('token');
       router.push('/login');
@@ -49,21 +67,81 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Fecha/hora + botón de logout */}
-      <div className="flex items-center space-x-6">
-        {/* Fecha y hora actual */}
+      {/* Fecha/hora + Nombre + Botón Cerrar Sesión */}
+      <div className="flex flex-col items-end space-y-1">
+        {/* Fecha y hora */}
         <div className="text-sm">
           {currentDateTime || 'Cargando fecha...'}
         </div>
 
-        {/* Botón Cerrar Sesión usando tu componente Button */}
-        <Button
-          variant="danger"          // rojo para destacar que es acción de cierre
-          onClick={handleLogout}
-        >
+        {/* Nombre del usuario logueado (debajo de la fecha) */}
+        <div className="text-sm font-medium">
+          {userName}
+        </div>
+
+        {/* Botón Cerrar Sesión */}
+        <Button variant="danger" onClick={handleLogout}>
           Cerrar Sesión
         </Button>
       </div>
     </header>
-  );
+  )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }

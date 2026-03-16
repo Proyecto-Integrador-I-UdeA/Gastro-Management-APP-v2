@@ -1,28 +1,38 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import Header from '../../components/Header';
 import Sidebar from '../../components/Sidebar';
-import { useEffect, useState } from 'react';
-import { api } from '../../utils/api'; // tu instancia de axios o fetch
+import { api } from '../../utils/api';
+
+interface User {
+  id: number;
+  email: string;
+  fullName: string;
+  role: { name: string };  // o role.name si el backend lo devuelve así
+  active: boolean;
+}
 
 export default function UsersList() {
-  const [users, setUsers] = useState([]);
+  const router = useRouter();
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
     const fetchUsers = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) throw new Error('No hay token');
-
-        const response = await api.get('/users', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
+        const response = await api.get('/users');
         setUsers(response.data);
       } catch (err: any) {
-        setError(err.message || 'Error al cargar usuarios');
+        setError(err.response?.data?.error || 'Error al cargar usuarios');
         console.error(err);
       } finally {
         setLoading(false);
@@ -30,7 +40,7 @@ export default function UsersList() {
     };
 
     fetchUsers();
-  }, []);
+  }, [router]);
 
   if (loading) return <div className="p-8 text-center">Cargando usuarios...</div>;
   if (error) return <div className="p-8 text-center text-red-600">{error}</div>;
@@ -55,7 +65,7 @@ export default function UsersList() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {users.map((user: any) => (
+                {users.map((user) => (
                   <tr key={user.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.id}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.email}</td>

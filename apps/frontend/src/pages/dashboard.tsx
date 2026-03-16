@@ -2,18 +2,16 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
-import { getUserRole } from '../utils/auth';
+import { isSuperUser } from '../utils/auth';
 
 export default function Dashboard() {
   const router = useRouter();
-  const [isSuper, setIsSuper] = useState(false);  // estado inicial: false (no mostrar botón)
+  const [isSuper, setIsSuper] = useState(false);
 
   useEffect(() => {
-    // Esta lógica SOLO se ejecuta en el navegador (cliente)
-    const role = getUserRole();
-    setIsSuper(role === 'super');
+    const role = isSuperUser();
+    setIsSuper(role);
 
-    // Protección básica: redirigir si no hay token
     const token = localStorage.getItem('token');
     if (!token) {
       router.push('/login');
@@ -26,42 +24,93 @@ export default function Dashboard() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar />
-      <div className="flex-1">
+      {/* Sidebar izquierdo con imagen elegante y botón de registro (solo super) */}
+      <div className="w-80 bg-[#001F3F] hidden lg:block fixed h-full overflow-hidden">
+        <div className="h-full flex flex-col">
+          {/* Imagen elegante ocupando todo el espacio superior */}
+          <div className="flex-1 bg-cover bg-center" 
+               style={{ backgroundImage: "url('https://images.unsplash.com/photo-1517248135467-4c7edcad34b4?ixlib=rb-4.0.3&auto=format&fit=crop&q=80')" }}>
+          </div>
+
+          {/* Botón de registro solo para superusuario, en la parte inferior */}
+          {isSuper && (
+            <div className="p-6 bg-[#001F3F]/90 border-t border-white/10">
+              <button
+                onClick={handleCreateUser}
+                className="w-full bg-gray-100 text-gray-800 py-3 rounded-lg shadow-md hover:shadow-lg hover:-translate-y-1 transition-all duration-200 font-medium text-base border border-blue-200"
+              >
+                Registrar Nuevo Usuario
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Contenido principal */}
+      <div className="flex-1 lg:ml-80">
         <Header />
         <main className="p-8">
           <h1 className="text-3xl font-bold text-[#001F3F] mb-8">
             Bienvenido al Dashboard
           </h1>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-lg shadow hover:shadow-lg cursor-pointer">
-              <h2 className="text-xl font-semibold">Productos</h2>
-              <p className="text-gray-600 mt-2">Gestiona inventario y stock</p>
-            </div>
+ 
+ {/* Grid de 6 botones grandes - gris más oscuro, reborde azul más grueso y sombra 3D */}
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+  {/* Productos */}
+  <div 
+    onClick={() => router.push('/products')}
+    className="bg-gray-200 p-8 rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border-2 border-blue-300 flex flex-col justify-between"
+  >
+    <h2 className="text-2xl font-semibold text-gray-800 mb-3">Productos</h2>
+    <p className="text-gray-600">Gestiona inventario y stock</p>
+  </div>
 
-            <div className="bg-white p-6 rounded-lg shadow hover:shadow-lg cursor-pointer">
-              <h2 className="text-xl font-semibold">Recetas</h2>
-              <p className="text-gray-600 mt-2">Estandarización y creación</p>
-            </div>
+  {/* Recetas */}
+  <div 
+    onClick={() => router.push('/recipes')}
+    className="bg-gray-200 p-8 rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border-2 border-blue-300 flex flex-col justify-between"
+  >
+    <h2 className="text-2xl font-semibold text-gray-800 mb-3">Recetas</h2>
+    <p className="text-gray-600">Estandarización y creación</p>
+  </div>
 
-            <div className="bg-white p-6 rounded-lg shadow hover:shadow-lg cursor-pointer">
-              <h2 className="text-xl font-semibold">Costos</h2>
-              <p className="text-gray-600 mt-2">Costeo y determinación de precios</p>
-            </div>
-          </div>
+  {/* Costos */}
+  <div 
+    onClick={() => router.push('/costs')}
+    className="bg-gray-200 p-8 rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border-2 border-blue-300 flex flex-col justify-between"
+  >
+    <h2 className="text-2xl font-semibold text-gray-800 mb-3">Costos</h2>
+    <p className="text-gray-600">Costeo y determinación de precios</p>
+  </div>
 
-          {/* Botón solo para superusuario */}
-          {isSuper && (
-            <div className="mt-10">
-              <button
-                onClick={handleCreateUser}
-                className="bg-[#001F3F] text-white px-8 py-4 rounded-lg shadow-md hover:bg-blue-900 hover:shadow-lg transition-all duration-200 font-medium text-lg"
-              >
-                Registrar Nuevo Usuario
-              </button>
-            </div>
-          )}
+  {/* Ventas */}
+  <div 
+    onClick={() => router.push('/ventas')}
+    className="bg-gray-200 p-8 rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border-2 border-blue-300 flex flex-col justify-between"
+  >
+    <h2 className="text-2xl font-semibold text-gray-800 mb-3">Ventas</h2>
+    <p className="text-gray-600">Consulta el registro de ventas</p>
+  </div>
+
+  {/* Menú */}
+  <div 
+    onClick={() => router.push('/menu')}
+    className="bg-gray-200 p-8 rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border-2 border-blue-300 flex flex-col justify-between"
+  >
+    <h2 className="text-2xl font-semibold text-gray-800 mb-3">Menú</h2>
+    <p className="text-gray-600">Consulta el menú completo estandarizado</p>
+  </div>
+
+  {/* Reportes */}
+  <div 
+    onClick={() => router.push('/reportes')}
+    className="bg-gray-200 p-8 rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border-2 border-blue-300 flex flex-col justify-between"
+  >
+    <h2 className="text-2xl font-semibold text-gray-800 mb-3">Reportes</h2>
+    <p className="text-gray-600">Accede a los diferentes reportes de cada módulo</p>
+  </div>
+</div>
         </main>
       </div>
     </div>
