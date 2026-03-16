@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "start": "node dist/app.js",
+    "start:railway": "prisma migrate deploy && node dist/app.js",
     "dev": "ts-node -r dotenv/config src/app.ts",
     "build": "tsc",
     "prisma:generate": "prisma generate",
