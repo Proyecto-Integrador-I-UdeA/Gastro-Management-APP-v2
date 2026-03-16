@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Iniciando seed...');
 
-  // Crear permisos
+  // Crear permisos (ya lo tienes bien)
   const permissions = [
     { name: 'users:read', description: 'Ver lista de usuarios' },
     { name: 'users:create', description: 'Registrar usuarios' },
@@ -36,9 +36,9 @@ async function main() {
     });
   }
 
-  // Crear roles y asignar permisos
+  // Crear roles y asignar permisos (tu código original)
   const rolePermissions = {
-    super: permissions.map(p => p.name), // todos los permisos
+    super: permissions.map(p => p.name), // todos los permisos (incluye users:read)
     admin: [
       'users:read', 'users:create', 'users:update', 'users:delete',
       'suppliers:read', 'suppliers:create', 'suppliers:update', 'suppliers:delete',

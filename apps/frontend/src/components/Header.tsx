@@ -5,7 +5,7 @@ import Button from './Button'; // ajusta la ruta si es necesario
 
 export default function Header() {
   const [currentDateTime, setCurrentDateTime] = useState('');
-  const [userName, setUserName] = useState('Cargando...'); // ← nuevo estado para el nombre
+  const [userName, setUserName] = useState('Cargando...');
   const router = useRouter();
 
   // Fecha y hora
@@ -34,13 +34,11 @@ export default function Header() {
     const token = localStorage.getItem('token');
     if (token) {
       try {
-        // Decodificar JWT sin librería externa (usando atob nativo)
         const payload = JSON.parse(atob(token.split('.')[1]));
-        // Priorizamos fullName, si no existe usamos email
-        setUserName(payload.fullName || payload.email || 'Usuario');
+        setUserName(payload.fullName || payload.email || 'fullName');
       } catch (e) {
         console.error('Error al decodificar token para nombre:', e);
-        setUserName('Usuario');
+        setUserName('fullName');
       }
     } else {
       setUserName('No autenticado');
@@ -70,12 +68,12 @@ export default function Header() {
       {/* Fecha/hora + Nombre + Botón Cerrar Sesión */}
       <div className="flex flex-col items-end space-y-1">
         {/* Fecha y hora */}
-        <div className="text-sm">
+        <div className="text-sm opacity-90">
           {currentDateTime || 'Cargando fecha...'}
         </div>
 
         {/* Nombre del usuario logueado (debajo de la fecha) */}
-        <div className="text-sm font-medium">
+        <div className="text-base font-semibold text-white/95">
           {userName}
         </div>
 
@@ -85,63 +83,5 @@ export default function Header() {
         </Button>
       </div>
     </header>
-  )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  );
 }
