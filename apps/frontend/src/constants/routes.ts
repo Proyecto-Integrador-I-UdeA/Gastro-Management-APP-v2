@@ -13,4 +13,10 @@ export const ROUTES = {
     edit: (id: string | number) =>
       `/products/edit?id=${encodeURIComponent(String(id))}`,
   },
+  suppliers: {
+    list: '/suppliers',
+    create: '/suppliers/create',
+    edit: (id: string | number) =>
+      `/suppliers/edit?id=${encodeURIComponent(String(id))}`,
+  },
 } as const;

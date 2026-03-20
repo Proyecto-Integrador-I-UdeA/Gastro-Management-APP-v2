@@ -2,14 +2,38 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Topbar from '@/components/Topbar';
 import { ROUTES } from '@/constants/routes';
 import { useProductList } from '@/hooks/useProductList';
+import { deleteProductRequest } from '@/lib/productsApi';
+import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import { formatStockDisplay, productLowStock } from '@/types/product';
 
 export default function ProductsPage() {
+  const router = useRouter();
   const { products, loading, error, refetch } = useProductList();
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [hoveredCode, setHoveredCode] = useState<string | null>(null);
+
+  const handleDelete = async (id: number, name: string) => {
+    if (!confirm(`¿Eliminar el producto "${name}"? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+    setDeletingId(id);
+    try {
+      await deleteProductRequest(id);
+      await refetch();
+    } catch (e) {
+      if (isUnauthorized(e)) {
+        router.push('/login');
+        return;
+      }
+      alert(getApiErrorMessage(e, 'No se pudo eliminar el producto'));
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -89,10 +113,28 @@ export default function ProductsPage() {
                         <i className="fa-solid fa-triangle-exclamation warning-icon" title="Stock Bajo"></i>
                       )}
                     </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <Link href={ROUTES.products.edit(prod.id)} className="action-btn">
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <Link
+                        href={ROUTES.products.edit(prod.id)}
+                        className="action-btn"
+                        style={{ marginRight: '0.5rem' }}
+                      >
                         Modificar
                       </Link>
+                      <button
+                        type="button"
+                        className="action-btn"
+                        style={{
+                          border: 'none',
+                          background: 'none',
+                          color: '#b91c1c',
+                          cursor: deletingId === prod.id ? 'wait' : 'pointer',
+                        }}
+                        disabled={deletingId !== null}
+                        onClick={() => void handleDelete(prod.id, prod.name)}
+                      >
+                        {deletingId === prod.id ? '…' : 'Eliminar'}
+                      </button>
                     </td>
                   </tr>
                 ))

@@ -55,3 +55,7 @@ export async function updateProductRequest(
   });
   return normalizeProductFromApi(data);
 }
+
+export async function deleteProductRequest(id: number): Promise<void> {
+  await apiFetch<undefined>(`/products/${id}`, { method: 'DELETE' });
+}

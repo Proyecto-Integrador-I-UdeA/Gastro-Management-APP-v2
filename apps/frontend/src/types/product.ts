@@ -2,15 +2,10 @@
  * Product JSON aligned with Prisma `Product` + optional `supplier` include.
  * `unitCost` may arrive as string from JSON (Prisma Decimal).
  */
-export interface ProductSupplier {
-  id: number;
-  internalCode: string;
-  name: string;
-  taxId: string;
-  phone: string;
-  address: string;
-  contactPerson: string;
-}
+import type { Supplier } from './supplier';
+
+/** Same entity as `Supplier` when embedded on a product */
+export type ProductSupplier = Supplier;
 
 export interface Product {
   id: number;

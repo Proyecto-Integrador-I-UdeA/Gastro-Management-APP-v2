@@ -83,6 +83,15 @@ export default function Dashboard() {
               <p className="text-gray-600">Gestiona inventario y stock</p>
             </div>
 
+            {/* Proveedores */}
+            <div 
+              onClick={() => router.push(ROUTES.suppliers.list)}
+              className="bg-gray-200 p-8 rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border-2 border-blue-300 flex flex-col justify-between"
+            >
+              <h2 className="text-2xl font-semibold text-gray-800 mb-3">Proveedores</h2>
+              <p className="text-gray-600">Directorio y datos de contacto</p>
+            </div>
+
             {/* Recetas */}
             <div 
               onClick={() => router.push('/recipes')}
