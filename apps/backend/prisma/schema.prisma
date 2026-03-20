@@ -26,6 +26,7 @@ model Product {
   id                 Int       @id @default(autoincrement())
   internalCode       String
   name               String
+  category           String    @default("")
   isIngredient       Boolean
   isSupply           Boolean
   isFinishedProduct  Boolean

@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Topbar from '@/components/Topbar';
 import { ROUTES } from '@/constants/routes';
+import { MOCK_SUPPLIERS } from '@/data/productSeed';
 import { useProducts } from '@/hooks/useProducts';
+import type { Product } from '@/types/product';
 
 function ProductEditContent() {
   const router = useRouter();
@@ -14,60 +16,80 @@ function ProductEditContent() {
 
   const { products, updateProduct, isLoaded } = useProducts();
 
-  const [code, setCode] = useState('');
+  const [productId, setProductId] = useState<number | null>(null);
+  const [internalCode, setInternalCode] = useState('');
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
-  const [unit, setUnit] = useState('kg');
+  const [presentation, setPresentation] = useState('');
+  const [isIngredient, setIsIngredient] = useState(true);
+  const [isSupply, setIsSupply] = useState(false);
+  const [isFinishedProduct, setIsFinishedProduct] = useState(false);
+  const [unitOfMeasure, setUnitOfMeasure] = useState('kg');
   const [currentStock, setCurrentStock] = useState('0');
   const [expiryDate, setExpiryDate] = useState('');
   const [minStock, setMinStock] = useState('');
   const [maxStock, setMaxStock] = useState('');
-  const [supplier, setSupplier] = useState('');
-  const [cost, setCost] = useState('');
+  const [supplierId, setSupplierId] = useState('');
+  const [unitCost, setUnitCost] = useState('');
 
   useEffect(() => {
     if (!isLoaded || !codeParam) return;
 
-    const product = products.find((p) => p.code === codeParam);
+    const product = products.find((p) => p.internalCode === codeParam);
     if (!product) return;
 
-    setCode(product.code);
+    setProductId(product.id);
+    setInternalCode(product.internalCode);
     setName(product.name || '');
     setCategory(product.category || '');
-
-    let stockVal = 0;
-    let unitStr = 'kg';
-    if (product.stock) {
-      const parts = product.stock.split(' ');
-      if (parts.length > 0) stockVal = parseFloat(parts[0]) || 0;
-      if (parts.length > 1) unitStr = parts[1];
-    }
-
-    setUnit(unitStr);
-    setCurrentStock(stockVal.toString());
-    setExpiryDate(product.expiryDate || '');
-    setMinStock(product.minStock || '0');
-    setMaxStock(product.maxStock || '0');
-    setSupplier(product.supplier || '');
-    setCost(product.cost || '0');
+    setPresentation(product.presentation || 'Granel');
+    setIsIngredient(product.isIngredient);
+    setIsSupply(product.isSupply);
+    setIsFinishedProduct(product.isFinishedProduct);
+    setUnitOfMeasure(product.unitOfMeasure || 'kg');
+    setCurrentStock(String(product.currentStock ?? 0));
+    setExpiryDate(product.expirationDate ? product.expirationDate.slice(0, 10) : '');
+    setMinStock(String(product.minStock ?? 0));
+    setMaxStock(String(product.maxStock ?? 0));
+    setSupplierId(String(product.supplierId));
+    setUnitCost(String(product.unitCost ?? 0));
   }, [isLoaded, codeParam, products]);
 
   const handleUpdate = () => {
+    if (productId == null) {
+      alert('No se encontró el producto.');
+      return;
+    }
+
+    const sid = Number(supplierId);
+    if (!Number.isFinite(sid)) {
+      alert('Selecciona un proveedor válido.');
+      return;
+    }
+
     const minS = parseFloat(minStock);
     const currS = parseFloat(currentStock);
 
-    updateProduct({
-      code,
+    const updated: Product = {
+      id: productId,
+      internalCode,
       name,
       category,
-      stock: `${parseFloat(currentStock).toFixed(1)} ${unit}`,
-      lowStock: currS < minS,
-      expiryDate,
-      minStock,
-      maxStock,
-      supplier,
-      cost,
-    });
+      isIngredient,
+      isSupply,
+      isFinishedProduct,
+      presentation,
+      unitOfMeasure,
+      expirationDate: expiryDate ? new Date(expiryDate).toISOString() : null,
+      minStock: minS,
+      maxStock: parseFloat(maxStock),
+      currentStock: currS,
+      unitCost: parseFloat(unitCost),
+      supplierId: sid,
+      supplier: MOCK_SUPPLIERS.find((s) => s.id === sid),
+    };
+
+    updateProduct(updated);
 
     alert('¡Producto modificado y actualizado con éxito en la base de datos!');
     router.push(ROUTES.products.list);
@@ -84,10 +106,10 @@ function ProductEditContent() {
           <div className="form-section-header">
             <h3>Detalles del Producto</h3>
             <div className="input-group-inline right-aligned">
-              <label>Código:</label>
+              <label>Código interno:</label>
               <input
                 type="text"
-                value={code}
+                value={internalCode}
                 disabled
                 className="input-disabled text-center"
                 style={{ width: '150px' }}
@@ -116,9 +138,47 @@ function ProductEditContent() {
                 <option value="Grasas">Grasas</option>
               </select>
             </div>
+            <div className="input-group full-width">
+              <label>Presentación:</label>
+              <input
+                type="text"
+                value={presentation}
+                onChange={(e) => setPresentation(e.target.value)}
+                className="input-field"
+              />
+            </div>
+            <div className="input-group full-width field-stack">
+              <label>Tipo de ítem</label>
+              <div className="product-type-options" role="group" aria-label="Tipo de ítem">
+                <label className="product-type-option">
+                  <input
+                    type="checkbox"
+                    checked={isIngredient}
+                    onChange={(e) => setIsIngredient(e.target.checked)}
+                  />
+                  <span>Ingrediente</span>
+                </label>
+                <label className="product-type-option">
+                  <input type="checkbox" checked={isSupply} onChange={(e) => setIsSupply(e.target.checked)} />
+                  <span>Insumo</span>
+                </label>
+                <label className="product-type-option">
+                  <input
+                    type="checkbox"
+                    checked={isFinishedProduct}
+                    onChange={(e) => setIsFinishedProduct(e.target.checked)}
+                  />
+                  <span>Producto terminado</span>
+                </label>
+              </div>
+            </div>
             <div className="input-group">
               <label>Unidad de Medida:</label>
-              <select value={unit} onChange={(e) => setUnit(e.target.value)} className="input-field">
+              <select
+                value={unitOfMeasure}
+                onChange={(e) => setUnitOfMeasure(e.target.value)}
+                className="input-field"
+              >
                 <option value="kg">Kilogramo (kg)</option>
                 <option value="L">Litro (L)</option>
                 <option value="und">Unidad (und)</option>
@@ -185,28 +245,27 @@ function ProductEditContent() {
           <div className="form-grid">
             <div className="input-group full-width">
               <label>Proveedor:</label>
-              <select value={supplier} onChange={(e) => setSupplier(e.target.value)} className="input-field">
-                <option value="Pollos Bucanero">Pollos Bucanero</option>
-                <option value="Distribuidora San Juan">Distribuidora San Juan</option>
-                <option value="Mercados del Campo">Mercados del Campo</option>
+              <select
+                value={supplierId}
+                onChange={(e) => setSupplierId(e.target.value)}
+                className="input-field"
+              >
+                {MOCK_SUPPLIERS.map((s) => (
+                  <option key={s.id} value={String(s.id)}>
+                    {s.name}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="input-group-inline start-aligned">
-              <label>Costo Unitario:</label>
+              <label>Costo unitario:</label>
               <input
-                type="text"
-                value={cost}
-                onChange={(e) => setCost(e.target.value)}
+                type="number"
+                value={unitCost}
+                onChange={(e) => setUnitCost(e.target.value)}
                 className="input-field short-input"
+                step="0.01"
               />
-            </div>
-            <div className="input-group-inline start-aligned">
-              <label>Moneda:</label>
-              <select className="input-field short-input" defaultValue="USD">
-                <option value="USD">USD</option>
-                <option value="COP">COP</option>
-                <option value="MXN">MXN</option>
-              </select>
             </div>
           </div>
         </section>

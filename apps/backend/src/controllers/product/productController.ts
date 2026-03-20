@@ -52,6 +52,7 @@ export const createProduct = async (req: Request, res: Response) => {
       data: {
         internalCode: data.internalCode,
         name: data.name,
+        category: data.category ?? '',
         isIngredient: data.isIngredient,
         isSupply: data.isSupply,
         isFinishedProduct: data.isFinishedProduct,
@@ -93,6 +94,7 @@ export const updateProduct = async (req: Request, res: Response) => {
   const updateData: Prisma.ProductUpdateInput = {};
   if (data.internalCode !== undefined) updateData.internalCode = data.internalCode;
   if (data.name !== undefined) updateData.name = data.name;
+  if (data.category !== undefined) updateData.category = data.category;
   if (data.isIngredient !== undefined) updateData.isIngredient = data.isIngredient;
   if (data.isSupply !== undefined) updateData.isSupply = data.isSupply;
   if (data.isFinishedProduct !== undefined) updateData.isFinishedProduct = data.isFinishedProduct;

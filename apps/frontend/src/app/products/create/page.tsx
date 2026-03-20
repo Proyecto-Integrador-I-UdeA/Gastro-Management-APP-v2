@@ -5,49 +5,64 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Topbar from '@/components/Topbar';
 import { ROUTES } from '@/constants/routes';
+import { MOCK_SUPPLIERS } from '@/data/productSeed';
 import { useProducts } from '@/hooks/useProducts';
 
 export default function ProductCreatePage() {
   const router = useRouter();
   const { saveProduct } = useProducts();
 
-  const [code, setCode] = useState('');
+  const [internalCode, setInternalCode] = useState('');
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
-  const [unit, setUnit] = useState('');
+  const [presentation, setPresentation] = useState('Granel');
+  const [isIngredient, setIsIngredient] = useState(true);
+  const [isSupply, setIsSupply] = useState(false);
+  const [isFinishedProduct, setIsFinishedProduct] = useState(false);
+  const [unitOfMeasure, setUnitOfMeasure] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [minStock, setMinStock] = useState('');
   const [maxStock, setMaxStock] = useState('');
-  const [supplier, setSupplier] = useState('');
-  const [cost, setCost] = useState('');
+  const [supplierId, setSupplierId] = useState('');
+  const [unitCost, setUnitCost] = useState('');
 
   const handleSave = () => {
     if (
-      !code ||
+      !internalCode ||
       !name ||
       !category ||
-      !unit ||
-      !expiryDate ||
+      !presentation ||
+      !unitOfMeasure ||
       !minStock ||
       !maxStock ||
-      !supplier ||
-      !cost
+      !supplierId ||
+      unitCost === ''
     ) {
-      alert('Por favor completa todos los campos del producto antes de guardar.');
+      alert('Por favor completa todos los campos obligatorios del producto antes de guardar.');
+      return;
+    }
+
+    const sid = Number(supplierId);
+    if (!Number.isFinite(sid)) {
+      alert('Selecciona un proveedor válido.');
       return;
     }
 
     saveProduct({
-      code,
+      internalCode,
       name,
       category,
-      stock: `0.0 ${unit}`,
-      lowStock: true,
-      expiryDate,
-      minStock,
-      maxStock,
-      supplier,
-      cost,
+      isIngredient,
+      isSupply,
+      isFinishedProduct,
+      presentation,
+      unitOfMeasure,
+      expirationDate: expiryDate ? new Date(expiryDate).toISOString() : null,
+      minStock: parseFloat(minStock),
+      maxStock: parseFloat(maxStock),
+      currentStock: 0,
+      unitCost: parseFloat(unitCost),
+      supplierId: sid,
     });
 
     alert('¡Producto guardado exitosamente!');
@@ -63,11 +78,11 @@ export default function ProductCreatePage() {
           <div className="form-section-header">
             <h3>Detalles del Producto</h3>
             <div className="input-group-inline right-aligned">
-              <label>Código:</label>
+              <label>Código interno:</label>
               <input
                 type="text"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
+                value={internalCode}
+                onChange={(e) => setInternalCode(e.target.value)}
                 placeholder="Ej: PR-NUE-01"
                 className="input-field text-center"
                 style={{ width: '150px' }}
@@ -100,9 +115,48 @@ export default function ProductCreatePage() {
                 <option value="Grasas">Grasas</option>
               </select>
             </div>
+            <div className="input-group full-width">
+              <label>Presentación:</label>
+              <input
+                type="text"
+                value={presentation}
+                onChange={(e) => setPresentation(e.target.value)}
+                className="input-field"
+                placeholder="Ej: Granel, Empaque, Envase"
+              />
+            </div>
+            <div className="input-group full-width field-stack">
+              <label>Tipo de ítem</label>
+              <div className="product-type-options" role="group" aria-label="Tipo de ítem">
+                <label className="product-type-option">
+                  <input
+                    type="checkbox"
+                    checked={isIngredient}
+                    onChange={(e) => setIsIngredient(e.target.checked)}
+                  />
+                  <span>Ingrediente</span>
+                </label>
+                <label className="product-type-option">
+                  <input type="checkbox" checked={isSupply} onChange={(e) => setIsSupply(e.target.checked)} />
+                  <span>Insumo</span>
+                </label>
+                <label className="product-type-option">
+                  <input
+                    type="checkbox"
+                    checked={isFinishedProduct}
+                    onChange={(e) => setIsFinishedProduct(e.target.checked)}
+                  />
+                  <span>Producto terminado</span>
+                </label>
+              </div>
+            </div>
             <div className="input-group">
               <label>Unidad de Medida:</label>
-              <select value={unit} onChange={(e) => setUnit(e.target.value)} className="input-field">
+              <select
+                value={unitOfMeasure}
+                onChange={(e) => setUnitOfMeasure(e.target.value)}
+                className="input-field"
+              >
                 <option value="" disabled>
                   Unidad
                 </option>
@@ -112,7 +166,7 @@ export default function ProductCreatePage() {
               </select>
             </div>
             <div className="input-group">
-              <label>Fecha de Vencimiento:</label>
+              <label>Fecha de Vencimiento (opcional):</label>
               <div className="date-input-wrapper">
                 <i className="fa-regular fa-calendar input-icon"></i>
                 <input
@@ -165,32 +219,31 @@ export default function ProductCreatePage() {
           <div className="form-grid">
             <div className="input-group full-width">
               <label>Proveedor:</label>
-              <select value={supplier} onChange={(e) => setSupplier(e.target.value)} className="input-field">
+              <select
+                value={supplierId}
+                onChange={(e) => setSupplierId(e.target.value)}
+                className="input-field"
+              >
                 <option value="" disabled>
                   Seleccione Proveedor
                 </option>
-                <option value="Distribuidora San Juan">Distribuidora San Juan</option>
-                <option value="Mercados del Campo">Mercados del Campo</option>
+                {MOCK_SUPPLIERS.map((s) => (
+                  <option key={s.id} value={String(s.id)}>
+                    {s.name}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="input-group-inline start-aligned">
-              <label>Costo Unitario:</label>
+              <label>Costo unitario:</label>
               <input
                 type="number"
-                value={cost}
-                onChange={(e) => setCost(e.target.value)}
+                value={unitCost}
+                onChange={(e) => setUnitCost(e.target.value)}
                 className="input-field short-input"
                 placeholder="0.00"
                 step="0.01"
               />
-            </div>
-            <div className="input-group-inline start-aligned">
-              <label>Moneda:</label>
-              <select className="input-field short-input" defaultValue="USD">
-                <option value="USD">USD</option>
-                <option value="COP">COP</option>
-                <option value="MXN">MXN</option>
-              </select>
             </div>
           </div>
         </section>

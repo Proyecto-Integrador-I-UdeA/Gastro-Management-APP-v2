@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Topbar from '@/components/Topbar';
 import { ROUTES } from '@/constants/routes';
 import { useProducts } from '@/hooks/useProducts';
+import { formatStockDisplay, productLowStock } from '@/types/product';
 
 export default function ProductsPage() {
   const { products, isLoaded } = useProducts();
@@ -45,24 +46,24 @@ export default function ProductsPage() {
             <tbody>
               {products.map((prod) => (
                 <tr
-                  key={prod.code}
-                  className={hoveredCode === prod.code ? 'active-row' : ''}
-                  onMouseEnter={() => setHoveredCode(prod.code)}
+                  key={prod.internalCode}
+                  className={hoveredCode === prod.internalCode ? 'active-row' : ''}
+                  onMouseEnter={() => setHoveredCode(prod.internalCode)}
                   onMouseLeave={() => setHoveredCode(null)}
                 >
-                  <td>{prod.code}</td>
+                  <td>{prod.internalCode}</td>
                   <td>
                     <strong>{prod.name}</strong>
                   </td>
                   <td>{prod.category}</td>
                   <td>
-                    {prod.stock}
-                    {prod.lowStock && (
+                    {formatStockDisplay(prod)}
+                    {productLowStock(prod) && (
                       <i className="fa-solid fa-triangle-exclamation warning-icon" title="Stock Bajo"></i>
                     )}
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    <Link href={ROUTES.products.edit(prod.code)} className="action-btn">
+                    <Link href={ROUTES.products.edit(prod.internalCode)} className="action-btn">
                       Modificar
                     </Link>
                   </td>
