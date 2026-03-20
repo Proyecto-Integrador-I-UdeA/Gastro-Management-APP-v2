@@ -10,7 +10,7 @@ export const ROUTES = {
   products: {
     list: '/products',
     create: '/products/create',
-    edit: (code: string) =>
-      `/products/edit?code=${encodeURIComponent(code)}`,
+    edit: (id: string | number) =>
+      `/products/edit?id=${encodeURIComponent(String(id))}`,
   },
 } as const;

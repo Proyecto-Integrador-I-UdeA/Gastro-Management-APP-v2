@@ -5,18 +5,22 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Topbar from '@/components/Topbar';
 import { ROUTES } from '@/constants/routes';
-import { MOCK_SUPPLIERS } from '@/data/productSeed';
-import { useProducts } from '@/hooks/useProducts';
-import type { Product } from '@/types/product';
+import { fetchProductById, updateProductRequest } from '@/lib/productsApi';
+import { fetchSuppliers } from '@/lib/suppliersApi';
+import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
+import type { ProductSupplier } from '@/types/product';
 
 function ProductEditContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const codeParam = searchParams?.get('code') ?? null;
+  const idParam = searchParams?.get('id');
+  const productId = idParam ? parseInt(idParam, 10) : NaN;
 
-  const { products, updateProduct, isLoaded } = useProducts();
+  const [suppliers, setSuppliers] = useState<ProductSupplier[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const [productId, setProductId] = useState<number | null>(null);
   const [internalCode, setInternalCode] = useState('');
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
@@ -33,33 +37,56 @@ function ProductEditContent() {
   const [unitCost, setUnitCost] = useState('');
 
   useEffect(() => {
-    if (!isLoaded || !codeParam) return;
-
-    const product = products.find((p) => p.internalCode === codeParam);
-    if (!product) return;
-
-    setProductId(product.id);
-    setInternalCode(product.internalCode);
-    setName(product.name || '');
-    setCategory(product.category || '');
-    setPresentation(product.presentation || 'Granel');
-    setIsIngredient(product.isIngredient);
-    setIsSupply(product.isSupply);
-    setIsFinishedProduct(product.isFinishedProduct);
-    setUnitOfMeasure(product.unitOfMeasure || 'kg');
-    setCurrentStock(String(product.currentStock ?? 0));
-    setExpiryDate(product.expirationDate ? product.expirationDate.slice(0, 10) : '');
-    setMinStock(String(product.minStock ?? 0));
-    setMaxStock(String(product.maxStock ?? 0));
-    setSupplierId(String(product.supplierId));
-    setUnitCost(String(product.unitCost ?? 0));
-  }, [isLoaded, codeParam, products]);
-
-  const handleUpdate = () => {
-    if (productId == null) {
-      alert('No se encontró el producto.');
+    if (!Number.isFinite(productId) || productId < 1) {
+      setLoading(false);
+      setLoadError('ID de producto no válido');
       return;
     }
+
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const [product, supplierList] = await Promise.all([
+          fetchProductById(productId),
+          fetchSuppliers(),
+        ]);
+        if (cancelled) return;
+        setSuppliers(supplierList);
+        setInternalCode(product.internalCode);
+        setName(product.name || '');
+        setCategory(product.category || '');
+        setPresentation(product.presentation || 'Granel');
+        setIsIngredient(product.isIngredient);
+        setIsSupply(product.isSupply);
+        setIsFinishedProduct(product.isFinishedProduct);
+        setUnitOfMeasure(product.unitOfMeasure || 'kg');
+        setCurrentStock(String(product.currentStock ?? 0));
+        setExpiryDate(product.expirationDate ? product.expirationDate.slice(0, 10) : '');
+        setMinStock(String(product.minStock ?? 0));
+        setMaxStock(String(product.maxStock ?? 0));
+        setSupplierId(String(product.supplierId));
+        setUnitCost(String(product.unitCost ?? 0));
+      } catch (e) {
+        if (cancelled) return;
+        if (isUnauthorized(e)) {
+          router.push('/login');
+          return;
+        }
+        setLoadError(getApiErrorMessage(e, 'No se pudo cargar el producto'));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [productId, router]);
+
+  const handleUpdate = async () => {
+    if (!Number.isFinite(productId) || productId < 1) return;
 
     const sid = Number(supplierId);
     if (!Number.isFinite(sid)) {
@@ -67,35 +94,60 @@ function ProductEditContent() {
       return;
     }
 
-    const minS = parseFloat(minStock);
-    const currS = parseFloat(currentStock);
-
-    const updated: Product = {
-      id: productId,
-      internalCode,
-      name,
-      category,
-      isIngredient,
-      isSupply,
-      isFinishedProduct,
-      presentation,
-      unitOfMeasure,
-      expirationDate: expiryDate ? new Date(expiryDate).toISOString() : null,
-      minStock: minS,
-      maxStock: parseFloat(maxStock),
-      currentStock: currS,
-      unitCost: parseFloat(unitCost),
-      supplierId: sid,
-      supplier: MOCK_SUPPLIERS.find((s) => s.id === sid),
-    };
-
-    updateProduct(updated);
-
-    alert('¡Producto modificado y actualizado con éxito en la base de datos!');
-    router.push(ROUTES.products.list);
+    setSubmitting(true);
+    try {
+      await updateProductRequest(productId, {
+        internalCode,
+        name,
+        category,
+        isIngredient,
+        isSupply,
+        isFinishedProduct,
+        presentation,
+        unitOfMeasure,
+        expirationDate: expiryDate ? new Date(expiryDate).toISOString() : null,
+        minStock: parseFloat(minStock),
+        maxStock: parseFloat(maxStock),
+        currentStock: parseFloat(currentStock),
+        unitCost: parseFloat(unitCost),
+        supplierId: sid,
+      });
+      router.push(ROUTES.products.list);
+    } catch (e) {
+      if (isUnauthorized(e)) {
+        router.push('/login');
+        return;
+      }
+      alert(getApiErrorMessage(e, 'No se pudo actualizar el producto'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  if (!isLoaded) return null;
+  if (loading) {
+    return (
+      <>
+        <Topbar title="Modificar Producto" />
+        <div className="content-card" style={{ padding: '2rem', textAlign: 'center' }}>
+          Cargando…
+        </div>
+      </>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <>
+        <Topbar title="Modificar Producto" />
+        <div className="content-card" style={{ padding: '1.5rem' }}>
+          <p style={{ color: '#b91c1c' }}>{loadError}</p>
+          <Link href={ROUTES.products.list} className="btn btn-outline mt-4 inline-block">
+            Volver al listado
+          </Link>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -250,7 +302,7 @@ function ProductEditContent() {
                 onChange={(e) => setSupplierId(e.target.value)}
                 className="input-field"
               >
-                {MOCK_SUPPLIERS.map((s) => (
+                {suppliers.map((s) => (
                   <option key={s.id} value={String(s.id)}>
                     {s.name}
                   </option>
@@ -278,8 +330,13 @@ function ProductEditContent() {
           >
             Cancelar
           </Link>
-          <button type="button" className="btn btn-success" onClick={handleUpdate}>
-            Modificar Producto
+          <button
+            type="button"
+            className="btn btn-success"
+            onClick={() => void handleUpdate()}
+            disabled={submitting}
+          >
+            {submitting ? 'Guardando…' : 'Modificar Producto'}
           </button>
         </div>
       </div>
