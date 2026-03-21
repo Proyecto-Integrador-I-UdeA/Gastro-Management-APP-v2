@@ -1,8 +1,9 @@
-// src/utils/api.ts
+// src/utils/api.ts — axios (used by src/pages/*). App routes use utils/apiFetch.ts.
 import axios from 'axios';
+import { API_BASE_URL } from '@/config/apiBase';
 
 const api = axios.create({
-  baseURL: 'http://localhost:3001', // URL de tu backend (cambia a producción cuando subas)
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },

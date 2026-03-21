@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
 import { isSuperUser, getUserRole } from '../utils/auth';
+import { ROUTES } from '../constants/routes';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -75,11 +76,20 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
             {/* Productos */}
             <div 
-              onClick={() => router.push('/products')}
+              onClick={() => router.push(ROUTES.products.list)}
               className="bg-gray-200 p-8 rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border-2 border-blue-300 flex flex-col justify-between"
             >
               <h2 className="text-2xl font-semibold text-gray-800 mb-3">Productos</h2>
               <p className="text-gray-600">Gestiona inventario y stock</p>
+            </div>
+
+            {/* Proveedores */}
+            <div 
+              onClick={() => router.push(ROUTES.suppliers.list)}
+              className="bg-gray-200 p-8 rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border-2 border-blue-300 flex flex-col justify-between"
+            >
+              <h2 className="text-2xl font-semibold text-gray-800 mb-3">Proveedores</h2>
+              <p className="text-gray-600">Directorio y datos de contacto</p>
             </div>
 
             {/* Recetas */}
