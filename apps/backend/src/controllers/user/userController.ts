@@ -18,11 +18,28 @@ export const getUsers = async (req: Request, res: Response) => {
         createdAt: true,
       },
     });
-
     res.json(users);
   } catch (error) {
     console.error('Error al obtener usuarios:', error);
     res.status(500).json({ error: 'Error interno al obtener la lista de usuarios' });
+  }
+};
+
+// GET /users/:id - Obtiene un usuario por ID
+export const getUserById = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: Number(id) },
+      include: { role: { select: { name: true } } },
+    });
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    res.json(user);
+  } catch (error) {
+    console.error('Error al obtener usuario por ID:', error);
+    res.status(500).json({ error: 'Error interno al obtener el usuario' });
   }
 };
 
@@ -32,11 +49,10 @@ export const updateUser = async (req: Request, res: Response) => {
 
   // Validación con Zod
   const validation = updateUserSchema.safeParse(req.body);
-
   if (!validation.success) {
     return res.status(400).json({
       error: 'Datos inválidos',
-      details: validation.error.flatten().fieldErrors  // FORMA CORRECTA Y ACTUAL DE ZOD
+      details: validation.error.flatten().fieldErrors,
     });
   }
 
@@ -46,7 +62,6 @@ export const updateUser = async (req: Request, res: Response) => {
     const existingUser = await prisma.user.findUnique({
       where: { id: Number(id) },
     });
-
     if (!existingUser) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
@@ -81,25 +96,20 @@ export const updateUser = async (req: Request, res: Response) => {
 // DELETE /users/:id - Inactiva usuario (soft delete)
 export const deleteUser = async (req: Request, res: Response) => {
   const { id } = req.params;
-
   try {
     const user = await prisma.user.findUnique({
       where: { id: Number(id) },
     });
-
     if (!user) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
-
     if (!user.active) {
       return res.status(400).json({ error: 'El usuario ya está inactivo' });
     }
-
     await prisma.user.update({
       where: { id: Number(id) },
       data: { active: false },
     });
-
     res.json({ message: 'Usuario inactivado correctamente (soft delete)' });
   } catch (error) {
     console.error('Error al inactivar usuario:', error);

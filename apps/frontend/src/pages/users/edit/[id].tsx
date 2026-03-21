@@ -9,38 +9,46 @@ import Dropdown from '../../../components/Dropdown';
 import Button from '../../../components/Button';
 import { api } from '../../../utils/api';
 
+interface FormData {
+  email: string;
+  fullName: string;
+  password: string;
+  roleId: number | undefined;
+}
 export default function EditUser() {
   const router = useRouter();
   const { id } = router.query;
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     email: '',
     fullName: '',
-    password: '', // opcional
+    password: '',
     roleId: undefined,
   });
 
   useEffect(() => {
     if (!id) return;
 
-
 const fetchUser = async () => {
   try {
-    console.log('Iniciando fetchUser para ID:', id);  // ← log 1: inicia la petición
-    const response = await api.get(`/users/${id}`);
+    console.log('ID recibido:', id);
+    const token = localStorage.getItem('token');
+    console.log('Token que se va a enviar:', token ? 'Sí existe' : 'NO existe');
 
-    console.log('Respuesta completa del GET /users/:id:', response);  // ← log 2: toda la respuesta
-    console.log('Status recibido:', response.status);  // ← log 3: status HTTP
-    console.log('Datos recibidos:', response.data);  // ← log 4: datos del usuario
+    if (!token) {
+      throw new Error('No hay token en localStorage');
+    }
 
-    // Verificamos si la respuesta es exitosa (status 200-299)
+    const response = await api.get(`/users/${id}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    console.log('Respuesta GET:', response.status, response.data);
+
     if (response.status >= 200 && response.status < 300) {
-      if (!response.data || !response.data.id) {
-        console.warn('Datos vacíos o sin ID:', response.data);
-        throw new Error('Usuario no encontrado o datos incompletos');
-      }
-
       setUser(response.data);
       setFormData({
         email: response.data.email || '',
@@ -49,15 +57,16 @@ const fetchUser = async () => {
         roleId: response.data.roleId || undefined,
       });
     } else {
-      throw new Error(`Error ${response.status}: ${response.statusText}`);
+      throw new Error(`Error ${response.status}`);
     }
   } catch (err) {
-    console.error('Error real al cargar usuario:', err);  // ← log 5: error detallado
-    alert('Error al cargar el usuario. Intenta de nuevo.');
+    console.error('Error completo:', err);
+    alert('Error al cargar el usuario. Verifica la consola.');
   } finally {
     setLoading(false);
   }
 };
+
 
     fetchUser();
   }, [id]);
