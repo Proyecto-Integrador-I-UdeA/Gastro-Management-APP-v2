@@ -134,14 +134,7 @@ const fetchUser = async () => {
                 value={formData.fullName}
                 onChange={handleChange}
               />
-              <Input
-                label="Nueva Contraseña (opcional)"
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-              />
-
+          
               {/* Campo Rol */}
               <Dropdown
                 label="Rol"
