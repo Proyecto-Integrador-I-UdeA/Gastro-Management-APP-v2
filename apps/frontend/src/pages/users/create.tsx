@@ -72,7 +72,8 @@ export default function CreateUser() {
                 onChange={(e) => {
                   const selected = e.target.value;
                   console.log('Valor seleccionado en dropdown (crudo):', selected);
-                  const numValue = selected ? Number(selected) : undefined;
+                  if (!selected) return;
+                  const numValue = Number(selected);
                   console.log('Valor convertido a número:', numValue, 'Tipo:', typeof numValue);
                   setValue('roleId', numValue, { shouldValidate: true, shouldDirty: true });
                 }}

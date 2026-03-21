@@ -459,6 +459,52 @@ body {
     width: 100%;
 }
 
+/* Label above content, left-aligned — avoids space-between pushing controls to the right */
+.input-group.field-stack {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 0.5rem;
+}
+
+.input-group.field-stack > label {
+    min-width: 0;
+}
+
+.product-type-options {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.625rem;
+    width: 100%;
+}
+
+.product-type-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-main);
+    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    transition: background-color var(--transition-speed, 0.2s) ease;
+}
+
+.product-type-option:hover {
+    background-color: rgba(28, 60, 84, 0.06);
+}
+
+.product-type-option input[type="checkbox"] {
+    width: 1.05rem;
+    height: 1.05rem;
+    margin: 0;
+    flex-shrink: 0;
+    accent-color: var(--primary-blue, #1c3c54);
+    cursor: pointer;
+}
+
 .input-group-inline {
     display: flex;
     align-items: center;

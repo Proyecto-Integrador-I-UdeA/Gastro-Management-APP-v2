@@ -83,7 +83,12 @@ const fetchUser = async () => {
     e.preventDefault();
 
     // Preparar datos a enviar: solo campos que no estén vacíos
-    const updateData = {};
+    const updateData: {
+      email?: string;
+      fullName?: string;
+      password?: string;
+      roleId?: number;
+    } = {};
     if (formData.email) updateData.email = formData.email;
     if (formData.fullName) updateData.fullName = formData.fullName;
     if (formData.password) updateData.password = formData.password;
