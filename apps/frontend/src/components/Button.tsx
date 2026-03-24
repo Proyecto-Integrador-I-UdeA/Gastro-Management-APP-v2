@@ -1,6 +1,5 @@
 import React from 'react';
 
-// src/components/Button.tsx
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger';
 }
@@ -11,12 +10,16 @@ export default function Button({
   className = '',
   ...props
 }: Readonly<ButtonProps>) {
-  const base = "px-6 py-3 rounded-md font-medium transition shadow-sm";
-  const styles = variant === 'primary'
-    ? 'bg-[#001F3F] text-white hover:bg-blue-900'
-    : variant === 'danger'
-    ? 'bg-red-600 text-white hover:bg-red-700'
-    : 'bg-gray-200 text-gray-800 hover:bg-gray-300';
+
+  const base =
+    "px-4 py-2 text-sm rounded-lg font-medium transition-all duration-200";
+
+  const styles =
+    variant === 'primary'
+      ? 'bg-[#001F3F] text-white hover:bg-[#003366] shadow-md hover:shadow-lg'
+      : variant === 'danger'
+      ? 'bg-red-600 text-white hover:bg-red-700 shadow-md hover:shadow-lg'
+      : 'bg-gray-200 text-gray-800 hover:bg-gray-300';
 
   return (
     <button
@@ -27,6 +30,31 @@ export default function Button({
     </button>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

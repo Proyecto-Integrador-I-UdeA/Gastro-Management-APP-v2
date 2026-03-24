@@ -23,10 +23,10 @@ export default function UsersList() {
   const [isSuper, setIsSuper] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    /*const token = localStorage.getItem('token');
     if (!token) {
       router.push('/login');
-      return;
+     */ return;
     }
 
     setIsSuper(isSuperUser());
