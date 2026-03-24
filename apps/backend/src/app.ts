@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 3001;
 app.use(cors({
   origin: [
     "http://localhost:3000",
-    "https://gastro-management-app-v2.vercel.app"
+    'https://gastro-management-app-v2-co9x9fcsd.vercel.app'
   ],
   credentials: true
 }));
