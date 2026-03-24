@@ -7,13 +7,31 @@ import productRoutes from './routes/products/index';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// 🔥 CORS DINÁMICO (MEJOR SOLUCIÓN)
 app.use(cors({
-  origin: [
-    "http://localhost:3000",
-    'https://gastro-management-app-v2-co9x9fcsd.vercel.app'
-  ],
+  origin: function (origin, callback) {
+    // permitir requests sin origin (postman, etc.)
+    if (!origin) return callback(null, true);
+
+    // permitir localhost
+    if (origin.includes('localhost')) {
+      return callback(null, true);
+    }
+
+    // permitir cualquier deploy de vercel
+    if (origin.includes('vercel.app')) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
+
+// 🔥 IMPORTANTE PARA PREFLIGHT
+app.options('*', cors());
+
 app.use(express.json());
 
 app.use('/auth', authRoutes);
@@ -28,3 +46,27 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor backend corriendo en http://localhost:${PORT}`);
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
