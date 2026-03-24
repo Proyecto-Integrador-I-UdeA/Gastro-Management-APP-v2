@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import { api } from '../../utils/api';
 import { isSuperUser } from '../../utils/auth';
@@ -97,17 +97,18 @@ export default function UsersList() {
                 <td className="px-6 py-4 text-sm">{user.fullName || '-'}</td>
                 <td className="px-6 py-4 text-sm">{user.role?.name || 'Sin rol'}</td>
 
-                <td className="px-6 py-4 text-sm">
-                  <span
-                    className={`px-2 inline-flex text-xs font-semibold rounded-full ${
-                      user.active
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}
-                  >
-                    {user.active ? 'Activo' : 'Inactivo'}
-                  </span>
-                </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm">
+  <span
+    className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+      user.active
+        ? 'bg-green-100 text-green-800'
+        : 'bg-red-100 text-red-800'
+    }`}
+  >
+    {user.active ? 'Activo' : 'Inactivo'}
+  </span>
+</td>
+                      
 
                 {isSuper && (
                   <td className="px-6 py-4 text-sm">
@@ -222,17 +223,6 @@ export default function UsersList() {
 
 
 
-
-
-
-
-
-
-
-
-
-
-red-800'}`}>
 
 
 
