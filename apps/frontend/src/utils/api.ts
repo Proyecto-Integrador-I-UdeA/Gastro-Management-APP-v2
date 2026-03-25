@@ -1,6 +1,9 @@
-// src/utils/api.ts — axios (used by src/pages/*). App routes use utils/apiFetch.ts.
+// src/utils/api.ts
 import axios from 'axios';
-import { API_BASE_URL } from '@/config/apiBase';
+
+// 🔥 usamos variable de entorno
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -9,13 +12,31 @@ const api = axios.create({
   },
 });
 
-// Interceptor para agregar token automáticamente a todas las peticiones
+// Interceptor para agregar token automáticamente
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
   }
   return config;
 });
 
 export { api };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

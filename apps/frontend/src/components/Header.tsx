@@ -41,7 +41,7 @@ import Logo from './Logo';
 
   // Obtener nombre del usuario desde el token
   useEffect(() => {
-  /*  const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token');
     if (token) {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
@@ -53,7 +53,7 @@ import Logo from './Logo';
     } else {
      setUserName('No autenticado');
     } 
-  */}, []);
+  }, []);
 
   const handleLogout = () => {
     if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
