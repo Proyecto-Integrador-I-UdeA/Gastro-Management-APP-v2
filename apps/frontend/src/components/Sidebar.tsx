@@ -29,6 +29,7 @@ export default function Sidebar() {
           })
           .map((item) => {
             const active = pathname === item.path;
+            const safePath = pathname || '';
 
             return (
               <button
@@ -56,17 +57,17 @@ export default function Sidebar() {
       <div className="mt-auto p-4">
   <img
   src={
-    pathname.includes('/suppliers/create')
+    safePath.includes('/suppliers/create')
       ? '/images/sidebar-proveedores-create.jpg'
-      : pathname.includes('/suppliers/edit')
+      : safePath.includes('/suppliers/edit')
       ? '/images/sidebar-proveedores-edit.jpg'
-      : pathname.includes('/suppliers')
+      : safePath.includes('/suppliers')
       ? '/images/sidebar-proveedores.jpg'
-      : pathname.includes('/products/create')
+      : safePath.includes('/products/create')
       ? '/images/sidebar-productos-create.jpg'
-      : pathname.includes('/products/edit')
+      : safePath.includes('/products/edit')
       ? '/images/sidebar-productos-edit.jpg'
-      : pathname.includes('/products')
+      : safePath.includes('/products')
       ? '/images/sidebar-productos.jpg'
       : '/images/sidebar-dashboard.jpg'
   }
