@@ -4,6 +4,7 @@ import { useRouter, usePathname } from 'next/navigation';
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
+   const safePath = pathname || '';
 
   const menuItems = [
     { name: 'Dashboard', path: '/dashboard', icon: '📈' },
@@ -29,7 +30,7 @@ export default function Sidebar() {
           })
           .map((item) => {
             const active = pathname === item.path;
-            const safePath = pathname || '';
+            
 
             return (
               <button
