@@ -54,11 +54,21 @@ export default function Sidebar() {
 
       {/* 🔥 IMAGEN ABAJO (NUEVO) */}
       <div className="mt-auto p-4">
-       <img
+  <img
   src={
-    pathname === '/suppliers'
+    pathname.includes('/suppliers/create')
+      ? '/images/sidebar-proveedores-create.jpg'
+      : pathname.includes('/suppliers/edit')
+      ? '/images/sidebar-proveedores-edit.jpg'
+      : pathname.includes('/suppliers')
       ? '/images/sidebar-proveedores.jpg'
-      : '/images/sidebar-productos.jpg'
+      : pathname.includes('/products/create')
+      ? '/images/sidebar-productos-create.jpg'
+      : pathname.includes('/products/edit')
+      ? '/images/sidebar-productos-edit.jpg'
+      : pathname.includes('/products')
+      ? '/images/sidebar-productos.jpg'
+      : '/images/sidebar-dashboard.jpg'
   }
   alt="Gestión"
   className="w-full h-80 object-cover shadow-md border border-white/10"

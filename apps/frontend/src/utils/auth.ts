@@ -4,37 +4,51 @@ import * as jose from 'jose';
 interface JwtPayload {
   id: number;
   email: string;
-  role: string;
+  role: string | number;
   iat?: number;
   exp?: number;
 }
 
-export function getUserRole(): string | null {
-  if (globalThis.window === undefined) {
-    console.log('Ejecutando en servidor → no hay localStorage');
-    return null;
-  }
+export function getUserRole(): string | number | null {
+  if (typeof window === 'undefined') return null;
 
   const token = localStorage.getItem('token');
-  if (!token) {
-    console.log('No hay token en localStorage');
-    return null;
-  }
+  if (!token) return null;
 
   try {
     const payload = jose.decodeJwt<JwtPayload>(token);
-    const role = payload.role?.toLowerCase() || null;
-    console.log('Token decodificado con jose. Rol detectado:', role);
-    return role;
-  } catch (error) {
-    console.error('Error al decodificar token con jose:', error);
+    return payload.role ?? null;
+  } catch {
     return null;
   }
 }
 
+// 🔥 normalizamos el rol
+function normalizeRole(role: any): string {
+  if (!role) return '';
+
+  if (typeof role === 'number') {
+    const map: Record<number, string> = {
+      1: 'super',
+      2: 'admin',
+      3: 'chef',
+      4: 'compras',
+      5: 'contabilidad',
+    };
+    return map[role] || '';
+  }
+
+  return String(role).toLowerCase();
+}
+
+// 🔥 helpers
+
 export function isSuperUser(): boolean {
-  const role = getUserRole();
-  const isSuper = role === 'super';
-  console.log('¿Es superusuario?', isSuper, '(rol detectado:', role, ')');
-  return isSuper;
+  const role = normalizeRole(getUserRole());
+  return role === 'super' || role === 'superusuario';
+}
+
+export function isAdmin(): boolean {
+  const role = normalizeRole(getUserRole());
+  return role === 'admin' || role === 'administrador';
 }

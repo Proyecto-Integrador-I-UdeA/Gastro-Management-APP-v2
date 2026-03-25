@@ -69,7 +69,6 @@ export default function EditUser() {
 
     if (formData.email) updateData.email = formData.email;
     if (formData.fullName) updateData.fullName = formData.fullName;
-    if (formData.password) updateData.password = formData.password;
     if (formData.roleId !== undefined) updateData.roleId = formData.roleId;
 
     if (Object.keys(updateData).length === 0) {
@@ -112,14 +111,6 @@ export default function EditUser() {
               label="Nombre Completo"
               name="fullName"
               value={formData.fullName}
-              onChange={handleChange}
-            />
-
-            <Input
-              label="Nueva contraseña (opcional)"
-              type="password"
-              name="password"
-              value={formData.password}
               onChange={handleChange}
             />
 
