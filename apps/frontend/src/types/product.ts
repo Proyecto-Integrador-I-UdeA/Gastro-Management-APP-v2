@@ -23,6 +23,7 @@ export interface Product {
   currentStock: number;
   unitCost: number;
   supplierId: number;
+  active: boolean;
   supplier?: ProductSupplier;
 }
 

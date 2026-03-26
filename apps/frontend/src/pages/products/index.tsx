@@ -7,7 +7,7 @@ import Button from '@/components/Button';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import { ROUTES } from '@/constants/routes';
 import { useProductList } from '@/hooks/useProductList';
-import { deleteProductRequest } from '@/lib/productsApi';
+import { setProductActiveRequest } from '@/lib/productsApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import { formatStockDisplay, productLowStock } from '@/types/product';
 
@@ -16,19 +16,20 @@ export default function ProductsPage() {
   const { products, loading, error, refetch } = useProductList();
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`¿Eliminar el producto "${name}"? Esta acción no se puede deshacer.`)) return;
+  const handleToggleActive = async (id: number, name: string, active: boolean) => {
+    const action = active ? 'inactivar' : 'activar';
+    if (!confirm(`¿Estás seguro de que quieres ${action} el producto "${name}"?`)) return;
 
     setDeletingId(id);
     try {
-      await deleteProductRequest(id);
+      await setProductActiveRequest(id, !active);
       await refetch();
     } catch (e) {
       if (isUnauthorized(e)) {
         router.push('/login');
         return;
       }
-      alert(getApiErrorMessage(e, 'No se pudo eliminar el producto'));
+      alert(getApiErrorMessage(e, `No se pudo ${action} el producto`));
     } finally {
       setDeletingId(null);
     }
@@ -84,14 +85,15 @@ export default function ProductsPage() {
                   <th>Producto</th>
                   <th>Categoría</th>
                   <th>Stock</th>
-                  <th></th>
+                  <th>Estado</th>
+                  <th className="py-2">Acciones</th>
                 </tr>
               </thead>
 
               <tbody>
                 {products.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center py-6">
+                    <td colSpan={6} className="text-center py-6">
                       No hay productos
                     </td>
                   </tr>
@@ -111,7 +113,19 @@ export default function ProductsPage() {
                         )}
                       </td>
 
-                      <td className="text-right space-x-3">
+                      <td>
+                        <span
+                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            prod.active
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {prod.active ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </td>
+
+                      <td className="text-left space-x-3 whitespace-nowrap">
 
                         <Link
                           href={ROUTES.products.edit(prod.id)}
@@ -121,12 +135,18 @@ export default function ProductsPage() {
                         </Link>
 
                         <Button
-                          variant="danger"
+                          variant={prod.active ? 'danger' : 'secondary'}
                           className="text-sm px-3 py-1"
                           disabled={deletingId !== null}
-                          onClick={() => handleDelete(prod.id, prod.name)}
+                          onClick={() =>
+                            handleToggleActive(prod.id, prod.name, prod.active)
+                          }
                         >
-                          {deletingId === prod.id ? '…' : 'Eliminar'}
+                          {deletingId === prod.id
+                            ? '…'
+                            : prod.active
+                              ? 'Inactivar'
+                              : 'Activar'}
                         </Button>
 
                       </td>

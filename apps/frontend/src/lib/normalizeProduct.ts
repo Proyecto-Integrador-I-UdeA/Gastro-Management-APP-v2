@@ -34,5 +34,6 @@ export function normalizeProductFromApi(raw: unknown): Product {
     unitCost: parseUnitCost(r.unitCost),
     supplierId: Number(r.supplierId ?? 0),
     supplier: normalizeSupplierFromApi(r.supplier),
+    active: Boolean(r.active ?? true),
   };
 }

@@ -106,6 +106,7 @@ export const updateProduct = async (req: Request, res: Response) => {
   if (data.currentStock !== undefined) updateData.currentStock = data.currentStock;
   if (data.unitCost !== undefined) updateData.unitCost = new Prisma.Decimal(data.unitCost);
   if (data.supplierId !== undefined) updateData.supplier = { connect: { id: data.supplierId } };
+  if (data.active !== undefined) updateData.active = data.active;
 
   try {
     const product = await prisma.product.update({

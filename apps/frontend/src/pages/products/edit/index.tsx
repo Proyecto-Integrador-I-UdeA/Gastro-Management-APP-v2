@@ -7,7 +7,7 @@ import Button from '@/components/Button';
 import Input from '@/components/Input';
 import { ROUTES } from '@/constants/routes';
 import { fetchProductById, updateProductRequest } from '@/lib/productsApi';
-import { fetchSuppliers } from '@/lib/suppliersApi';
+import { fetchSuppliers, fetchSupplierById } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import type { ProductSupplier } from '@/types/product';
 
@@ -48,10 +48,15 @@ export default function ProductEditPage() {
 
     const loadData = async () => {
       try {
-        const [product, supplierList] = await Promise.all([
-          fetchProductById(productId),
-          fetchSuppliers(),
-        ]);
+        const product = await fetchProductById(productId);
+        let supplierList = await fetchSuppliers();
+
+        // Si el producto quedó asociado a un proveedor inactivo, `fetchSuppliers()` lo filtra.
+        // En ese caso, agregamos el proveedor actual para que el select no quede vacío.
+        if (!supplierList.some((s) => s.id === product.supplierId)) {
+          const currentSupplier = await fetchSupplierById(product.supplierId);
+          supplierList = [...supplierList, currentSupplier];
+        }
 
         setSuppliers(supplierList);
 

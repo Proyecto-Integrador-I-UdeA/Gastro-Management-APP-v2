@@ -32,4 +32,5 @@ export const updateProductSchema = z.object({
   currentStock: z.number().min(0).optional(),
   unitCost: z.number().min(0).or(z.string().transform((v) => Number(v))).optional(),
   supplierId: z.number().int().positive().optional(),
+  active: z.boolean().optional(),
 });

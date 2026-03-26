@@ -7,4 +7,5 @@ export interface Supplier {
   phone: string;
   address: string;
   contactPerson: string;
+  active: boolean;
 }
