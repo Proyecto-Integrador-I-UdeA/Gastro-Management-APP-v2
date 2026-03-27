@@ -2,6 +2,7 @@
 
 import { useRouter, usePathname } from "next/navigation";
 import { useSidebar } from "@/context/SidebarContext";
+import { useEffect, useState } from "react";
 
 export default function Sidebar() {
   const router = useRouter();
@@ -9,7 +10,6 @@ export default function Sidebar() {
 
   // 🔥 FIX CRÍTICO (evita crash en SSR)
   const sidebar = useSidebar();
-
   if (!sidebar) return null;
 
   const { open, setOpen } = sidebar;
@@ -17,10 +17,32 @@ export default function Sidebar() {
   const safePath = pathname || "";
   const isDashboard = safePath === "/dashboard";
 
+  // 🔥 PERMISOS
+  const [permissions, setPermissions] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      setPermissions(user.permissions || []);
+    }
+  }, []);
+
+  const can = (perm: string) => permissions.includes(perm);
+
+  const handleNavigate = (path: string, permission?: string) => {
+    if (permission && !can(permission)) {
+      alert("No cuentas con los permisos para ingresar a este modulo");
+      return;
+    }
+
+    router.push(path);
+    setOpen(false);
+  };
+
   const menuItems = [
-    { name: "Dashboard", path: "/dashboard", icon: "📈" },
-    { name: "Productos", path: "/products", icon: "📦" },
-    { name: "Proveedores", path: "/suppliers", icon: "🚚" },
+    { name: "Dashboard", path: "/dashboard", icon: "📈", perm: null },
+    { name: "Productos", path: "/products", icon: "📦", perm: "products.read" },
+    { name: "Proveedores", path: "/suppliers", icon: "🚚", perm: "suppliers.read" },
   ];
 
   return (
@@ -47,20 +69,14 @@ export default function Sidebar() {
           {isDashboard ? (
             <>
               <button
-                onClick={() => {
-                  router.push("/users/create");
-                  setOpen(false);
-                }}
+                onClick={() => handleNavigate("/users/create", "users.create")}
                 className="flex items-center gap-4 px-6 py-4 hover:bg-[#33566E]"
               >
                 👤 <span className="text-lg">Crear Usuario</span>
               </button>
 
               <button
-                onClick={() => {
-                  router.push("/users");
-                  setOpen(false);
-                }}
+                onClick={() => handleNavigate("/users", "users.read")}
                 className="flex items-center gap-4 px-6 py-4 hover:bg-[#33566E]"
               >
                 📋 <span className="text-lg">Ver Usuarios</span>
@@ -72,10 +88,7 @@ export default function Sidebar() {
               .map((item) => (
                 <button
                   key={item.name}
-                  onClick={() => {
-                    router.push(item.path);
-                    setOpen(false);
-                  }}
+                  onClick={() => handleNavigate(item.path, item.perm || undefined)}
                   className="flex items-center gap-4 px-6 py-4 text-left hover:bg-[#33566E]"
                 >
                   <span className="text-xl">{item.icon}</span>
