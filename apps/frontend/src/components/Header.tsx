@@ -2,11 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Button from './Button'; // ajusta la ruta si es necesario
+import Button from './Button';
 import Input from './Input';
 import Logo from './Logo';
+  import { useSidebar } from '@/context/SidebarContext';
 
-  export default function Header({ showUser = true }: { showUser?: boolean }) {
+
+export default function Header({ showUser = true }: { showUser?: boolean }) {
+  
+  const { setOpen } = useSidebar(); 
   const [currentDateTime, setCurrentDateTime] = useState('');
   const [userName, setUserName] = useState('Cargando...');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -22,15 +26,14 @@ import Logo from './Logo';
   useEffect(() => {
     const updateDateTime = () => {
       const now = new Date();
-      const options: Intl.DateTimeFormatOptions = {
+      const formatted = now.toLocaleString('es-CO', {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
         hour12: true,
-      };
-      const formatted = now.toLocaleString('es-CO', options);
+      });
       setCurrentDateTime(formatted);
     };
 
@@ -39,24 +42,23 @@ import Logo from './Logo';
     return () => clearInterval(interval);
   }, []);
 
-  // Obtener nombre del usuario desde el token
+  // Usuario
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
         setUserName(payload.fullName || payload.email || 'Usuario');
-      } catch (e) {
-        console.error('Error al decodificar token para nombre:', e);
+      } catch {
         setUserName('Usuario');
       }
     } else {
-     setUserName('No autenticado');
-    } 
+      setUserName('No autenticado');
+    }
   }, []);
 
   const handleLogout = () => {
-    if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
+    if (confirm('¿Cerrar sesión?')) {
       localStorage.removeItem('token');
       router.push('/login');
     }
@@ -76,149 +78,125 @@ import Logo from './Logo';
     }
 
     if (formData.newPassword.length < 8) {
-      setError('La nueva contraseña debe tener al menos 8 caracteres');
+      setError('Mínimo 8 caracteres');
       return;
     }
 
     try {
       const token = localStorage.getItem('token');
-        console.log("TOKEN:", token);
-      const response = await fetch('https://gastro-management-app-production-6187.up.railway.app/auth/change-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          currentPassword: formData.currentPassword,
-          newPassword: formData.newPassword,
-        }),
-      }
-    );
 
-      const text = await response.text();
-      console.log("RESPUESTA BACKEND:",text);
+      const response = await fetch(
+        'https://gastro-management-app-production-6187.up.railway.app/auth/change-password',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            currentPassword: formData.currentPassword,
+            newPassword: formData.newPassword,
+          }),
+        }
+      );
 
-      if (!response.ok) {
-        throw new Error(text || 'Error al cambiar la contraseña');
-      }
+      if (!response.ok) throw new Error(await response.text());
 
-      alert('Contraseña actualizada con éxito. Inicia sesión nuevamente.');
+      alert('Contraseña actualizada');
       setShowPasswordModal(false);
-      handleLogout(); // Logout automático
+      handleLogout();
     } catch (err: any) {
-      setError(err.message || 'Error al cambiar la contraseña');
+      setError(err.message);
     }
   };
-return (
-  <header className="bg-[#001F3F] text-white p-4 flex items-center justify-between shadow-md">
 
-    {/* SIEMPRE visible: Logo + Nombre */}
-    <div className="flex items-center space-x-4">
-      <Logo />
-      <div>
-        <h1 className="text-xl font-bold">Gastronomic Management App</h1>
-        <p className="text-sm opacity-80">
-          Precisión culinaria, rentabilidad garantizada
-        </p>
-      </div>
-    </div>
+  return (
+    <header className="bg-[#001F3F] text-white shadow-md">
 
-    {/* SOLO si hay usuario */}
-    {showUser && (
-      <div className="flex flex-col items-end space-y-2">
+      {/* 🔥 CONTENEDOR RESPONSIVE */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between p-4 gap-4">
 
-        {/* Fecha */}
-        <div className="text-sm opacity-90">
-          {currentDateTime || 'Cargando fecha...'}
+        {/* Logo */}
+        <div className="flex items-center gap-3">
+          {/* 🔥 BOTÓN HAMBURGUESA */}
+  <button
+    onClick={() => setOpen(true)}
+    className="lg:hidden text-2xl"
+  >
+    ☰
+  </button>
+          <Logo />
+          <div>
+            <h1 className="text-lg sm:text-xl font-bold">
+              Gastronomic Management App
+            </h1>
+            <p className="text-xs sm:text-sm opacity-80">
+              Precisión culinaria, rentabilidad garantizada
+            </p>
+          </div>
         </div>
 
         {/* Usuario */}
-        <div className="text-base font-semibold text-white/95">
-          {userName}
-        </div>
+        {showUser && (
+          <div className="flex flex-col lg:items-end gap-2 text-sm">
 
-        {/* Botones */}
-        {userName !== 'No autenticado' && userName !== 'Cargando...' && (
-          <div className="flex flex-col items-end space-y-2">
-            <Button
-              variant="danger"
-              onClick={handleLogout}
-              className="text-sm px-4 py-2"
-            >
-              Cerrar Sesión
-            </Button>
+            <div>{currentDateTime || 'Cargando fecha...'}</div>
 
-            <button
-              onClick={() => setShowPasswordModal(true)}
-              className="text-xs text-blue-300 hover:text-blue-400 underline"
-            >
-              Cambiar mi contraseña
-            </button>
+            <div className="font-semibold">
+              {userName}
+            </div>
+
+            {userName !== 'No autenticado' && userName !== 'Cargando...' && (
+              <div className="flex flex-col sm:flex-row gap-2">
+
+                <Button
+                  variant="danger"
+                  onClick={handleLogout}
+                  className="text-sm px-4 py-2"
+                >
+                  Cerrar Sesión
+                </Button>
+
+                <button
+                  onClick={() => setShowPasswordModal(true)}
+                  className="text-xs text-blue-300 hover:text-blue-400 underline"
+                >
+                  Cambiar contraseña
+                </button>
+
+              </div>
+            )}
           </div>
         )}
       </div>
-    )}
 
-    {/* Modal (NO tocar) */}
-    {showPasswordModal && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white p-8 rounded-xl shadow-2xl max-w-md w-full">
-          <h2 className="text-2xl font-bold text-[#001F3F] mb-6">
-            Cambiar mi contraseña
-          </h2>
+      {/* Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-md mx-4">
 
-          {error && <p className="text-red-600 mb-4">{error}</p>}
+            <h2 className="text-xl font-bold text-[#001F3F] mb-4">
+              Cambiar contraseña
+            </h2>
 
-          <form onSubmit={handleChangePassword} className="space-y-4">
-            <Input
-              label="Contraseña actual"
-              type="password"
-              name="currentPassword"
-              value={formData.currentPassword}
-              onChange={handleChange}
-              required
-            />
-            <Input
-              label="Nueva contraseña"
-              type="password"
-              name="newPassword"
-              value={formData.newPassword}
-              onChange={handleChange}
-              required
-            />
-            <Input
-              label="Confirmar nueva contraseña"
-              type="password"
-              name="confirmNewPassword"
-              value={formData.confirmNewPassword}
-              onChange={handleChange}
-              required
-            />
+            {error && <p className="text-red-600 mb-4">{error}</p>}
 
-            <div className="flex justify-end space-x-4 mt-6">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  setShowPasswordModal(false);
-                  setError('');
-                  setFormData({
-                    currentPassword: '',
-                    newPassword: '',
-                    confirmNewPassword: '',
-                  });
-                }}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit">Guardar</Button>
-            </div>
-          </form>
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <Input label="Actual" type="password" name="currentPassword" value={formData.currentPassword} onChange={handleChange} required />
+              <Input label="Nueva" type="password" name="newPassword" value={formData.newPassword} onChange={handleChange} required />
+              <Input label="Confirmar" type="password" name="confirmNewPassword" value={formData.confirmNewPassword} onChange={handleChange} required />
+
+              <div className="flex justify-end gap-3 mt-4">
+                <Button type="button" variant="secondary" onClick={() => setShowPasswordModal(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit">Guardar</Button>
+              </div>
+            </form>
+
+          </div>
         </div>
-      </div>
-    )}
-  </header>
-);
-   
+      )}
+    </header>
+  );
 }
