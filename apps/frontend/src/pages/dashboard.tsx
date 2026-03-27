@@ -5,38 +5,35 @@ import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import Button from "@/components/Button";
-import { getUserRole } from "@/utils/auth"; 
+import { getUserRole } from "@/utils/auth";
 
 export default function Dashboard() {
   const router = useRouter();
-
-  const [isSuper, setIsSuper] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>([]);
 
-  // 🔥 evita render SSR
+  // 🔥 evitar SSR
   useEffect(() => {
     setMounted(true);
+
+    if (typeof window !== "undefined") {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      setPermissions(user.permissions || []);
+    }
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const role = getUserRole();
-
-    setIsSuper(role === "super" || role === 1);
-    setIsAdmin(role === "admin" || role === 2);
-  }, []);
-
-  // 🔥 evita errores de build en Vercel
   if (!mounted) return null;
 
-  const handleCreateUser = () => {
-    router.push("/users/create");
-  };
+  // 🔥 helper permisos
+  const can = (perm: string) => permissions.includes(perm);
 
-  const handleViewUsers = () => {
-    router.push("/users");
+  // 🔥 navegación con control
+  const handleNavigate = (path: string, permission: string) => {
+    if (!can(permission)) {
+      alert("No cuentas con los permisos para ingresar a este modulo");
+      return;
+    }
+    router.push(path);
   };
 
   return (
@@ -48,70 +45,139 @@ export default function Dashboard() {
 
         <main className="p-4 sm:p-6 lg:p-8">
           <div className="bg-white rounded-tl-2xl shadow-md p-6 min-h-screen">
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#001F3F] mb-4">
+
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#001F3F] mb-6">
               Dashboard Principal
             </h1>
 
+            {/* BOTONES DASHBOARD */}
             <div className="flex flex-col sm:flex-row gap-4 mb-6">
-              {isSuper && (
-                <Button onClick={handleCreateUser} variant="secondary">
-                  Registrar Usuario
-                </Button>
-              )}
 
-              {(isSuper || isAdmin) && (
-                <Button onClick={handleViewUsers} variant="secondary">
-                  Ver Usuarios
-                </Button>
-              )}
+              <Button
+                onClick={() => handleNavigate("/users/create", "users.create")}
+                variant="secondary"
+              >
+                Registrar Usuario
+              </Button>
+
+              <Button
+                onClick={() => handleNavigate("/users", "users.read")}
+                variant="secondary"
+              >
+                Ver Usuarios
+              </Button>
+
             </div>
 
             {/* TARJETAS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              
-              <div onClick={() => router.push("/products")} className="card">
-                <h2>PRODUCTOS</h2>
-                <p>Gestiona stocks y categorías</p>
+
+              {/* PRODUCTOS */}
+              <div
+                onClick={() => handleNavigate("/products", "products.read")}
+                className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
+                shadow-[0_4px_20px_rgba(30,64,175,0.25)]
+                hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
+                transition-all duration-300 cursor-pointer flex flex-col"
+              >
+                <h2 className="text-lg font-semibold text-gray-800 mb-2">PRODUCTOS</h2>
+                <p className="text-sm text-gray-600">Gestiona stocks y categorías</p>
               </div>
 
-              <div onClick={() => router.push("/suppliers")} className="card">
-                <h2>PROVEEDORES</h2>
-                <p>Directorio y Datos de tus Aliados</p>
+              {/* PROVEEDORES */}
+              <div
+                onClick={() => handleNavigate("/suppliers", "suppliers.read")}
+                className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
+                shadow-[0_4px_20px_rgba(30,64,175,0.25)]
+                hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
+                transition-all duration-300 cursor-pointer flex flex-col"
+              >
+                <h2 className="text-lg font-semibold text-gray-800 mb-2">PROVEEDORES</h2>
+                <p className="text-sm text-gray-600">Directorio y Datos de tus Aliados</p>
               </div>
 
-              <div onClick={() => router.push("/transfers")} className="card">
-                <h2>TRASLADOS</h2>
-                <p>Registra Entradas y Salidas de Productos</p>
+              {/* TRASLADOS */}
+              <div
+                onClick={() => handleNavigate("/transfers", "transfers.read")}
+                className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
+                shadow-[0_4px_20px_rgba(30,64,175,0.25)]
+                hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
+                transition-all duration-300 cursor-pointer flex flex-col"
+              >
+                <h2 className="text-lg font-semibold text-gray-800 mb-2">TRASLADOS</h2>
+                <p className="text-sm text-gray-600">Registra Entradas y Salidas</p>
               </div>
 
-              <div onClick={() => router.push("/inventory")} className="card">
-                <h2>INVENTARIOS</h2>
-                <p>Consulta tus Existencias en Tiempo Real</p>
+              {/* INVENTARIO */}
+              <div
+                onClick={() => handleNavigate("/inventory", "inventory.read")}
+                className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
+                shadow-[0_4px_20px_rgba(30,64,175,0.25)]
+                hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
+                transition-all duration-300 cursor-pointer flex flex-col"
+              >
+                <h2 className="text-lg font-semibold text-gray-800 mb-2">INVENTARIOS</h2>
+                <p className="text-sm text-gray-600">Consulta existencias</p>
               </div>
 
-              <div onClick={() => router.push("/production")} className="card">
-                <h2>PRODUCCIÓN</h2>
-                <p>Crea y estandariza tus platos</p>
+              {/* PRODUCCIÓN */}
+              <div
+                onClick={() => handleNavigate("/production", "recipes.read")}
+                className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
+                shadow-[0_4px_20px_rgba(30,64,175,0.25)]
+                hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
+                transition-all duration-300 cursor-pointer flex flex-col"
+              >
+                <h2 className="text-lg font-semibold text-gray-800 mb-2">PRODUCCIÓN</h2>
+                <p className="text-sm text-gray-600">Estandariza tus platos</p>
               </div>
 
-              <div onClick={() => router.push("/menu")} className="card">
-                <h2>MENÚ</h2>
-                <p>Consulta tu menú estandarizado</p>
+              {/* MENÚ */}
+              <div
+                onClick={() => handleNavigate("/menu", "recipes.read")}
+                className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
+                shadow-[0_4px_20px_rgba(30,64,175,0.25)]
+                hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
+                transition-all duration-300 cursor-pointer flex flex-col"
+              >
+                <h2 className="text-lg font-semibold text-gray-800 mb-2">MENÚ</h2>
+                <p className="text-sm text-gray-600">Consulta tu menú</p>
               </div>
 
-              <div onClick={() => router.push("/costs")} className="card">
-                <h2>COSTOS</h2>
-                <p>Determina costos y precios</p>
+              {/* COSTOS */}
+              <div
+                onClick={() => handleNavigate("/costs", "costs.read")}
+                className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
+                shadow-[0_4px_20px_rgba(30,64,175,0.25)]
+                hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
+                transition-all duration-300 cursor-pointer flex flex-col"
+              >
+                <h2 className="text-lg font-semibold text-gray-800 mb-2">COSTOS</h2>
+                <p className="text-sm text-gray-600">Costos y precios</p>
               </div>
 
-              <div onClick={() => router.push("/sales")} className="card">
-                <h2>VENTAS</h2>
-                <p>Gestiona tus ventas</p>
+              {/* VENTAS */}
+              <div
+                onClick={() => handleNavigate("/sales", "sales.read")}
+                className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
+                shadow-[0_4px_20px_rgba(30,64,175,0.25)]
+                hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
+                transition-all duration-300 cursor-pointer flex flex-col"
+              >
+                <h2 className="text-lg font-semibold text-gray-800 mb-2">VENTAS</h2>
+                <p className="text-sm text-gray-600">Gestión de ventas</p>
               </div>
 
-              <div onClick={() => router.push("/reports")} className="card">
-                <h2>REPORTES</h2>
-                <p>Accede a reportes del sistema</p>
+              {/* REPORTES */}
+              <div
+                onClick={() => handleNavigate("/reports", "reports.read")}
+                className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
+                shadow-[0_4px_20px_rgba(30,64,175,0.25)]
+                hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
+                transition-all duration-300 cursor-pointer flex flex-col"
+              >
+                <h2 className="text-lg font-semibold text-gray-800 mb-2">REPORTES</h2>
+                <p className="text-sm text-gray-600">Accede a reportes</p>
               </div>
 
             </div>
@@ -121,11 +187,6 @@ export default function Dashboard() {
     </div>
   );
 }
-
-
-
-
-
 
 
 
