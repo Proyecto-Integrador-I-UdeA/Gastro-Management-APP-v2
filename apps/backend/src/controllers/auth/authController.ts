@@ -55,9 +55,20 @@ export const login = async (req: Request, res: Response) => {
 
   try {
     console.log('LOGIN CON PERMISSIONS EJECUTANDOSE');
+
     const user = await prisma.user.findUnique({
       where: { email },
-      include: { role: true },
+      include: {
+        role: {
+          include: {
+            permissions: {
+              include: {
+                permission: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!user) {
@@ -70,11 +81,16 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
+    // 🔥 EXTRAER PERMISOS DEL ROL
+    const permissions =
+      user.role?.permissions.map(rp => rp.permission.name) || [];
+
     const token = jwt.sign(
       {
         id: user.id,
         email: user.email,
         role: user.role?.name ?? 'sin_rol',
+        permissions, // 👈 CLAVE
       },
       JWT_SECRET,
       { expiresIn: '1h' }
@@ -87,6 +103,7 @@ export const login = async (req: Request, res: Response) => {
         id: user.id,
         email: user.email,
         role: user.role?.name ?? 'sin_rol',
+        permissions, // 👈 útil para frontend
       },
     });
 
@@ -98,8 +115,6 @@ export const login = async (req: Request, res: Response) => {
 
 export const changePassword = async (req: Request, res: Response) => {
   try {
-
-    // Verificar que el middleware haya puesto el usuario en la request
     const authUser = (req as any).user;
 
     if (!authUser || !authUser.id) {
