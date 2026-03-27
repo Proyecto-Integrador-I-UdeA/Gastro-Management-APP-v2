@@ -5,27 +5,45 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Iniciando seed...');
 
-  // Crear permisos (ya lo tienes bien)
+  // 🔥 PERMISOS ESTANDARIZADOS (CON PUNTO)
   const permissions = [
-    { name: 'users:read', description: 'Ver lista de usuarios' },
-    { name: 'users:create', description: 'Registrar usuarios' },
-    { name: 'users:update', description: 'Editar usuarios' },
-    { name: 'users:delete', description: 'Inactivar usuarios' },
-    { name: 'suppliers:read', description: 'Ver proveedores' },
-    { name: 'suppliers:create', description: 'Crear proveedores' },
-    { name: 'suppliers:update', description: 'Editar proveedores' },
-    { name: 'suppliers:delete', description: 'Eliminar proveedores' },
-    { name: 'products:read', description: 'Ver inventario' },
-    { name: 'products:create', description: 'Agregar productos' },
-    { name: 'products:update', description: 'Editar productos' },
-    { name: 'products:delete', description: 'Eliminar productos' },
-    { name: 'recipes:read', description: 'Ver recetas' },
-    { name: 'recipes:create', description: 'Crear recetas' },
-    { name: 'recipes:update', description: 'Editar recetas' },
-    { name: 'costs:read', description: 'Ver costos' },
-    { name: 'costs:update', description: 'Actualizar costos' },
-    { name: 'pricing:read', description: 'Ver precios' },
-    { name: 'pricing:update', description: 'Ajustar precios' },
+    // USERS
+    { name: 'users.read', description: 'Ver usuarios' },
+    { name: 'users.create', description: 'Crear usuarios' },
+    { name: 'users.update', description: 'Editar usuarios' },
+    { name: 'users.delete', description: 'Inactivar usuarios' },
+
+    // PRODUCTS
+    { name: 'products.read', description: 'Ver productos' },
+    { name: 'products.create', description: 'Crear productos' },
+    { name: 'products.update', description: 'Editar productos' },
+    { name: 'products.delete', description: 'Eliminar productos' },
+
+    // SUPPLIERS
+    { name: 'suppliers.read', description: 'Ver proveedores' },
+    { name: 'suppliers.create', description: 'Crear proveedores' },
+    { name: 'suppliers.update', description: 'Editar proveedores' },
+    { name: 'suppliers.delete', description: 'Eliminar proveedores' },
+
+    // RECIPES / PRODUCCIÓN
+    { name: 'recipes.read', description: 'Ver recetas' },
+    { name: 'recipes.create', description: 'Crear recetas' },
+    { name: 'recipes.update', description: 'Editar recetas' },
+
+    // COSTOS / CONTABLE
+    { name: 'costs.read', description: 'Ver costos' },
+    { name: 'costs.update', description: 'Editar costos' },
+
+    // VENTAS / REPORTES
+    { name: 'sales.read', description: 'Ver ventas' },
+    { name: 'reports.read', description: 'Ver reportes' },
+
+    // INVENTARIO / LOGÍSTICA
+    { name: 'inventory.read', description: 'Ver inventario' },
+    { name: 'transfers.read', description: 'Ver traslados' },
+
+    // PERFIL
+    { name: 'profile.update', description: 'Cambiar contraseña' },
   ];
 
   for (const perm of permissions) {
@@ -36,32 +54,63 @@ async function main() {
     });
   }
 
-  // Crear roles y asignar permisos (tu código original)
+  // 🔥 ROLES AJUSTADOS A TU REGLA DE NEGOCIO
   const rolePermissions = {
-    super: permissions.map(p => p.name), // todos los permisos (incluye users:read)
+    super: permissions.map(p => p.name), // TODO
+
     admin: [
-      'users:read', 'users:create', 'users:update', 'users:delete',
-      'suppliers:read', 'suppliers:create', 'suppliers:update', 'suppliers:delete',
-      'products:read', 'products:create', 'products:update', 'products:delete',
-      'recipes:read', 'recipes:create', 'recipes:update',
-      'costs:read', 'costs:update',
-      'pricing:read', 'pricing:update',
+      // SOLO LECTURA DE USUARIOS
+      'users.read',
+
+      // FULL PRODUCTOS Y PROVEEDORES
+      'products.read', 'products.create', 'products.update', 'products.delete',
+      'suppliers.read', 'suppliers.create', 'suppliers.update', 'suppliers.delete',
+
+      // RECETAS
+      'recipes.read', 'recipes.create', 'recipes.update',
+
+      // INVENTARIO
+      'inventory.read',
+      'transfers.read',
+
+      // PERFIL
+      'profile.update',
     ],
-    chef: ['recipes:read', 'recipes:create', 'recipes:update', 'products:read'],
-    purchases: ['suppliers:read', 'suppliers:create', 'suppliers:update', 'suppliers:delete', 'products:read', 'products:create', 'products:update', 'products:delete'],
-    accounting: ['costs:read', 'costs:update', 'pricing:read', 'pricing:update', 'products:read'],
+
+    chef: [
+      'recipes.read', 'recipes.create', 'recipes.update',
+      'products.read',
+      'profile.update',
+    ],
+
+    purchases: [
+      'products.read', 'products.create', 'products.update', 'products.delete',
+      'suppliers.read', 'suppliers.create', 'suppliers.update', 'suppliers.delete',
+      'inventory.read',
+      'transfers.read',
+      'profile.update',
+    ],
+
+    accounting: [
+      'costs.read', 'costs.update',
+      'sales.read',
+      'reports.read',
+      'profile.update',
+    ],
   };
 
   for (const [roleName, perms] of Object.entries(rolePermissions)) {
     const role = await prisma.role.upsert({
       where: { name: roleName },
-      update: { name: roleName },
-      create: { name: roleName, description: `${roleName} role` },
+      update: {},
+      create: { name: roleName },
     });
 
-    // Asignar permisos al rol
     for (const permName of perms) {
-      const permission = await prisma.permission.findUnique({ where: { name: permName } });
+      const permission = await prisma.permission.findUnique({
+        where: { name: permName },
+      });
+
       if (permission) {
         await prisma.rolePermission.upsert({
           where: {
@@ -80,7 +129,7 @@ async function main() {
     }
   }
 
-  console.log('Seed completado: roles y permisos creados');
+  console.log('Seed completado correctamente 🚀');
 }
 
 main()

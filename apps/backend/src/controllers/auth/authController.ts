@@ -54,6 +54,7 @@ export const login = async (req: Request, res: Response) => {
   }
 
   try {
+    console.log('LOGIN CON PERMISSIONS EJECUTANDOSE');
     const user = await prisma.user.findUnique({
       where: { email },
       include: { role: true },
