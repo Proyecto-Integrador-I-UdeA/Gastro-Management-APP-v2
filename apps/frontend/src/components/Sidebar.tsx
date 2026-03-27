@@ -1,13 +1,20 @@
 "use client";
+
 import { useRouter, usePathname } from "next/navigation";
 import { useSidebar } from "@/context/SidebarContext";
 
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { open, setOpen } = useSidebar();
-  const safePath = pathname || "";
 
+  // 🔥 FIX CRÍTICO (evita crash en SSR)
+  const sidebar = useSidebar();
+
+  if (!sidebar) return null;
+
+  const { open, setOpen } = sidebar;
+
+  const safePath = pathname || "";
   const isDashboard = safePath === "/dashboard";
 
   const menuItems = [
@@ -34,12 +41,9 @@ export default function Sidebar() {
           lg:translate-x-0 lg:flex
         `}
       >
-        {/* Espacio superior */}
         <div className="h-24 flex items-center justify-center border-b border-white/10"></div>
 
-        {/* MENÚ */}
         <nav className="flex flex-col mt-4">
-
           {isDashboard ? (
             <>
               <button
@@ -64,32 +68,23 @@ export default function Sidebar() {
             </>
           ) : (
             menuItems
-              // 🔥 oculta la página actual (incluye create/edit)
               .filter((item) => !safePath.startsWith(item.path))
-              .map((item) => {
-                return (
-                  <button
-                    key={item.name}
-                    onClick={() => {
-                      router.push(item.path);
-                      setOpen(false);
-                    }}
-                    className="
-                      flex items-center gap-4 px-6 py-4 text-left
-                      transition-all duration-200
-                      hover:bg-[#33566E]
-                    "
-                  >
-                    <span className="text-xl">{item.icon}</span>
-                    <span className="text-lg">{item.name}</span>
-                  </button>
-                );
-              })
+              .map((item) => (
+                <button
+                  key={item.name}
+                  onClick={() => {
+                    router.push(item.path);
+                    setOpen(false);
+                  }}
+                  className="flex items-center gap-4 px-6 py-4 text-left hover:bg-[#33566E]"
+                >
+                  <span className="text-xl">{item.icon}</span>
+                  <span className="text-lg">{item.name}</span>
+                </button>
+              ))
           )}
-
         </nav>
 
-        {/* IMAGEN */}
         <div className="mt-auto p-4">
           <img
             src={
