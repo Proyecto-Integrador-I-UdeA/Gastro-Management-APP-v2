@@ -5,6 +5,7 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Iniciando seed...');
 
+
   // 🔥 PERMISOS ESTANDARIZADOS (CON PUNTO)
   const permissions = [
     // USERS

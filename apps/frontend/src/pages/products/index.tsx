@@ -10,8 +10,10 @@ import { useProductList } from '@/hooks/useProductList';
 import { deleteProductRequest } from '@/lib/productsApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import { formatStockDisplay, productLowStock } from '@/types/product';
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export default function ProductsPage() {
+    useAuthGuard("users.read");
   const router = useRouter();
   const { products, loading, error, refetch } = useProductList();
   const [deletingId, setDeletingId] = useState<number | null>(null);

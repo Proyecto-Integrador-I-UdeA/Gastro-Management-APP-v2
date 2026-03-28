@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client-js"
-  seed = "ts-node prisma/seed.ts"
+  seed     = "ts-node prisma/seed.ts"
 }
 
 datasource db {
@@ -16,45 +16,42 @@ model Supplier {
   phone         String
   address       String
   contactPerson String
-
   products      Product[]
 
   @@map("suppliers")
 }
 
 model Product {
-  id                 Int       @id @default(autoincrement())
-  internalCode       String
-  name               String
-  category           String    @default("")
-  isIngredient       Boolean
-  isSupply           Boolean
-  isFinishedProduct  Boolean
-  presentation       String
-  unitOfMeasure      String
-  expirationDate     DateTime?
-  minStock           Float
-  maxStock           Float
-  currentStock       Float
-  unitCost           Decimal    @db.Decimal(10, 2)
-
-  supplierId         Int
-  supplier           Supplier   @relation(fields: [supplierId], references: [id])
+  id                Int       @id @default(autoincrement())
+  internalCode      String
+  name              String
+  isIngredient      Boolean
+  isSupply          Boolean
+  isFinishedProduct Boolean
+  presentation      String
+  unitOfMeasure     String
+  expirationDate    DateTime?
+  minStock          Float
+  maxStock          Float
+  currentStock      Float
+  unitCost          Decimal   @db.Decimal(10, 2)
+  supplierId        Int
+  category          String    @default("")
+  supplier          Supplier  @relation(fields: [supplierId], references: [id])
 
   @@map("products")
 }
 
 model User {
-  id            Int       @id @default(autoincrement())
-  email         String    @unique
-  passwordHash  String
-  fullName      String?
-  roleId        Int?
-  active        Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  role          Role?     @relation(fields: [roleId], references: [id])
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  fullName     String?
+  roleId       Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  active       Boolean  @default(true)
+  role         Role?    @relation(fields: [roleId], references: [id])
 
   @@map("users")
 }
@@ -90,16 +87,3 @@ model RolePermission {
   @@unique([roleId, permissionId])
   @@map("role_permissions")
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

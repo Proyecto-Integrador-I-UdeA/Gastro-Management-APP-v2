@@ -10,8 +10,10 @@ import { createProductRequest } from '@/lib/productsApi';
 import { fetchSuppliers } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import type { ProductSupplier } from '@/types/product';
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export default function ProductCreatePage() {
+  useAuthGuard("users.read");
   const router = useRouter();
 
   const [suppliers, setSuppliers] = useState<ProductSupplier[]>([]);

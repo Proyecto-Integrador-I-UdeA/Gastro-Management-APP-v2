@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import { api } from '../../utils/api';
-import { isSuperUser } from '../../utils/auth';
+import { hasPermission } from "@/utils/permissions";
+
+
 
 interface User {
   id: number;
@@ -21,24 +23,31 @@ export default function UsersList() {
   const [error, setError] = useState<string | null>(null);
   const [isSuper, setIsSuper] = useState(false);
 
-  useEffect(() => {
-    // 🔥 para pruebas frontend puedes dejarlo así
-    setIsSuper(true);
 
-    const fetchUsers = async () => {
-      try {
-        const response = await api.get('/users');
-        setUsers(response.data);
-      } catch (err: any) {
-        setError(err.response?.data?.error || 'Error al cargar usuarios');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
+useEffect(() => {
+  // 🔥 PROTECCIÓN DE RUTA
+  if (!hasPermission("users.read")) {
+    alert("No cuentas con los permisos para acceder a este módulo");
+    router.push("/dashboard");
+    return;
+  }
 
-    fetchUsers();
-  }, []);
+  // 🔥 YA AUTORIZADO → CARGA DATOS
+  const fetchUsers = async () => {
+    try {
+      const response = await api.get('/users');
+      setUsers(response.data);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Error al cargar usuarios');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchUsers();
+}, []); 
+ 
 
   const handleEdit = (userId: number) => {
     router.push(`/users/edit/${userId}`);

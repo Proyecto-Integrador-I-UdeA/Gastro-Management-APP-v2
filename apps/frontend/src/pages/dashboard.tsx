@@ -17,8 +17,17 @@ export default function Dashboard() {
     setMounted(true);
 
     if (typeof window !== "undefined") {
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
-      setPermissions(user.permissions || []);
+      const token = localStorage.getItem("token");
+
+if (token) {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    setPermissions(payload.permissions || []);
+  } catch (e) {
+    console.error("Error leyendo token", e);
+    setPermissions([]);
+  }
+}
     }
   }, []);
 

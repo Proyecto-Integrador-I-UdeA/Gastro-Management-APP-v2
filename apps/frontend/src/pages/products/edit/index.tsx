@@ -10,8 +10,10 @@ import { fetchProductById, updateProductRequest } from '@/lib/productsApi';
 import { fetchSuppliers } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import type { ProductSupplier } from '@/types/product';
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export default function ProductEditPage() {
+  useAuthGuard("users.read");
   const router = useRouter();
   const { id } = router.query;
 

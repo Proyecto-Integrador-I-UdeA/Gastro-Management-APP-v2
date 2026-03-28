@@ -9,9 +9,11 @@ import Input from '@/components/Input';
 import { ROUTES } from '@/constants/routes';
 import { createSupplierRequest } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 
 export default function SupplierCreatePage() {
+  useAuthGuard("users.read");
   const router = useRouter();
 
 

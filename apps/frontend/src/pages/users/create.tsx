@@ -9,6 +9,7 @@ import Dropdown from '../../components/Dropdown';
 import Button from '../../components/Button';
 import { api } from '../../utils/api';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 const createUserSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -20,6 +21,7 @@ const createUserSchema = z.object({
 type CreateUserForm = z.infer<typeof createUserSchema>;
 
 export default function CreateUser() {
+  useAuthGuard("users.read");
   const router = useRouter();
 
   const {
