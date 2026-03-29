@@ -6,6 +6,9 @@ import DashboardLayout from '@/components/layouts/DashboardLayout';
 import { api } from '../../utils/api';
 import { hasPermission } from "@/utils/permissions";
 
+const canEdit = hasPermission("users.update");
+const canDelete = hasPermission("users.delete");
+
 
 
 interface User {
@@ -21,7 +24,6 @@ export default function UsersList() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isSuper, setIsSuper] = useState(false);
 
 
 useEffect(() => {
@@ -93,7 +95,9 @@ useEffect(() => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rol</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-              {isSuper && <th className="px-6 py-3">Acciones</th>}
+              {(canEdit || canDelete) && (
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+              )}
             </tr>
           </thead>
 
@@ -117,31 +121,34 @@ useEffect(() => {
     {user.active ? 'Activo' : 'Inactivo'}
   </span>
 </td>
-                      
 
-                {isSuper && (
-                  <td className="px-6 py-4 text-sm">
+ {(canEdit || canDelete) && (
+  <td className="px-6 py-4 text-sm">
+    
+    {canEdit && (
+      <button
+        onClick={() => handleEdit(user.id)}
+        className="text-blue-600 hover:text-blue-900 mr-4"
+      >
+        Editar
+      </button>
+    )}
 
-                    <button
-                      onClick={() => handleEdit(user.id)}
-                      className="text-blue-600 hover:text-blue-900 mr-4"
-                    >
-                      Editar
-                    </button>
+    {canDelete && (
+      <button
+        onClick={() => handleToggleActive(user.id, user.active)}
+        className={`${
+          user.active
+            ? 'text-red-600 hover:text-red-900'
+            : 'text-green-600 hover:text-green-900'
+        }`}
+      >
+        {user.active ? 'Inactivar' : 'Activar'}
+      </button>
+    )}
 
-                    <button
-                      onClick={() => handleToggleActive(user.id, user.active)}
-                      className={`${
-                        user.active
-                          ? 'text-red-600 hover:text-red-900'
-                          : 'text-green-600 hover:text-green-900'
-                      }`}
-                    >
-                      {user.active ? 'Inactivar' : 'Activar'}
-                    </button>
-
-                  </td>
-                )}
+  </td>
+)}               
 
               </tr>
             ))}

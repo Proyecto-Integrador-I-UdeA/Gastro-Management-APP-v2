@@ -1,5 +1,5 @@
 export const getPermissionsFromToken = () => {
-  if (typeof window === "undefined") return [];
+  if (globalThis.window === undefined) return [];
 
   const token = localStorage.getItem("token");
 

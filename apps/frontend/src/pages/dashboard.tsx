@@ -34,7 +34,19 @@ if (token) {
   if (!mounted) return null;
 
   // 🔥 helper permisos
-  const can = (perm: string) => permissions.includes(perm);
+  const can = (perm: string) => {
+  if (typeof window === "undefined") return false;
+
+  const token = localStorage.getItem("token");
+  if (!token) return false;
+
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload.permissions?.includes(perm);
+  } catch {
+    return false;
+  }
+};
 
   // 🔥 navegación con control
   const handleNavigate = (path: string, permission: string) => {

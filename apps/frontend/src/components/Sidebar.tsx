@@ -8,7 +8,6 @@ export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
 
-  // 🔥 FIX CRÍTICO (evita crash en SSR)
   const sidebar = useSidebar();
   if (!sidebar) return null;
 
@@ -17,27 +16,42 @@ export default function Sidebar() {
   const safePath = pathname || "";
   const isDashboard = safePath === "/dashboard";
 
-  // 🔥 PERMISOS
+  // 🔥 (se deja pero ya no se usa para validar)
   const [permissions, setPermissions] = useState<string[]>([]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-    const token = localStorage.getItem("token");
+    if (globalThis.window !== undefined) {
+      const token = localStorage.getItem("token");
 
-if (token) {
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    setPermissions(payload.permissions || []);
-  } catch (e) {
-    console.error("Error leyendo token", e);
-    setPermissions([]);
-  }
-} 
-     
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split(".")[1]));
+          setPermissions(payload.permissions || []);
+        } catch (e) {
+          console.error("Error leyendo token", e);
+          setPermissions([]);
+        }
+      }
     }
   }, []);
 
-  const can = (perm: string) => permissions.includes(perm);
+  // 🔥 VALIDACIÓN REAL DESDE TOKEN
+  const can = (permissions: string) => {
+    if (globalThis.window === undefined) return false;
+
+    const token = localStorage.getItem("token");
+    if (!token) return false;
+
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      console.log("PERMISO QUE SE ENVÍA:", permissions);
+      console.log("PERMISOS DEL USUARIO:", payload.permissions);
+
+      return payload.permissions?.includes(permissions);
+    } catch {
+      return false;
+    }
+  };
 
   const handleNavigate = (path: string, permission?: string) => {
     if (permission && !can(permission)) {
@@ -50,9 +64,9 @@ if (token) {
   };
 
   const menuItems = [
-    { name: "Dashboard", path: "/dashboard", icon: "📈", perm: null },
-    { name: "Productos", path: "/products", icon: "📦", perm: "products.read" },
-    { name: "Proveedores", path: "/suppliers", icon: "🚚", perm: "suppliers.read" },
+    { name: "Dashboard", path: "/dashboard", icon: "📈" },
+    { name: "Productos", path: "/products", icon: "📦", permission: "products.read" },
+    { name: "Proveedores", path: "/suppliers", icon: "🚚", permission: "suppliers.read" },
   ];
 
   return (
@@ -61,7 +75,7 @@ if (token) {
       {open && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setOpen(false)}
+          onClick={() => setOpen(false)} // 🔥 FIX (no navegación aquí)
         />
       )}
 
@@ -98,7 +112,7 @@ if (token) {
               .map((item) => (
                 <button
                   key={item.name}
-                  onClick={() => handleNavigate(item.path, item.perm || undefined)}
+                  onClick={() => handleNavigate(item.path, item.permission)}
                   className="flex items-center gap-4 px-6 py-4 text-left hover:bg-[#33566E]"
                 >
                   <span className="text-xl">{item.icon}</span>

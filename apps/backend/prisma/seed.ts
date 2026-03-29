@@ -6,7 +6,7 @@ async function main() {
   console.log('Iniciando seed...');
 
 
-  // 🔥 PERMISOS ESTANDARIZADOS (CON PUNTO)
+  // 🔥 PERMISOS ESTANDARIZADOS 
   const permissions = [
     // USERS
     { name: 'users.read', description: 'Ver usuarios' },
@@ -26,7 +26,7 @@ async function main() {
     { name: 'suppliers.update', description: 'Editar proveedores' },
     { name: 'suppliers.delete', description: 'Eliminar proveedores' },
 
-    // RECIPES / PRODUCCIÓN
+    //  PRODUCCIÓN
     { name: 'recipes.read', description: 'Ver recetas' },
     { name: 'recipes.create', description: 'Crear recetas' },
     { name: 'recipes.update', description: 'Editar recetas' },
@@ -55,7 +55,7 @@ async function main() {
     });
   }
 
-  // 🔥 ROLES AJUSTADOS A TU REGLA DE NEGOCIO
+  // 🔥 ROLES AJUSTADOS A LA REGLA DE NEGOCIO
   const rolePermissions = {
     super: permissions.map(p => p.name), // TODO
 
@@ -73,6 +73,8 @@ async function main() {
       // INVENTARIO
       'inventory.read',
       'transfers.read',
+      // REPORTES
+      'reports.read',
 
       // PERFIL
       'profile.update',
