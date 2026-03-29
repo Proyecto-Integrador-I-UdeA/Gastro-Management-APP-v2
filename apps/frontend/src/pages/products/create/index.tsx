@@ -10,6 +10,11 @@ import { createProductRequest } from '@/lib/productsApi';
 import { fetchSuppliers } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import type { ProductSupplier } from '@/types/product';
+import {
+  PRODUCT_INPUT_UNITS,
+  convertToBaseUnits,
+  type ProductInputUnit,
+} from '@/lib/productUnitConversion';
 
 export default function ProductCreatePage() {
   const router = useRouter();
@@ -26,12 +31,18 @@ export default function ProductCreatePage() {
   const [isIngredient, setIsIngredient] = useState(true);
   const [isSupply, setIsSupply] = useState(false);
   const [isFinishedProduct, setIsFinishedProduct] = useState(false);
-  const [unitOfMeasure, setUnitOfMeasure] = useState('');
+  const [inputUnit, setInputUnit] = useState<ProductInputUnit>('kg');
+  const [inputUnitQuantity, setInputUnitQuantity] = useState('1');
   const [expiryDate, setExpiryDate] = useState('');
   const [minStock, setMinStock] = useState('');
   const [maxStock, setMaxStock] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [unitCost, setUnitCost] = useState('');
+
+  const normalized = convertToBaseUnits(
+    inputUnit,
+    Number.parseFloat(inputUnitQuantity)
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -76,7 +87,7 @@ export default function ProductCreatePage() {
       !name ||
       !category ||
       !presentation ||
-      !unitOfMeasure ||
+      !inputUnitQuantity ||
       !minStock ||
       !maxStock ||
       !supplierId ||
@@ -87,9 +98,14 @@ export default function ProductCreatePage() {
     }
 
     const sid = Number(supplierId);
+    const quantityPerInputUnit = Number.parseFloat(inputUnitQuantity);
 
     if (!Number.isFinite(sid)) {
       alert('Proveedor inválido');
+      return;
+    }
+    if (!Number.isFinite(quantityPerInputUnit) || quantityPerInputUnit <= 0) {
+      alert('La cantidad por unidad debe ser mayor a 0');
       return;
     }
 
@@ -104,7 +120,9 @@ export default function ProductCreatePage() {
         isSupply,
         isFinishedProduct,
         presentation,
-        unitOfMeasure,
+        unitOfMeasure: normalized.baseUnit,
+        inputUnit,
+        inputUnitQuantity: quantityPerInputUnit,
         expirationDate: expiryDate
           ? new Date(expiryDate).toISOString()
           : null,
@@ -173,7 +191,34 @@ export default function ProductCreatePage() {
             <Input label="Categoría" value={category} onChange={(e) => setCategory(e.target.value)} />
             <Input label="Presentación" value={presentation} onChange={(e) => setPresentation(e.target.value)} />
 
-            <Input label="Unidad de medida" value={unitOfMeasure} onChange={(e) => setUnitOfMeasure(e.target.value)} />
+            <div>
+              <label className="block text-sm mb-1">Unidad ingresada</label>
+              <select
+                value={inputUnit}
+                onChange={(e) => setInputUnit(e.target.value as ProductInputUnit)}
+                className="w-full border rounded-md p-2"
+              >
+                {PRODUCT_INPUT_UNITS.map((u) => (
+                  <option key={u.value} value={u.value}>
+                    {u.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Input
+              label="Cantidad por unidad ingresada"
+              type="number"
+              min="0.0001"
+              step="any"
+              value={inputUnitQuantity}
+              onChange={(e) => setInputUnitQuantity(e.target.value)}
+            />
+            <Input
+              label="Conversión automática"
+              value={`${normalized.factor.toFixed(2)} ${normalized.baseUnit}`}
+              disabled
+              className="md:col-span-2 bg-gray-100"
+            />
             <Input label="Fecha de vencimiento" type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
 
             <Input label="Stock mínimo" type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} />

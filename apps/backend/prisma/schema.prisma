@@ -8,6 +8,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum ProductBaseUnit {
+  g
+  ml
+  und
+}
+
 model Supplier {
   id            Int       @id @default(autoincrement())
   internalCode  String
@@ -33,7 +39,9 @@ model Product {
   isSupply           Boolean
   isFinishedProduct  Boolean
   presentation       String
-  unitOfMeasure      String
+  unitOfMeasure      ProductBaseUnit
+  inputUnit          String            @default("g")
+  inputUnitQuantity  Float             @default(1)
   expirationDate     DateTime?
   minStock           Float
   maxStock           Float

@@ -1,9 +1,16 @@
 import type { Product } from '@/types/product';
 import { parseUnitCost } from '@/types/product';
 import { normalizeSupplierFromApi } from '@/lib/normalizeSupplier';
+import type { ProductBaseUnit } from '@/lib/productUnitConversion';
 
 function asRecord(v: unknown): Record<string, unknown> | null {
   return v && typeof v === 'object' ? (v as Record<string, unknown>) : null;
+}
+
+function normalizeBaseUnit(raw: unknown): ProductBaseUnit {
+  const unit = String(raw ?? '').toLowerCase();
+  if (unit === 'g' || unit === 'ml' || unit === 'und') return unit;
+  return 'und';
 }
 
 export function normalizeProductFromApi(raw: unknown): Product {
@@ -26,7 +33,9 @@ export function normalizeProductFromApi(raw: unknown): Product {
     isSupply: Boolean(r.isSupply),
     isFinishedProduct: Boolean(r.isFinishedProduct),
     presentation: String(r.presentation ?? ''),
-    unitOfMeasure: String(r.unitOfMeasure ?? ''),
+    unitOfMeasure: normalizeBaseUnit(r.unitOfMeasure),
+    inputUnit: String(r.inputUnit ?? normalizeBaseUnit(r.unitOfMeasure)),
+    inputUnitQuantity: Number(r.inputUnitQuantity ?? 1),
     expirationDate,
     minStock: Number(r.minStock ?? 0),
     maxStock: Number(r.maxStock ?? 0),
