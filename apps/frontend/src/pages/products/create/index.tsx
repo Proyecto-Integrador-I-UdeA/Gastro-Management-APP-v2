@@ -9,6 +9,10 @@ import { ROUTES } from '@/constants/routes';
 import { createProductRequest } from '@/lib/productsApi';
 import { fetchSuppliers } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
+import {
+  isExpirationDateNotBeforeToday,
+  todayLocalDateInputValue,
+} from '@/utils/expirationDate';
 import type { ProductSupplier } from '@/types/product';
 import {
   PRODUCT_INPUT_UNITS,
@@ -106,6 +110,10 @@ export default function ProductCreatePage() {
     }
     if (!Number.isFinite(quantityPerInputUnit) || quantityPerInputUnit <= 0) {
       alert('La cantidad por unidad debe ser mayor a 0');
+      return;
+    }
+    if (expiryDate && !isExpirationDateNotBeforeToday(expiryDate)) {
+      alert('La fecha de vencimiento no puede ser anterior a la fecha actual.');
       return;
     }
 
@@ -219,7 +227,13 @@ export default function ProductCreatePage() {
               disabled
               className="md:col-span-2 bg-gray-100"
             />
-            <Input label="Fecha de vencimiento" type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
+            <Input
+              label="Fecha de vencimiento"
+              type="date"
+              min={todayLocalDateInputValue()}
+              value={expiryDate}
+              onChange={(e) => setExpiryDate(e.target.value)}
+            />
 
             <Input label="Stock mínimo" type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} />
             <Input label="Stock máximo" type="number" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} />
