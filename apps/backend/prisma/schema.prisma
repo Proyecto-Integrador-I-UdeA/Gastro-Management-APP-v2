@@ -22,7 +22,7 @@ model Supplier {
 }
 
 model Product {
-  id                Int       @id @default(autoincrement())
+  id                Int          @id @default(autoincrement())
   internalCode      String
   name              String
   isIngredient      Boolean
@@ -34,10 +34,11 @@ model Product {
   minStock          Float
   maxStock          Float
   currentStock      Float
-  unitCost          Decimal   @db.Decimal(10, 2)
+  unitCost          Decimal      @db.Decimal(10, 2)
   supplierId        Int
-  category          String    @default("")
-  supplier          Supplier  @relation(fields: [supplierId], references: [id])
+  category          String       @default("")
+  supplier          Supplier     @relation(fields: [supplierId], references: [id])
+  recipeItems       RecipeItem[]
 
   @@map("products")
 }
@@ -86,4 +87,59 @@ model RolePermission {
 
   @@unique([roleId, permissionId])
   @@map("role_permissions")
+}
+
+model Recipe {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+
+  batchQuantity Float
+  portions      Int
+
+  totalCost Decimal? @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+
+  items     RecipeItem[]
+  processes RecipeProcess[]
+
+  @@map("recipes")
+}
+
+model RecipeItem {
+  id        Int @id @default(autoincrement())
+  recipeId  Int
+  productId Int
+
+  quantity  Float
+  unitCost  Decimal @db.Decimal(10, 2)
+  totalCost Decimal @db.Decimal(10, 2)
+
+  recipe  Recipe  @relation(fields: [recipeId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("recipe_items")
+}
+
+model RecipeProcess {
+  id       Int @id @default(autoincrement())
+  recipeId Int
+
+  name        String
+  processType String
+  duration    Float
+  operators   Int
+
+  recipe Recipe @relation(fields: [recipeId], references: [id])
+
+  @@map("recipe_processes")
+}
+model Cost {
+  id           Int     @id @default(autoincrement())
+  name         String
+  type         String  // fijo | variable | impuesto
+  monthlyValue Float
+
+  @@map("costs")
 }
