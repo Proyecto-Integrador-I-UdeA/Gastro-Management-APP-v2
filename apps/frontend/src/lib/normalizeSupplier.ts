@@ -16,5 +16,6 @@ export function normalizeSupplierFromApi(raw: unknown): Supplier | undefined {
     phone: String(s.phone ?? ''),
     address: String(s.address ?? ''),
     contactPerson: String(s.contactPerson ?? ''),
+    active: Boolean(s.active ?? true),
   };
 }

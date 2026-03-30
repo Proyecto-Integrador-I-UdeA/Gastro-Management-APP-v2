@@ -1,39 +1,53 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Button from '@/components/Button';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import { ROUTES } from '@/constants/routes';
 import { useProductList } from '@/hooks/useProductList';
-import { deleteProductRequest } from '@/lib/productsApi';
+import { setProductActiveRequest } from '@/lib/productsApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
-import { formatStockDisplay, productLowStock } from '@/types/product';
-import { useAuthGuard } from "@/hooks/useAuthGuard";
-import { useEffect, useState } from "react";
-import { getUserPermissions } from "@/utils/permissions";
+import {
+  formatStockDisplay,
+  productLowStock,
+  productTypeLabels,
+} from '@/types/product';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
+import { getUserPermissions } from '@/utils/permissions';
 
 export default function ProductsPage() {
-  useAuthGuard("products.read");
+  useAuthGuard('products.read');
 
   const [permissions, setPermissions] = useState<string[]>([]);
   const router = useRouter();
   const { products, loading, error, refetch } = useProductList();
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`¿Eliminar el producto "${name}"? Esta acción no se puede deshacer.`)) return;
+  const handleToggleActive = async (id: number, name: string, active: boolean) => {
+    const action = active ? 'inactivar' : 'activar';
+    if (
+      !confirm(`¿Confirmas que deseas ${action} el producto "${name}"?`)
+    ) {
+      return;
+    }
 
     setDeletingId(id);
     try {
-      await deleteProductRequest(id);
+      await setProductActiveRequest(id, !active);
+      alert(
+        active
+          ? `El producto "${name}" se inactivó correctamente.`
+          : `El producto "${name}" se activó correctamente.`
+      );
       await refetch();
     } catch (e) {
       if (isUnauthorized(e)) {
         router.push('/login');
         return;
       }
-      alert(getApiErrorMessage(e, 'No se pudo eliminar el producto'));
+      alert(getApiErrorMessage(e, `No se pudo ${action} el producto`));
     } finally {
       setDeletingId(null);
     }
@@ -98,63 +112,98 @@ export default function ProductsPage() {
                   <th className="py-2">Código</th>
                   <th>Producto</th>
                   <th>Categoría</th>
+                  <th>Tipo</th>
                   <th>Stock</th>
-                  <th></th>
+                  <th>Estado</th>
+                  <th className="py-2">Acciones</th>
                 </tr>
               </thead>
 
               <tbody>
                 {products.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center py-6">
+                    <td colSpan={7} className="text-center py-6">
                       No hay productos
                     </td>
                   </tr>
                 ) : (
-                  products.map((prod) => (
-                    <tr
-                      key={prod.id}
-                      className="hover:bg-gray-200/20 transition"
-                    >
-                      <td className="py-2">{prod.internalCode}</td>
-                      <td><strong>{prod.name}</strong></td>
-                      <td>{prod.category}</td>
-                      <td>
-                        {formatStockDisplay(prod)}
-                        {productLowStock(prod) && (
-                          <span className="text-red-500 ml-2">⚠</span>
-                        )}
-                      </td>
+                  products.map((prod) => {
+                    const types = productTypeLabels(prod);
+                    return (
+                      <tr
+                        key={prod.id}
+                        className="hover:bg-gray-200/20 transition"
+                      >
+                        <td className="py-2">{prod.internalCode}</td>
+                        <td><strong>{prod.name}</strong></td>
+                        <td>{prod.category}</td>
+                        <td className="max-w-[220px]">
+                          {types.length === 0 ? (
+                            <span className="text-gray-400">—</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {types.map((label) => (
+                                <span
+                                  key={label}
+                                  className="px-2 py-0.5 text-xs font-medium rounded-full bg-[#001F3F]/10 text-[#001F3F]"
+                                >
+                                  {label}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          {formatStockDisplay(prod)}
+                          {productLowStock(prod) && (
+                            <span className="text-red-500 ml-2">⚠</span>
+                          )}
+                        </td>
 
-                      <td className="text-right space-x-3">
-
-                        {/* EDITAR */}
-                        {can("products.update") ? (
-                          <Link
-                            href={ROUTES.products.edit(prod.id)}
-                            className="text-blue-600 hover:underline"
+                        <td>
+                          <span
+                            className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              prod.active
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}
                           >
-                            Modificar
-                          </Link>
-                        ) : (
-                          <span className="text-gray-400">Modificar</span>
-                        )}
+                            {prod.active ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
 
-                        {/* ELIMINAR */}
-                        <Button
-                          variant="danger"
-                          className="text-sm px-3 py-1"
-                          disabled={
-                            deletingId !== null || !can("products.delete")
-                          }
-                          onClick={() => handleDelete(prod.id, prod.name)}
-                        >
-                          {deletingId === prod.id ? '…' : 'Eliminar'}
-                        </Button>
+                        <td className="text-left space-x-3 whitespace-nowrap">
+                          {can('products.update') ? (
+                            <Link
+                              href={ROUTES.products.edit(prod.id)}
+                              className="text-blue-600 hover:underline"
+                            >
+                              Modificar
+                            </Link>
+                          ) : (
+                            <span className="text-gray-400">Modificar</span>
+                          )}
 
-                      </td>
-                    </tr>
-                  ))
+                          <Button
+                            variant={prod.active ? 'danger' : 'secondary'}
+                            className="text-sm px-3 py-1"
+                            disabled={
+                              deletingId !== null || !can('products.update')
+                            }
+                            onClick={() =>
+                              handleToggleActive(prod.id, prod.name, prod.active)
+                            }
+                          >
+                            {deletingId === prod.id
+                              ? '…'
+                              : prod.active
+                                ? 'Inactivar'
+                                : 'Activar'}
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
 

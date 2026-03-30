@@ -58,6 +58,8 @@ export const createProduct = async (req: Request, res: Response) => {
         isFinishedProduct: data.isFinishedProduct,
         presentation: data.presentation,
         unitOfMeasure: data.unitOfMeasure,
+        inputUnit: data.inputUnit,
+        inputUnitQuantity: data.inputUnitQuantity,
         expirationDate: data.expirationDate ?? null,
         minStock: data.minStock,
         maxStock: data.maxStock,
@@ -100,12 +102,15 @@ export const updateProduct = async (req: Request, res: Response) => {
   if (data.isFinishedProduct !== undefined) updateData.isFinishedProduct = data.isFinishedProduct;
   if (data.presentation !== undefined) updateData.presentation = data.presentation;
   if (data.unitOfMeasure !== undefined) updateData.unitOfMeasure = data.unitOfMeasure;
+  if (data.inputUnit !== undefined) updateData.inputUnit = data.inputUnit;
+  if (data.inputUnitQuantity !== undefined) updateData.inputUnitQuantity = data.inputUnitQuantity;
   if (data.expirationDate !== undefined) updateData.expirationDate = data.expirationDate;
   if (data.minStock !== undefined) updateData.minStock = data.minStock;
   if (data.maxStock !== undefined) updateData.maxStock = data.maxStock;
   if (data.currentStock !== undefined) updateData.currentStock = data.currentStock;
   if (data.unitCost !== undefined) updateData.unitCost = new Prisma.Decimal(data.unitCost);
   if (data.supplierId !== undefined) updateData.supplier = { connect: { id: data.supplierId } };
+  if (data.active !== undefined) updateData.active = data.active;
 
   try {
     const product = await prisma.product.update({

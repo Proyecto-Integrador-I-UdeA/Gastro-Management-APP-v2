@@ -6,7 +6,7 @@ import Button from '../../components/Button';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import { ROUTES } from '@/constants/routes';
 import { useSupplierList } from '@/hooks/useSupplierList';
-import { deleteSupplierRequest } from '@/lib/suppliersApi';
+import { setSupplierActiveRequest } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import { useRouter } from 'next/router';
 import { useAuthGuard } from "@/hooks/useAuthGuard";
@@ -17,19 +17,20 @@ export default function SuppliersPage() {
   const { suppliers, loading, error, refetch } = useSupplierList();
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`¿Eliminar el proveedor "${name}"?`)) return;
+  const handleToggleActive = async (id: number, name: string, active: boolean) => {
+    const action = active ? 'inactivar' : 'activar';
+    if (!confirm(`¿Estás seguro de que quieres ${action} el proveedor "${name}"?`)) return;
 
     setDeletingId(id);
     try {
-      await deleteSupplierRequest(id);
+      await setSupplierActiveRequest(id, !active);
       await refetch();
     } catch (e) {
       if (isUnauthorized(e)) {
         router.push('/login');
         return;
       }
-      alert(getApiErrorMessage(e, 'No se pudo eliminar el proveedor'));
+      alert(getApiErrorMessage(e, `No se pudo ${action} el proveedor`));
     } finally {
       setDeletingId(null);
     }
@@ -85,14 +86,15 @@ export default function SuppliersPage() {
                 <th className="p-3">Teléfono</th>
                 <th className="p-3">Contacto</th>
                 <th className="p-3">Dirección</th>
-                <th className="p-3 text-right"></th>
+                <th className="p-3">Estado</th>
+                <th className="p-3">Acciones</th>
               </tr>
             </thead>
 
             <tbody>
               {suppliers.length === 0 && !error ? (
                 <tr>
-                  <td colSpan={7} className="text-center p-6">
+                  <td colSpan={8} className="text-center p-6">
                     No hay proveedores.
                   </td>
                 </tr>
@@ -111,7 +113,19 @@ export default function SuppliersPage() {
                       {s.address}
                     </td>
 
-                    <td className="p-3 text-right space-x-3">
+                    <td className="p-3">
+                      <span
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          s.active
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}
+                      >
+                        {s.active ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </td>
+
+                    <td className="p-3 text-left space-x-3 whitespace-nowrap">
 
                       <Link
                         href={ROUTES.suppliers.edit(s.id)}
@@ -121,12 +135,12 @@ export default function SuppliersPage() {
                       </Link>
 
                       <Button
-                        variant="danger"
+                        variant={s.active ? 'danger' : 'secondary'}
                         className="text-sm px-3 py-1"
                         disabled={deletingId !== null}
-                        onClick={() => handleDelete(s.id, s.name)}
+                        onClick={() => handleToggleActive(s.id, s.name, s.active)}
                       >
-                        {deletingId === s.id ? '…' : 'Eliminar'}
+                        {deletingId === s.id ? '…' : s.active ? 'Inactivar' : 'Activar'}
                       </Button>
 
                     </td>

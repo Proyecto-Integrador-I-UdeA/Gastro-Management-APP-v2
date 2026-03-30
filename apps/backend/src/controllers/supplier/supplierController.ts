@@ -86,6 +86,7 @@ export const updateSupplier = async (req: Request, res: Response) => {
         ...(data.phone !== undefined && { phone: data.phone }),
         ...(data.address !== undefined && { address: data.address }),
         ...(data.contactPerson !== undefined && { contactPerson: data.contactPerson }),
+        ...(data.active !== undefined && { active: data.active }),
       },
     });
     res.json(supplier);
