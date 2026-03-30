@@ -9,7 +9,11 @@ import { ROUTES } from '@/constants/routes';
 import { useProductList } from '@/hooks/useProductList';
 import { setProductActiveRequest } from '@/lib/productsApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
-import { formatStockDisplay, productLowStock } from '@/types/product';
+import {
+  formatStockDisplay,
+  productLowStock,
+  productTypeLabels,
+} from '@/types/product';
 
 export default function ProductsPage() {
   const router = useRouter();
@@ -93,6 +97,7 @@ export default function ProductsPage() {
                   <th className="py-2">Código</th>
                   <th>Producto</th>
                   <th>Categoría</th>
+                  <th>Tipo</th>
                   <th>Stock</th>
                   <th>Estado</th>
                   <th className="py-2">Acciones</th>
@@ -102,65 +107,84 @@ export default function ProductsPage() {
               <tbody>
                 {products.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-6">
+                    <td colSpan={7} className="text-center py-6">
                       No hay productos
                     </td>
                   </tr>
                 ) : (
-                  products.map((prod) => (
-                    <tr
-                      key={prod.id}
-                      className="hover:bg-gray-200/20 transition"
-                    >
-                      <td className="py-2">{prod.internalCode}</td>
-                      <td><strong>{prod.name}</strong></td>
-                      <td>{prod.category}</td>
-                      <td>
-                        {formatStockDisplay(prod)}
-                        {productLowStock(prod) && (
-                          <span className="text-red-500 ml-2">⚠</span>
-                        )}
-                      </td>
+                  products.map((prod) => {
+                    const types = productTypeLabels(prod);
+                    return (
+                      <tr
+                        key={prod.id}
+                        className="hover:bg-gray-200/20 transition"
+                      >
+                        <td className="py-2">{prod.internalCode}</td>
+                        <td><strong>{prod.name}</strong></td>
+                        <td>{prod.category}</td>
+                        <td className="max-w-[220px]">
+                          {types.length === 0 ? (
+                            <span className="text-gray-400">—</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {types.map((label) => (
+                                <span
+                                  key={label}
+                                  className="px-2 py-0.5 text-xs font-medium rounded-full bg-[#001F3F]/10 text-[#001F3F]"
+                                >
+                                  {label}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          {formatStockDisplay(prod)}
+                          {productLowStock(prod) && (
+                            <span className="text-red-500 ml-2">⚠</span>
+                          )}
+                        </td>
 
-                      <td>
-                        <span
-                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            prod.active
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}
-                        >
-                          {prod.active ? 'Activo' : 'Inactivo'}
-                        </span>
-                      </td>
+                        <td>
+                          <span
+                            className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              prod.active
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}
+                          >
+                            {prod.active ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
 
-                      <td className="text-left space-x-3 whitespace-nowrap">
+                        <td className="text-left space-x-3 whitespace-nowrap">
 
-                        <Link
-                          href={ROUTES.products.edit(prod.id)}
-                          className="text-blue-600 hover:underline"
-                        >
-                          Modificar
-                        </Link>
+                          <Link
+                            href={ROUTES.products.edit(prod.id)}
+                            className="text-blue-600 hover:underline"
+                          >
+                            Modificar
+                          </Link>
 
-                        <Button
-                          variant={prod.active ? 'danger' : 'secondary'}
-                          className="text-sm px-3 py-1"
-                          disabled={deletingId !== null}
-                          onClick={() =>
-                            handleToggleActive(prod.id, prod.name, prod.active)
-                          }
-                        >
-                          {deletingId === prod.id
-                            ? '…'
-                            : prod.active
-                              ? 'Inactivar'
-                              : 'Activar'}
-                        </Button>
+                          <Button
+                            variant={prod.active ? 'danger' : 'secondary'}
+                            className="text-sm px-3 py-1"
+                            disabled={deletingId !== null}
+                            onClick={() =>
+                              handleToggleActive(prod.id, prod.name, prod.active)
+                            }
+                          >
+                            {deletingId === prod.id
+                              ? '…'
+                              : prod.active
+                                ? 'Inactivar'
+                                : 'Activar'}
+                          </Button>
 
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
 
