@@ -13,7 +13,7 @@ import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 
 export default function SupplierCreatePage() {
-  useAuthGuard("users.read");
+  useAuthGuard("suppliers.create");
   const router = useRouter();
 
 

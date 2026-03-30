@@ -12,7 +12,7 @@ import { useRouter } from 'next/router';
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export default function SuppliersPage() {
-    useAuthGuard("users.read");
+    useAuthGuard("suppliers.read");
   const router = useRouter();
   const { suppliers, loading, error, refetch } = useSupplierList();
   const [deletingId, setDeletingId] = useState<number | null>(null);

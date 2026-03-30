@@ -3,6 +3,7 @@
 import { useRouter, usePathname } from "next/navigation";
 import { useSidebar } from "@/context/SidebarContext";
 import { useEffect, useState } from "react";
+import { showError, showSuccess } from "@/utils/toast";
 
 export default function Sidebar() {
   const router = useRouter();
@@ -53,9 +54,10 @@ export default function Sidebar() {
     }
   };
 
+
   const handleNavigate = (path: string, permission?: string) => {
     if (permission && !can(permission)) {
-      alert("No cuentas con los permisos para ingresar a este modulo");
+      showError("No tienes permiso para acceder a esta sección");
       return;
     }
 
@@ -63,6 +65,8 @@ export default function Sidebar() {
     setOpen(false);
   };
 
+  
+  
   const menuItems = [
     { name: "Dashboard", path: "/dashboard", icon: "📈" },
     { name: "Productos", path: "/products", icon: "📦", permission: "products.read" },

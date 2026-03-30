@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Button from '@/components/Button';
@@ -11,9 +10,13 @@ import { deleteProductRequest } from '@/lib/productsApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import { formatStockDisplay, productLowStock } from '@/types/product';
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { useEffect, useState } from "react";
+import { getUserPermissions } from "@/utils/permissions";
 
 export default function ProductsPage() {
-    useAuthGuard("users.read");
+  useAuthGuard("products.read");
+
+  const [permissions, setPermissions] = useState<string[]>([]);
   const router = useRouter();
   const { products, loading, error, refetch } = useProductList();
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -36,6 +39,15 @@ export default function ProductsPage() {
     }
   };
 
+  useEffect(() => {
+    const perms = getUserPermissions();
+      console.log("PERMISOS REALES:", perms);
+    setPermissions(perms);
+  }, []);
+
+  const can = (perm: string) =>
+     permissions.some(p => p.trim().toLowerCase() === perm.toLowerCase());
+
   return (
     <DashboardLayout>
 
@@ -53,6 +65,7 @@ export default function ProductsPage() {
           </h3>
 
           <Button
+            disabled={!can("products.create")}
             onClick={() => router.push(ROUTES.products.create)}
           >
             + Nuevo Producto
@@ -115,17 +128,25 @@ export default function ProductsPage() {
 
                       <td className="text-right space-x-3">
 
-                        <Link
-                          href={ROUTES.products.edit(prod.id)}
-                          className="text-blue-600 hover:underline"
-                        >
-                          Modificar
-                        </Link>
+                        {/* EDITAR */}
+                        {can("products.update") ? (
+                          <Link
+                            href={ROUTES.products.edit(prod.id)}
+                            className="text-blue-600 hover:underline"
+                          >
+                            Modificar
+                          </Link>
+                        ) : (
+                          <span className="text-gray-400">Modificar</span>
+                        )}
 
+                        {/* ELIMINAR */}
                         <Button
                           variant="danger"
                           className="text-sm px-3 py-1"
-                          disabled={deletingId !== null}
+                          disabled={
+                            deletingId !== null || !can("products.delete")
+                          }
                           onClick={() => handleDelete(prod.id, prod.name)}
                         >
                           {deletingId === prod.id ? '…' : 'Eliminar'}

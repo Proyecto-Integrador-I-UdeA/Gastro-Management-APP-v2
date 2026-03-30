@@ -13,7 +13,7 @@ import type { ProductSupplier } from '@/types/product';
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export default function ProductEditPage() {
-  useAuthGuard("users.read");
+  useAuthGuard("products.update");
   const router = useRouter();
   const { id } = router.query;
 

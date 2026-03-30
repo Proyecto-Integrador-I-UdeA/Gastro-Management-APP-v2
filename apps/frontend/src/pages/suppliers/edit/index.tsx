@@ -14,7 +14,7 @@ import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export default function SupplierEditPage() {
   const router = useRouter();
-  useAuthGuard("users.read");
+  useAuthGuard("suppliers.update");
   const { id } = router.query;
 
 

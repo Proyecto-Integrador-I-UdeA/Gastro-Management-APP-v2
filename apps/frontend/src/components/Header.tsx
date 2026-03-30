@@ -6,6 +6,7 @@ import Button from './Button';
 import Input from './Input';
 import Logo from './Logo';
   import { useSidebar } from '@/context/SidebarContext';
+  import { showError, showSuccess } from "@/utils/toast";
 
 
 export default function Header({ showUser = true }: { showUser?: boolean }) {
@@ -102,7 +103,7 @@ export default function Header({ showUser = true }: { showUser?: boolean }) {
 
       if (!response.ok) throw new Error(await response.text());
 
-      alert('Contraseña actualizada');
+      showSuccess("Su contraseña se actualizo de manera correcta, por favor vuelva a iniciar sesión");
       setShowPasswordModal(false);
       handleLogout();
     } catch (err: any) {

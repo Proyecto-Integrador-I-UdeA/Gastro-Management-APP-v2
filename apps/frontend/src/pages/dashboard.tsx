@@ -49,13 +49,33 @@ if (token) {
 };
 
   // 🔥 navegación con control
-  const handleNavigate = (path: string, permission: string) => {
+  /*const handleNavigate = (path: string, permission: string) => {
     if (!can(permission)) {
       alert("No cuentas con los permisos para ingresar a este modulo");
       return;
     }
     router.push(path);
-  };
+  };*/
+
+  const handleNavigate = (path: string, permission?: string) => {
+  console.log("🚀 CLICK DASHBOARD");
+  console.log("PATH:", path);
+  console.log("PERMISO RECIBIDO:", permission);
+
+  const token = localStorage.getItem("token");
+  const payload = token ? JSON.parse(atob(token.split(".")[1])) : null;
+
+  console.log("PERMISOS DEL TOKEN:", payload?.permissions);
+
+  if (permission && !payload?.permissions?.includes(permission)) {
+    console.log("❌ BLOQUEADO");
+    alert("No cuentas con los permisos para ingresar a este modulo");
+    return;
+  }
+
+  console.log("✅ PERMITIDO");
+  router.push(path);
+};
 
   return (
     <div className="flex min-h-screen relative z-0">

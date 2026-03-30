@@ -13,7 +13,7 @@ import type { ProductSupplier } from '@/types/product';
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export default function ProductCreatePage() {
-  useAuthGuard("users.read");
+  useAuthGuard("products.create");
   const router = useRouter();
 
   const [suppliers, setSuppliers] = useState<ProductSupplier[]>([]);
