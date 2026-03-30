@@ -133,6 +133,27 @@ export default function ProductEditPage() {
       return;
     }
 
+    const minStockN = parseFloat(minStock);
+    const maxStockN = parseFloat(maxStock);
+    const currentStockN = parseFloat(currentStock);
+    const unitCostN = parseFloat(unitCost);
+    if (!Number.isFinite(minStockN) || minStockN < 0) {
+      alert('El stock mínimo no puede ser negativo.');
+      return;
+    }
+    if (!Number.isFinite(maxStockN) || maxStockN < 0) {
+      alert('El stock máximo no puede ser negativo.');
+      return;
+    }
+    if (!Number.isFinite(currentStockN) || currentStockN < 0) {
+      alert('El stock actual no puede ser negativo.');
+      return;
+    }
+    if (!Number.isFinite(unitCostN) || unitCostN < 0) {
+      alert('El costo unitario no puede ser negativo.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -150,10 +171,10 @@ export default function ProductEditPage() {
         expirationDate: expiryDate
           ? new Date(expiryDate).toISOString()
           : null,
-        minStock: parseFloat(minStock),
-        maxStock: parseFloat(maxStock),
-        currentStock: parseFloat(currentStock),
-        unitCost: parseFloat(unitCost),
+        minStock: minStockN,
+        maxStock: maxStockN,
+        currentStock: currentStockN,
+        unitCost: unitCostN,
         supplierId: sid,
       });
 
@@ -237,9 +258,30 @@ export default function ProductEditPage() {
               onChange={(e) => setExpiryDate(e.target.value)}
             />
 
-            <Input label="Stock mínimo" type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} />
-            <Input label="Stock máximo" type="number" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} />
-            <Input label="Stock actual" type="number" value={currentStock} onChange={(e) => setCurrentStock(e.target.value)} />
+            <Input
+              label="Stock mínimo"
+              type="number"
+              min="0"
+              step="any"
+              value={minStock}
+              onChange={(e) => setMinStock(e.target.value)}
+            />
+            <Input
+              label="Stock máximo"
+              type="number"
+              min="0"
+              step="any"
+              value={maxStock}
+              onChange={(e) => setMaxStock(e.target.value)}
+            />
+            <Input
+              label="Stock actual"
+              type="number"
+              min="0"
+              step="any"
+              value={currentStock}
+              onChange={(e) => setCurrentStock(e.target.value)}
+            />
 
             <div className="md:col-span-2">
               <label className="block text-sm mb-1">Proveedor</label>
@@ -256,7 +298,14 @@ export default function ProductEditPage() {
               </select>
             </div>
 
-            <Input label="Costo unitario" type="number" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} />
+            <Input
+              label="Costo unitario"
+              type="number"
+              min="0"
+              step="any"
+              value={unitCost}
+              onChange={(e) => setUnitCost(e.target.value)}
+            />
 
           </div>
 

@@ -11,6 +11,46 @@ function startOfLocalDay(d: Date): Date {
 const expirationNotInPastMessage =
   'La fecha de vencimiento no puede ser anterior a la fecha actual';
 
+const minStockNonNegativeMessage =
+  'El stock mínimo no puede ser negativo';
+const maxStockNonNegativeMessage =
+  'El stock máximo no puede ser negativo';
+const currentStockNonNegativeMessage =
+  'El stock actual no puede ser negativo';
+const unitCostNonNegativeMessage =
+  'El costo unitario no puede ser negativo';
+
+/** Número ≥ 0; acepta string numérico del cliente y rechaza NaN. */
+const nonNegativeNumber = (message: string) =>
+  z.union([
+    z.number(),
+    z.string().transform((v) => Number(v)),
+  ]).pipe(
+    z
+      .number()
+      .finite('Valor numérico inválido')
+      .min(0, message)
+  );
+
+const optionalNonNegativeNumber = (message: string) =>
+  z
+    .union([z.number(), z.string(), z.undefined()])
+    .optional()
+    .transform((v) => {
+      if (v === undefined) return undefined;
+      return typeof v === 'string' ? Number(v) : v;
+    })
+    .superRefine((val, ctx) => {
+      if (val === undefined) return;
+      if (!Number.isFinite(val)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Valor numérico inválido' });
+        return;
+      }
+      if (val < 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+      }
+    });
+
 /** Fecha opcional; si viene vacía → null. Si viene con valor, debe ser hoy o futura (solo día calendario, hora local). */
 const createExpirationDateSchema = z
   .union([z.string(), z.null(), z.undefined()])
@@ -68,10 +108,10 @@ export const createProductSchema = z.object({
   inputUnit: z.string().min(1, 'Unidad ingresada requerida'),
   inputUnitQuantity: z.number().positive('Cantidad por unidad ingresada inválida'),
   expirationDate: createExpirationDateSchema,
-  minStock: z.number().min(0),
-  maxStock: z.number().min(0),
-  currentStock: z.number().min(0),
-  unitCost: z.number().min(0).or(z.string().transform((v) => Number(v))),
+  minStock: nonNegativeNumber(minStockNonNegativeMessage),
+  maxStock: nonNegativeNumber(maxStockNonNegativeMessage),
+  currentStock: nonNegativeNumber(currentStockNonNegativeMessage),
+  unitCost: nonNegativeNumber(unitCostNonNegativeMessage),
   supplierId: z.number().int().positive(),
 });
 
@@ -87,10 +127,10 @@ export const updateProductSchema = z.object({
   inputUnit: z.string().min(1).optional(),
   inputUnitQuantity: z.number().positive().optional(),
   expirationDate: updateExpirationDateSchema,
-  minStock: z.number().min(0).optional(),
-  maxStock: z.number().min(0).optional(),
-  currentStock: z.number().min(0).optional(),
-  unitCost: z.number().min(0).or(z.string().transform((v) => Number(v))).optional(),
+  minStock: optionalNonNegativeNumber(minStockNonNegativeMessage),
+  maxStock: optionalNonNegativeNumber(maxStockNonNegativeMessage),
+  currentStock: optionalNonNegativeNumber(currentStockNonNegativeMessage),
+  unitCost: optionalNonNegativeNumber(unitCostNonNegativeMessage),
   supplierId: z.number().int().positive().optional(),
   active: z.boolean().optional(),
 });
