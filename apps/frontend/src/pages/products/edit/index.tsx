@@ -154,6 +154,10 @@ export default function ProductEditPage() {
       return;
     }
 
+    if (!confirm('¿Confirmas que deseas guardar los cambios de este producto?')) {
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -178,6 +182,7 @@ export default function ProductEditPage() {
         supplierId: sid,
       });
 
+      alert('Los cambios se guardaron correctamente.');
       router.push(ROUTES.products.list);
 
     } catch (e) {

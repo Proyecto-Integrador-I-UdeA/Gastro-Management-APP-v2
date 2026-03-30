@@ -133,6 +133,10 @@ export default function ProductCreatePage() {
       return;
     }
 
+    if (!confirm('¿Confirmas que deseas guardar este nuevo producto?')) {
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -157,6 +161,7 @@ export default function ProductCreatePage() {
         supplierId: sid,
       });
 
+      alert('El producto se guardó correctamente.');
       router.push(ROUTES.products.list);
 
     } catch (e) {

@@ -18,11 +18,20 @@ export default function ProductsPage() {
 
   const handleToggleActive = async (id: number, name: string, active: boolean) => {
     const action = active ? 'inactivar' : 'activar';
-    if (!confirm(`¿Estás seguro de que quieres ${action} el producto "${name}"?`)) return;
+    if (
+      !confirm(`¿Confirmas que deseas ${action} el producto "${name}"?`)
+    ) {
+      return;
+    }
 
     setDeletingId(id);
     try {
       await setProductActiveRequest(id, !active);
+      alert(
+        active
+          ? `El producto "${name}" se inactivó correctamente.`
+          : `El producto "${name}" se activó correctamente.`
+      );
       await refetch();
     } catch (e) {
       if (isUnauthorized(e)) {
