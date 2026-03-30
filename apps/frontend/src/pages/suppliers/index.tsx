@@ -9,8 +9,10 @@ import { useSupplierList } from '@/hooks/useSupplierList';
 import { setSupplierActiveRequest } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import { useRouter } from 'next/router';
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 export default function SuppliersPage() {
+    useAuthGuard("suppliers.read");
   const router = useRouter();
   const { suppliers, loading, error, refetch } = useSupplierList();
   const [deletingId, setDeletingId] = useState<number | null>(null);

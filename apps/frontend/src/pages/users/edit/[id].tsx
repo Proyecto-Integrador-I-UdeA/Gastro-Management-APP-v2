@@ -7,6 +7,7 @@ import Input from '@/components/Input';
 import Dropdown from '@/components/Dropdown';
 import Button from '@/components/Button';
 import { api } from '@/utils/api';
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 interface FormData {
   email: string;
@@ -16,6 +17,7 @@ interface FormData {
 }
 
 export default function EditUser() {
+  useAuthGuard("users.read");
   const router = useRouter();
   const { id } = router.query;
 

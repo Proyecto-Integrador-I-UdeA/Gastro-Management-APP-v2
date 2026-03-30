@@ -9,10 +9,12 @@ import Input from '@/components/Input';
 import { ROUTES } from '@/constants/routes';
 import { fetchSupplierById, updateSupplierRequest } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 
 export default function SupplierEditPage() {
   const router = useRouter();
+  useAuthGuard("suppliers.update");
   const { id } = router.query;
 
 

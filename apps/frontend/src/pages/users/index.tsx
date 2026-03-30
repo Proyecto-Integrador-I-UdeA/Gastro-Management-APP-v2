@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import { api } from '../../utils/api';
-import { isSuperUser } from '../../utils/auth';
+import { getUserPermissions } from "@/utils/permissions";
+import { showError } from '@/utils/toast';
 
 interface User {
   id: number;
@@ -15,23 +16,37 @@ interface User {
 }
 
 export default function UsersList() {
+
   const router = useRouter();
+
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isSuper, setIsSuper] = useState(false);
+
+  // 🔥 PERMISOS
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    // 🔥 para pruebas frontend puedes dejarlo así
-    setIsSuper(true);
+    const perms = getUserPermissions();
+    setPermissions(perms);
+    setLoaded(true);
+  }, []);
 
+  const can = (perm: string) =>
+    permissions.some(p => p.trim().toLowerCase() === perm.toLowerCase());
+
+  const canEdit = loaded && can("users.update");
+  const canDelete = loaded && can("users.delete");
+
+  // 🔥 FETCH USERS
+  useEffect(() => {
     const fetchUsers = async () => {
       try {
         const response = await api.get('/users');
         setUsers(response.data);
       } catch (err: any) {
         setError(err.response?.data?.error || 'Error al cargar usuarios');
-        console.error(err);
       } finally {
         setLoading(false);
       }
@@ -46,21 +61,22 @@ export default function UsersList() {
 
   const handleToggleActive = async (userId: number, currentActive: boolean) => {
     const action = currentActive ? 'inactivar' : 'activar';
-    if (!confirm(`¿Estás seguro de que quieres ${action} este usuario?`)) {
-      return;
-    }
+
+    if (!confirm(`¿Estás seguro de que quieres ${action} este usuario?`)) return;
 
     try {
       await api.patch(`/users/${userId}`, { active: !currentActive });
+
       setUsers(prevUsers =>
         prevUsers.map(u =>
           u.id === userId ? { ...u, active: !currentActive } : u
         )
       );
-      alert(`Usuario ${action}do con éxito`);
+
+      showError(`Usuario ${action}do con éxito`);
     } catch (err: any) {
       console.error('Error al actualizar estado:', err);
-      alert(err.response?.data?.error || `Error al ${action} el usuario`);
+      showError(err.response?.data?.error || `Error al ${action} el usuario`);
     }
   };
 
@@ -84,7 +100,12 @@ export default function UsersList() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rol</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-              {isSuper && <th className="px-6 py-3">Acciones</th>}
+
+              {(canEdit || canDelete) && (
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Acciones
+                </th>
+              )}
             </tr>
           </thead>
 
@@ -97,39 +118,42 @@ export default function UsersList() {
                 <td className="px-6 py-4 text-sm">{user.fullName || '-'}</td>
                 <td className="px-6 py-4 text-sm">{user.role?.name || 'Sin rol'}</td>
 
-              <td className="px-6 py-4 whitespace-nowrap text-sm">
-  <span
-    className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-      user.active
-        ? 'bg-green-100 text-green-800'
-        : 'bg-red-100 text-red-800'
-    }`}
-  >
-    {user.active ? 'Activo' : 'Inactivo'}
-  </span>
-</td>
-                      
+                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                  <span
+                    className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      user.active
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}
+                  >
+                    {user.active ? 'Activo' : 'Inactivo'}
+                  </span>
+                </td>
 
-                {isSuper && (
+                {(canEdit || canDelete) && (
                   <td className="px-6 py-4 text-sm">
 
-                    <button
-                      onClick={() => handleEdit(user.id)}
-                      className="text-blue-600 hover:text-blue-900 mr-4"
-                    >
-                      Editar
-                    </button>
+                    {canEdit && (
+                      <button
+                        onClick={() => handleEdit(user.id)}
+                        className="text-blue-600 hover:text-blue-900 mr-4"
+                      >
+                        Editar
+                      </button>
+                    )}
 
-                    <button
-                      onClick={() => handleToggleActive(user.id, user.active)}
-                      className={`${
-                        user.active
-                          ? 'text-red-600 hover:text-red-900'
-                          : 'text-green-600 hover:text-green-900'
-                      }`}
-                    >
-                      {user.active ? 'Inactivar' : 'Activar'}
-                    </button>
+                    {canDelete && (
+                      <button
+                        onClick={() => handleToggleActive(user.id, user.active)}
+                        className={`${
+                          user.active
+                            ? 'text-red-600 hover:text-red-900'
+                            : 'text-green-600 hover:text-green-900'
+                        }`}
+                      >
+                        {user.active ? 'Inactivar' : 'Activar'}
+                      </button>
+                    )}
 
                   </td>
                 )}
@@ -144,19 +168,6 @@ export default function UsersList() {
     </DashboardLayout>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

@@ -20,8 +20,10 @@ import {
   isProductInputUnit,
   type ProductInputUnit,
 } from '@/lib/productUnitConversion';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
 
 export default function ProductEditPage() {
+  useAuthGuard("products.update");
   const router = useRouter();
   const { id } = router.query;
 

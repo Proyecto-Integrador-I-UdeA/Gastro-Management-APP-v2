@@ -6,10 +6,10 @@ import prisma from '../../lib/prisma';  // ← IMPORTAMOS PRISMA AQUÍ (para la 
 const router = Router();
 
 // GET /users - Lista todos los usuarios
-router.get('/', authenticate, authorize(['users:read']), getUsers);
+router.get('/', authenticate, authorize(['users.read']), getUsers);
 
 // GET /users/:id - Obtiene un usuario por ID
-router.get('/:id', authenticate, authorize(['users:read']), async (req, res) => {
+router.get('/:id', authenticate, authorize(['users.read']), async (req, res) => {
   const { id } = req.params;
   try {
     const user = await prisma.user.findUnique({
@@ -27,7 +27,7 @@ router.get('/:id', authenticate, authorize(['users:read']), async (req, res) => 
 });
 
 // PATCH /users/:id - Actualiza usuario (usando prisma directamente)
-router.patch('/:id', authenticate, authorize(['users:update']), async (req, res) => {
+router.patch('/:id', authenticate, authorize(['users.update']), async (req, res) => {
   const { id } = req.params;
   const { active, fullName, email } = req.body;
   try {
@@ -47,9 +47,9 @@ router.patch('/:id', authenticate, authorize(['users:update']), async (req, res)
 });
 
 // PUT /users/:id - Actualiza usuario (versión con Zod)
-router.put('/:id', authenticate, authorize(['users:update']), updateUser);
+router.put('/:id', authenticate, authorize(['users.update']), updateUser);
 
 // DELETE /users/:id - Inactiva usuario (soft delete)
-router.delete('/:id', authenticate, authorize(['users:delete']), deleteUser);
+router.delete('/:id', authenticate, authorize(['users.delete']), deleteUser);
 
 export default router;

@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client-js"
-  seed = "ts-node prisma/seed.ts"
+  seed     = "ts-node prisma/seed.ts"
 }
 
 datasource db {
@@ -15,58 +15,53 @@ enum ProductBaseUnit {
 }
 
 model Supplier {
-  id            Int       @id @default(autoincrement())
-  internalCode  String
-  name          String
-  taxId         String
-  phone         String
-  address       String
-  contactPerson String
-
-  active        Boolean   @default(true)
-
-  products      Product[]
+  id              Int       @id @default(autoincrement())
+  internalCode    String
+  name            String
+  taxId           String
+  phone           String
+  address         String
+  contactPerson   String
+  active          Boolean   @default(true)
+  products        Product[]
 
   @@map("suppliers")
 }
 
 model Product {
-  id                 Int       @id @default(autoincrement())
+  id                 Int             @id @default(autoincrement())
   internalCode       String
   name               String
-  category           String    @default("")
+  category           String          @default("")
   isIngredient       Boolean
   isSupply           Boolean
   isFinishedProduct  Boolean
   presentation       String
   unitOfMeasure      ProductBaseUnit
-  inputUnit          String            @default("g")
-  inputUnitQuantity  Float             @default(1)
+  inputUnit          String          @default("g")
+  inputUnitQuantity  Float           @default(1)
   expirationDate     DateTime?
   minStock           Float
   maxStock           Float
   currentStock       Float
-  unitCost           Decimal    @db.Decimal(10, 2)
-
-  active             Boolean   @default(true)
-
+  unitCost           Decimal         @db.Decimal(10, 2)
+  active             Boolean         @default(true)
   supplierId         Int
-  supplier           Supplier   @relation(fields: [supplierId], references: [id])
+  supplier           Supplier        @relation(fields: [supplierId], references: [id])
 
   @@map("products")
 }
 
 model User {
-  id            Int       @id @default(autoincrement())
-  email         String    @unique
-  passwordHash  String
-  fullName      String?
-  roleId        Int?
-  active        Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  role          Role?     @relation(fields: [roleId], references: [id])
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  fullName     String?
+  roleId       Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  active       Boolean  @default(true)
+  role         Role?    @relation(fields: [roleId], references: [id])
 
   @@map("users")
 }
@@ -102,16 +97,3 @@ model RolePermission {
   @@unique([roleId, permissionId])
   @@map("role_permissions")
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

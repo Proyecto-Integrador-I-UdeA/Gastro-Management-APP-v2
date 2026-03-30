@@ -8,9 +8,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Deploy Frontend to Vercel
-      uses: amondnet/vercel-action@v20
+      uses: amondnet/vercel-action@v25
       with:
         vercel-token: ${{ secrets.VERCEL_TOKEN }}
         vercel-org-id: TU_ORG_ID  # De Vercel dashboard
@@ -18,7 +18,7 @@ jobs:
         working-directory: ./apps/frontend
     - name: Deploy Backend
       # Para backend Node.js, usa Vercel serverless o alternativa como Heroku; ajusta si backend es API separada
-      uses: amondnet/vercel-action@v20
+      uses: amondnet/vercel-action@v25
       with:
         vercel-token: ${{ secrets.VERCEL_TOKEN }}
         vercel-org-id: TU_ORG_ID

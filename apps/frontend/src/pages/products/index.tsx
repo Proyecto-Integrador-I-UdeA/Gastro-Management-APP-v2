@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Button from '@/components/Button';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
@@ -14,8 +14,13 @@ import {
   productLowStock,
   productTypeLabels,
 } from '@/types/product';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
+import { getUserPermissions } from '@/utils/permissions';
 
 export default function ProductsPage() {
+  useAuthGuard('products.read');
+
+  const [permissions, setPermissions] = useState<string[]>([]);
   const router = useRouter();
   const { products, loading, error, refetch } = useProductList();
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -48,6 +53,15 @@ export default function ProductsPage() {
     }
   };
 
+  useEffect(() => {
+    const perms = getUserPermissions();
+      console.log("PERMISOS REALES:", perms);
+    setPermissions(perms);
+  }, []);
+
+  const can = (perm: string) =>
+     permissions.some(p => p.trim().toLowerCase() === perm.toLowerCase());
+
   return (
     <DashboardLayout>
 
@@ -65,6 +79,7 @@ export default function ProductsPage() {
           </h3>
 
           <Button
+            disabled={!can("products.create")}
             onClick={() => router.push(ROUTES.products.create)}
           >
             + Nuevo Producto
@@ -158,18 +173,23 @@ export default function ProductsPage() {
                         </td>
 
                         <td className="text-left space-x-3 whitespace-nowrap">
-
-                          <Link
-                            href={ROUTES.products.edit(prod.id)}
-                            className="text-blue-600 hover:underline"
-                          >
-                            Modificar
-                          </Link>
+                          {can('products.update') ? (
+                            <Link
+                              href={ROUTES.products.edit(prod.id)}
+                              className="text-blue-600 hover:underline"
+                            >
+                              Modificar
+                            </Link>
+                          ) : (
+                            <span className="text-gray-400">Modificar</span>
+                          )}
 
                           <Button
                             variant={prod.active ? 'danger' : 'secondary'}
                             className="text-sm px-3 py-1"
-                            disabled={deletingId !== null}
+                            disabled={
+                              deletingId !== null || !can('products.update')
+                            }
                             onClick={() =>
                               handleToggleActive(prod.id, prod.name, prod.active)
                             }
@@ -180,7 +200,6 @@ export default function ProductsPage() {
                                 ? 'Inactivar'
                                 : 'Activar'}
                           </Button>
-
                         </td>
                       </tr>
                     );

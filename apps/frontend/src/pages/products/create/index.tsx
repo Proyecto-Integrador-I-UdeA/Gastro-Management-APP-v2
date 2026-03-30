@@ -19,8 +19,10 @@ import {
   convertToBaseUnits,
   type ProductInputUnit,
 } from '@/lib/productUnitConversion';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
 
 export default function ProductCreatePage() {
+  useAuthGuard("products.create");
   const router = useRouter();
 
   const [suppliers, setSuppliers] = useState<ProductSupplier[]>([]);

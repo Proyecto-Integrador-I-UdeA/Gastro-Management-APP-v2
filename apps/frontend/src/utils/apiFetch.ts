@@ -15,7 +15,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   const url = `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
 
   const headers = new Headers(initHeaders);
-  if (typeof window !== 'undefined') {
+  if (globalThis.window !== undefined) {
     const token = localStorage.getItem('token');
     if (token) headers.set('Authorization', `Bearer ${token}`);
   }
