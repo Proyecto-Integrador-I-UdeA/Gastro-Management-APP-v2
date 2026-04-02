@@ -25,6 +25,7 @@ function sidebarImageSrc(safePath: string): string {
   if (safePath.includes("/products/create")) return "/images/sidebar-productos-create.jpg";
   if (safePath.includes("/products/edit")) return "/images/sidebar-productos-edit.jpg";
   if (safePath.includes("/products")) return "/images/sidebar-productos.jpg";
+  if (safePath.includes("/inventory")) return "/images/sidebar-dashboard.jpg";
   if (safePath.includes("/transfers")) return "/images/sidebar-dashboard.jpg";
   if (safePath.includes("/users/create")) return "/images/sidebar-users-create.jpg";
   if (safePath.includes("/users/edit")) return "/images/sidebar-users-edit.jpg";
@@ -61,6 +62,7 @@ export default function Sidebar() {
   const inProductsModule =
     safePath.startsWith("/products") || safePath.startsWith("/suppliers");
   const inTransfersModule = safePath.startsWith("/transfers");
+  const inInventoryModule = safePath.startsWith("/inventory");
 
   const can = (perm: string) =>
     permissions.includes(perm.trim().toLowerCase());
@@ -159,6 +161,16 @@ export default function Sidebar() {
                 <span className="text-xl">🏭</span>
                 <span className="text-lg">Bodegas</span>
               </button>
+              {can("inventory.read") && (
+                <button
+                  type="button"
+                  className="flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E] text-white/90"
+                  onClick={() => handleNavigate("/inventory", "inventory.read")}
+                >
+                  <span className="text-xl">📊</span>
+                  <span className="text-lg">Inventario</span>
+                </button>
+              )}
               <button
                 type="button"
                 className="flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E] text-white/80"
@@ -187,6 +199,34 @@ export default function Sidebar() {
                 >
                   <span className="text-xl">🚚</span>
                   <span className="text-lg">Proveedores</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E] text-white/80"
+                onClick={() => handleNavigate("/dashboard")}
+              >
+                📈 <span className="text-lg">Dashboard</span>
+              </button>
+            </>
+          ) : inInventoryModule ? (
+            <>
+              <button
+                type="button"
+                className={itemClass(safePath === "/inventory")}
+                onClick={() => handleNavigate("/inventory", "inventory.read")}
+              >
+                <span className="text-xl">📊</span>
+                <span className="text-lg">Existencias</span>
+              </button>
+              {can("transfers.read") && (
+                <button
+                  type="button"
+                  className="flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E] text-white/90"
+                  onClick={() => handleNavigate("/transfers", "transfers.read")}
+                >
+                  <span className="text-xl">↔️</span>
+                  <span className="text-lg">Traslados</span>
                 </button>
               )}
               <button
