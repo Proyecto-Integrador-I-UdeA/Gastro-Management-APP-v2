@@ -4,6 +4,9 @@ import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import supplierRoutes from './routes/suppliers/index';
 import productRoutes from './routes/products/index';
+import warehouseRoutes from './routes/warehouses/index';
+import inventoryRoutes from './routes/inventories/index';
+import inventoryMovementRoutes from './routes/inventory-movements/index';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -38,6 +41,9 @@ app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
 app.use('/suppliers', supplierRoutes);
 app.use('/products', productRoutes);
+app.use('/warehouses', warehouseRoutes);
+app.use('/inventories', inventoryRoutes);
+app.use('/inventory-movements', inventoryMovementRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: '¡Backend de Gastro Management API funcionando!' });

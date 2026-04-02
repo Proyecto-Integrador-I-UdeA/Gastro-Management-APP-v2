@@ -65,8 +65,29 @@ export const authorize = (requiredPermissions: string[]) => {
   };
 };
 
+/** Al menos uno de los permisos listados (útil para flujos de traslados + bodegas). */
+export const authorizeAny = (anyOfPermissions: string[]) => {
+  return (
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
 
+    const userPermissions = req.user.permissions || [];
+    const allowed = anyOfPermissions.some((perm) =>
+      userPermissions.includes(perm)
+    );
 
+    if (!allowed) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+
+    next();
+  };
+};
 
 
 

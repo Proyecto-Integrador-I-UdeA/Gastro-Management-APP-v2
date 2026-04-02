@@ -8,6 +8,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum MovementType {
+  PURCHASE
+  TRANSFER
+  WASTE
+  CONSUMPTION
+}
+
 model Supplier {
   id            Int       @id @default(autoincrement())
   internalCode  String
@@ -16,42 +23,99 @@ model Supplier {
   phone         String
   address       String
   contactPerson String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   products      Product[]
 
   @@map("suppliers")
 }
 
 model Product {
-  id                Int       @id @default(autoincrement())
-  internalCode      String
+  id                Int                 @id @default(autoincrement())
+  internalCode      String              @unique
   name              String
-  isIngredient      Boolean
-  isSupply          Boolean
-  isFinishedProduct Boolean
+  category          String              @default("")
+  isIngredient      Boolean             @default(false)
+  isSupply          Boolean             @default(false)
+  isFinishedProduct Boolean             @default(false)
   presentation      String
   unitOfMeasure     String
-  expirationDate    DateTime?
+  inputUnit         String              @default("g")
+  inputUnitQuantity Float               @default(1)
   minStock          Float
   maxStock          Float
-  currentStock      Float
-  unitCost          Decimal   @db.Decimal(10, 2)
+  unitCost          Decimal             @db.Decimal(10, 2)
+  active            Boolean             @default(true)
   supplierId        Int
-  category          String    @default("")
-  supplier          Supplier  @relation(fields: [supplierId], references: [id])
+  supplier          Supplier            @relation(fields: [supplierId], references: [id])
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  inventories       Inventory[]
+  movements         InventoryMovement[]
 
   @@map("products")
 }
 
+model Warehouse {
+  id                Int                 @id @default(autoincrement())
+  name              String              @unique
+  description       String?
+  active            Boolean             @default(true)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  inventories       Inventory[]
+  movementsAsSource InventoryMovement[] @relation("SourceWarehouse")
+  movementsAsDest   InventoryMovement[] @relation("DestinationWarehouse")
+
+  @@map("warehouses")
+}
+
+model Inventory {
+  id          Int       @id @default(autoincrement())
+  quantity    Float     @default(0)
+  productId   Int
+  product     Product   @relation(fields: [productId], references: [id])
+  warehouseId Int
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([productId, warehouseId])
+  @@map("inventories")
+}
+
+model InventoryMovement {
+  id                     Int          @id @default(autoincrement())
+  type                   MovementType
+  quantity               Float
+  unitCost               Decimal?     @db.Decimal(10, 2)
+  expirationDate         DateTime?
+  notes                  String?
+  productId              Int
+  product                Product      @relation(fields: [productId], references: [id])
+  sourceWarehouseId      Int?
+  sourceWarehouse        Warehouse?   @relation("SourceWarehouse", fields: [sourceWarehouseId], references: [id])
+  destinationWarehouseId Int?
+  destinationWarehouse   Warehouse?   @relation("DestinationWarehouse", fields: [destinationWarehouseId], references: [id])
+  userId                 Int
+  user                   User         @relation(fields: [userId], references: [id])
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  @@map("inventory_movements")
+}
+
 model User {
-  id           Int      @id @default(autoincrement())
-  email        String   @unique
+  id           Int                 @id @default(autoincrement())
+  email        String              @unique
   passwordHash String
   fullName     String?
   roleId       Int?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  active       Boolean  @default(true)
-  role         Role?    @relation(fields: [roleId], references: [id])
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  active       Boolean             @default(true)
+  role         Role?               @relation(fields: [roleId], references: [id])
+  movements    InventoryMovement[]
 
   @@map("users")
 }
@@ -72,6 +136,8 @@ model Permission {
   id          Int              @id @default(autoincrement())
   name        String           @unique
   description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
   roles       RolePermission[]
 
   @@map("permissions")
@@ -81,6 +147,8 @@ model RolePermission {
   id           Int        @id @default(autoincrement())
   roleId       Int
   permissionId Int
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
   permission   Permission @relation(fields: [permissionId], references: [id])
   role         Role       @relation(fields: [roleId], references: [id])
 

@@ -41,7 +41,12 @@ async function main() {
 
     // INVENTARIO / LOGÍSTICA
     { name: 'inventory.read', description: 'Ver inventario' },
+    { name: 'inventory.create', description: 'Registrar compras, mermas y consumos' },
     { name: 'transfers.read', description: 'Ver traslados' },
+    { name: 'transfers.create', description: 'Registrar traslados entre bodegas' },
+    { name: 'warehouses.read', description: 'Ver bodegas' },
+    { name: 'warehouses.create', description: 'Crear bodegas' },
+    { name: 'warehouses.update', description: 'Editar bodegas' },
 
     // PERFIL
     { name: 'profile.update', description: 'Cambiar contraseña' },
@@ -70,9 +75,14 @@ async function main() {
       // RECETAS
       'recipes.read', 'recipes.create', 'recipes.update',
 
-      // INVENTARIO
+      // INVENTARIO / BODEGAS
       'inventory.read',
+      'inventory.create',
       'transfers.read',
+      'transfers.create',
+      'warehouses.read',
+      'warehouses.create',
+      'warehouses.update',
       // REPORTES
       'reports.read',
 
@@ -90,7 +100,12 @@ async function main() {
       'products.read', 'products.create', 'products.update', 'products.delete',
       'suppliers.read', 'suppliers.create', 'suppliers.update', 'suppliers.delete',
       'inventory.read',
+      'inventory.create',
       'transfers.read',
+      'transfers.create',
+      'warehouses.read',
+      'warehouses.create',
+      'warehouses.update',
       'profile.update',
     ],
 
@@ -131,6 +146,26 @@ async function main() {
       }
     }
   }
+
+  await prisma.warehouse.upsert({
+    where: { name: 'Bodega Principal' },
+    update: {},
+    create: {
+      name: 'Bodega Principal',
+      description: 'Almacén general',
+      active: true,
+    },
+  });
+
+  await prisma.warehouse.upsert({
+    where: { name: 'Cocina' },
+    update: {},
+    create: {
+      name: 'Cocina',
+      description: 'Insumos en cocina',
+      active: true,
+    },
+  });
 
   console.log('Seed completado correctamente 🚀');
 }
