@@ -23,6 +23,8 @@ export interface Product {
   currentStock: number;
   unitCost: number;
   supplierId: number;
+  /** Catálogo Kardex: producto activo en sistema */
+  active?: boolean;
   supplier?: ProductSupplier;
 }
 

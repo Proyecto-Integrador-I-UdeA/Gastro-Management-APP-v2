@@ -1,85 +1,108 @@
 "use client";
 
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/router";
 import { useSidebar } from "@/context/SidebarContext";
 import { useEffect, useState } from "react";
-import { showError, showSuccess } from "@/utils/toast";
+import { showError } from "@/utils/toast";
+
+function readPermissionsFromToken(): string[] {
+  if (globalThis.window === undefined) return [];
+  const token = localStorage.getItem("token");
+  if (!token) return [];
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return (payload.permissions || []).map((p: string) => p.trim().toLowerCase());
+  } catch {
+    return [];
+  }
+}
+
+function sidebarImageSrc(safePath: string): string {
+  if (safePath.includes("/transfers/warehouses")) return "/images/sidebar-dashboard.jpg";
+  if (safePath.includes("/suppliers/create")) return "/images/sidebar-proveedores-create.jpg";
+  if (safePath.includes("/suppliers/edit")) return "/images/sidebar-proveedores-edit.jpg";
+  if (safePath.includes("/suppliers")) return "/images/sidebar-proveedores.jpg";
+  if (safePath.includes("/products/create")) return "/images/sidebar-productos-create.jpg";
+  if (safePath.includes("/products/edit")) return "/images/sidebar-productos-edit.jpg";
+  if (safePath.includes("/products")) return "/images/sidebar-productos.jpg";
+  if (safePath.includes("/transfers")) return "/images/sidebar-dashboard.jpg";
+  if (safePath.includes("/users/create")) return "/images/sidebar-users-create.jpg";
+  if (safePath.includes("/users/edit")) return "/images/sidebar-users-edit.jpg";
+  if (safePath.includes("/users")) return "/images/sidebar-users.jpg";
+  if (safePath.includes("/dashboard")) return "/images/sidebar-dashboard.jpg";
+  return "/images/sidebar-dashboard.jpg";
+}
 
 export default function Sidebar() {
   const router = useRouter();
-  const pathname = usePathname();
-
   const sidebar = useSidebar();
   if (!sidebar) return null;
 
   const { open, setOpen } = sidebar;
 
-  const safePath = pathname || "";
-  const isDashboard = safePath === "/dashboard";
+  /** Evita mismatch SSR/cliente: el primer paint debe coincidir con el HTML del servidor. */
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
-  // 🔥 (se deja pero ya no se usa para validar)
   const [permissions, setPermissions] = useState<string[]>([]);
 
   useEffect(() => {
-    if (globalThis.window !== undefined) {
-      const token = localStorage.getItem("token");
+    setPermissions(readPermissionsFromToken());
+  }, [router.asPath]);
 
-      if (token) {
-        try {
-          const payload = JSON.parse(atob(token.split(".")[1]));
-          setPermissions(payload.permissions || []);
-        } catch (e) {
-          console.error("Error leyendo token", e);
-          setPermissions([]);
-        }
-      }
-    }
-  }, []);
+  const safePath =
+    hydrated && router.isReady ? (router.asPath || "").split("?")[0] : "";
+  const showNav = hydrated && router.isReady;
 
-  // 🔥 VALIDACIÓN REAL DESDE TOKEN
-  const can = (permissions: string) => {
-    if (globalThis.window === undefined) return false;
+  const isDashboardOrUsers =
+    safePath === "/dashboard" || safePath.startsWith("/users");
+  const inProductsModule =
+    safePath.startsWith("/products") || safePath.startsWith("/suppliers");
+  const inTransfersModule = safePath.startsWith("/transfers");
 
-    const token = localStorage.getItem("token");
-    if (!token) return false;
+  const can = (perm: string) =>
+    permissions.includes(perm.trim().toLowerCase());
 
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      console.log("PERMISO QUE SE ENVÍA:", permissions);
-      console.log("PERMISOS DEL USUARIO:", payload.permissions);
-
-      return payload.permissions?.includes(permissions);
-    } catch {
-      return false;
-    }
-  };
-
+  const canAny = (perms: string[]) =>
+    perms.some((p) => permissions.includes(p.trim().toLowerCase()));
 
   const handleNavigate = (path: string, permission?: string) => {
     if (permission && !can(permission)) {
       showError("No tienes permiso para acceder a esta sección");
       return;
     }
-
-    router.push(path);
+    void router.push(path);
     setOpen(false);
   };
 
-  
-  
-  const menuItems = [
-    { name: "Dashboard", path: "/dashboard", icon: "📈" },
-    { name: "Productos", path: "/products", icon: "📦", permission: "products.read" },
-    { name: "Proveedores", path: "/suppliers", icon: "🚚", permission: "suppliers.read" },
-  ];
+  const handleNavigateAny = (path: string, requiredAny: string[]) => {
+    if (!canAny(requiredAny)) {
+      showError("No tienes permiso para acceder a esta sección");
+      return;
+    }
+    void router.push(path);
+    setOpen(false);
+  };
+
+  const itemClass = (active: boolean) =>
+    `flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E] ${
+      active ? "bg-[#33566E]/90" : ""
+    }`;
+
+  const transfersSubActive =
+    safePath === "/transfers" ||
+    safePath.startsWith("/transfers/create") ||
+    safePath.startsWith("/transfers/edit");
+  const warehousesSubActive = safePath.startsWith("/transfers/warehouses");
 
   return (
     <>
-      {/* OVERLAY */}
       {open && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setOpen(false)} // 🔥 FIX (no navegación aquí)
+          onClick={() => setOpen(false)}
         />
       )}
 
@@ -91,69 +114,113 @@ export default function Sidebar() {
           lg:translate-x-0 lg:flex
         `}
       >
-        <div className="h-24 flex items-center justify-center border-b border-white/10"></div>
+        <div className="h-24 flex items-center justify-center border-b border-white/10" />
 
         <nav className="flex flex-col mt-4">
-          {isDashboard ? (
+          {!showNav ? (
+            <div className="min-h-[180px] px-6" aria-hidden />
+          ) : isDashboardOrUsers ? (
             <>
               <button
+                type="button"
                 onClick={() => handleNavigate("/users/create", "users.create")}
                 className="flex items-center gap-4 px-6 py-4 hover:bg-[#33566E]"
               >
                 👤 <span className="text-lg">Crear Usuario</span>
               </button>
-
               <button
+                type="button"
                 onClick={() => handleNavigate("/users", "users.read")}
                 className="flex items-center gap-4 px-6 py-4 hover:bg-[#33566E]"
               >
                 📋 <span className="text-lg">Ver Usuarios</span>
               </button>
             </>
-          ) : (
-            menuItems
-              .filter((item) => !safePath.startsWith(item.path))
-              .map((item) => (
+          ) : inTransfersModule ? (
+            <>
+              <button
+                type="button"
+                className={itemClass(transfersSubActive)}
+                onClick={() => handleNavigate("/transfers", "transfers.read")}
+              >
+                <span className="text-xl">↔️</span>
+                <span className="text-lg">Traslados</span>
+              </button>
+              <button
+                type="button"
+                className={itemClass(warehousesSubActive)}
+                onClick={() =>
+                  handleNavigateAny("/transfers/warehouses", [
+                    "transfers.read",
+                    "warehouses.read",
+                  ])
+                }
+              >
+                <span className="text-xl">🏭</span>
+                <span className="text-lg">Bodegas</span>
+              </button>
+              <button
+                type="button"
+                className="flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E] text-white/80"
+                onClick={() => handleNavigate("/dashboard")}
+              >
+                📈 <span className="text-lg">Dashboard</span>
+              </button>
+            </>
+          ) : inProductsModule ? (
+            <>
+              {can("products.read") && (
                 <button
-                  key={item.name}
-                  onClick={() => handleNavigate(item.path, item.permission)}
-                  className="flex items-center gap-4 px-6 py-4 text-left hover:bg-[#33566E]"
+                  type="button"
+                  className={itemClass(safePath.startsWith("/products"))}
+                  onClick={() => handleNavigate("/products", "products.read")}
                 >
-                  <span className="text-xl">{item.icon}</span>
-                  <span className="text-lg">{item.name}</span>
+                  <span className="text-xl">📦</span>
+                  <span className="text-lg">Productos</span>
                 </button>
-              ))
+              )}
+              {can("suppliers.read") && (
+                <button
+                  type="button"
+                  className={itemClass(safePath.startsWith("/suppliers"))}
+                  onClick={() => handleNavigate("/suppliers", "suppliers.read")}
+                >
+                  <span className="text-xl">🚚</span>
+                  <span className="text-lg">Proveedores</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E] text-white/80"
+                onClick={() => handleNavigate("/dashboard")}
+              >
+                📈 <span className="text-lg">Dashboard</span>
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E]"
+              onClick={() => handleNavigate("/dashboard")}
+            >
+              📈 <span className="text-lg">Dashboard</span>
+            </button>
           )}
         </nav>
 
         <div className="mt-auto p-4">
-          <img
-            src={
-              safePath.includes("/suppliers/create")
-                ? "/images/sidebar-proveedores-create.jpg"
-                : safePath.includes("/suppliers/edit")
-                ? "/images/sidebar-proveedores-edit.jpg"
-                : safePath.includes("/suppliers")
-                ? "/images/sidebar-proveedores.jpg"
-                : safePath.includes("/products/create")
-                ? "/images/sidebar-productos-create.jpg"
-                : safePath.includes("/products/edit")
-                ? "/images/sidebar-productos-edit.jpg"
-                : safePath.includes("/products")
-                ? "/images/sidebar-productos.jpg"
-                : safePath.includes("/users/create")
-                ? "/images/sidebar-users-create.jpg"
-                : safePath.includes("/users/edit")
-                ? "/images/sidebar-users-edit.jpg"
-                : safePath.includes("/users")
-                ? "/images/sidebar-users.jpg"
-                : safePath.includes("/dashboard")
-                ? "/images/sidebar-dashboard.jpg"
-                : "/images/sidebar-default.jpg"
-            }
-            alt="Gestión"
-            className="w-full h-60 object-cover shadow-md border border-white/10 rounded-lg"
-          />
+          {showNav ? (
+            <img
+              src={sidebarImageSrc(safePath)}
+              alt="Gestión"
+              className="w-full h-60 object-cover shadow-md border border-white/10 rounded-lg"
+            />
+          ) : (
+            <div
+              className="w-full h-60 rounded-lg border border-white/10 bg-white/5"
+              aria-hidden
+            />
+          )}
         </div>
       </aside>
     </>

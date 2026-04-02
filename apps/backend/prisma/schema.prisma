@@ -32,15 +32,15 @@ model Supplier {
 
 model Product {
   id                Int                 @id @default(autoincrement())
-  internalCode      String              @unique
-  name              String
-  category          String              @default("")
+  internalCode      String              @unique @db.Text
+  name              String              @db.Text
+  category          String              @default("") @db.Text
   isIngredient      Boolean             @default(false)
   isSupply          Boolean             @default(false)
   isFinishedProduct Boolean             @default(false)
-  presentation      String
-  unitOfMeasure     String
-  inputUnit         String              @default("g")
+  presentation      String              @db.Text
+  unitOfMeasure     String              @db.Text
+  inputUnit         String              @default("g") @db.Text
   inputUnitQuantity Float               @default(1)
   minStock          Float
   maxStock          Float

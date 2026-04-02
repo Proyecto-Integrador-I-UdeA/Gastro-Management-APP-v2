@@ -23,3 +23,12 @@ export const createInventoryMovementSchema = z.object({
   sourceWarehouseId: optionalPositiveInt,
   destinationWarehouseId: optionalPositiveInt,
 });
+
+export const patchTransferMovementSchema = z
+  .object({
+    notes: z.string().optional().nullable(),
+    quantity: z.number().positive().optional(),
+  })
+  .refine((d) => d.notes !== undefined || d.quantity !== undefined, {
+    message: 'Envía al menos notes o quantity',
+  });

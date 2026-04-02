@@ -33,6 +33,7 @@ export function normalizeProductFromApi(raw: unknown): Product {
     currentStock: Number(r.currentStock ?? 0),
     unitCost: parseUnitCost(r.unitCost),
     supplierId: Number(r.supplierId ?? 0),
+    active: r.active === undefined ? true : Boolean(r.active),
     supplier: normalizeSupplierFromApi(r.supplier),
   };
 }

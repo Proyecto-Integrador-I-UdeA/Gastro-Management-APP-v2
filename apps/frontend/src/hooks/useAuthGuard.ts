@@ -19,10 +19,10 @@ export const useAuthGuard = (permission: string) => {
       const userPermissions = (payload.permissions || []).map((p: string) =>
         p.trim().toLowerCase()
       );
-       const required = permission.trim().toLowerCase();
+      const required = permission.trim().toLowerCase();
 
-      if (!userPermissions.includes(permission.toLowerCase())) {
-          showError("No tienes permiso para acceder a esta sección");
+      if (!userPermissions.includes(required)) {
+        showError("No tienes permiso para acceder a esta sección");
         router.push("/dashboard");
       }
 

@@ -1,10 +1,16 @@
 import { Request, Response } from 'express';
 import { MovementType, Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma';
-import { createInventoryMovementSchema } from '../../schemas/inventoryMovementSchema';
+import {
+  createInventoryMovementSchema,
+  patchTransferMovementSchema,
+} from '../../schemas/inventoryMovementSchema';
 import {
   applyInventoryMovement,
   KardexError,
+  reversePurchaseInventory,
+  reverseTransferInventory,
+  updateTransferMovementInTransaction,
 } from '../../services/inventoryMovementService';
 
 interface AuthRequest extends Request {
@@ -22,6 +28,7 @@ const movementInclude = {
 
 export const listInventoryMovements = async (req: Request, res: Response) => {
   try {
+    const typesParam = req.query.types as string | undefined;
     const typeParam = req.query.type as string | undefined;
     const productIdParam = req.query.productId
       ? parseInt(String(req.query.productId), 10)
@@ -37,7 +44,20 @@ export const listInventoryMovements = async (req: Request, res: Response) => {
 
     const where: Prisma.InventoryMovementWhereInput = {};
 
-    if (typeParam && Object.values(MovementType).includes(typeParam as MovementType)) {
+    if (typesParam && typesParam.trim() !== '') {
+      const parts = typesParam
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const valid = parts.filter((p): p is MovementType =>
+        Object.values(MovementType).includes(p as MovementType)
+      );
+      if (valid.length === 1) {
+        where.type = valid[0];
+      } else if (valid.length > 1) {
+        where.type = { in: valid };
+      }
+    } else if (typeParam && Object.values(MovementType).includes(typeParam as MovementType)) {
       where.type = typeParam as MovementType;
     }
     if (productIdParam != null && !Number.isNaN(productIdParam)) {
@@ -176,5 +196,86 @@ export const createInventoryMovement = async (req: AuthRequest, res: Response) =
     }
     console.error('Error al crear movimiento de inventario:', e);
     res.status(500).json({ error: 'Error interno al registrar movimiento' });
+  }
+};
+
+export const patchTransferMovement = async (req: AuthRequest, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+
+  const validation = patchTransferMovementSchema.safeParse(req.body);
+  if (!validation.success) {
+    return res.status(400).json({
+      error: 'Datos inválidos',
+      details: validation.error.flatten().fieldErrors,
+    });
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await updateTransferMovementInTransaction(tx, id, validation.data);
+    });
+
+    const full = await prisma.inventoryMovement.findUnique({
+      where: { id },
+      include: movementInclude,
+    });
+    res.json(full);
+  } catch (e: unknown) {
+    if (e instanceof KardexError) {
+      return res.status(e.statusCode).json({ error: e.message });
+    }
+    console.error('Error al actualizar traslado:', e);
+    res.status(500).json({ error: 'Error interno al actualizar traslado' });
+  }
+};
+
+export const deleteTransferMovement = async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const mov = await tx.inventoryMovement.findUnique({ where: { id } });
+      if (!mov) {
+        throw new KardexError('Movimiento no encontrado', 404);
+      }
+      if (mov.type === MovementType.TRANSFER) {
+        const src = mov.sourceWarehouseId;
+        const dst = mov.destinationWarehouseId;
+        if (src == null || dst == null) {
+          throw new KardexError('Traslado inválido', 400);
+        }
+        await reverseTransferInventory(tx, mov.productId, mov.quantity, src, dst);
+      } else if (mov.type === MovementType.PURCHASE) {
+        const dst = mov.destinationWarehouseId;
+        if (dst == null) {
+          throw new KardexError('Entrada por compra inválida', 400);
+        }
+        await reversePurchaseInventory(
+          tx,
+          mov.productId,
+          mov.quantity,
+          dst
+        );
+      } else {
+        throw new KardexError(
+          'Solo se pueden eliminar traslados o entradas por compra',
+          400
+        );
+      }
+      await tx.inventoryMovement.delete({ where: { id } });
+    });
+    res.status(204).send();
+  } catch (e: unknown) {
+    if (e instanceof KardexError) {
+      return res.status(e.statusCode).json({ error: e.message });
+    }
+    console.error('Error al eliminar traslado:', e);
+    res.status(500).json({ error: 'Error interno al eliminar traslado' });
   }
 };
