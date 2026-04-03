@@ -10,25 +10,49 @@ const optionalPositiveInt = z
   .optional()
   .nullable();
 
-export const createInventoryMovementSchema = z.object({
-  type: movementTypeSchema,
-  quantity: z.number().positive(),
-  unitCost: z
-    .union([z.number().min(0), z.string()])
-    .optional()
-    .transform((v) => (v === undefined ? undefined : typeof v === 'string' ? Number(v) : v)),
-  expirationDate: z.string().optional().nullable(),
-  notes: z.string().optional().nullable(),
-  productId: z.number().int().positive(),
-  sourceWarehouseId: optionalPositiveInt,
-  destinationWarehouseId: optionalPositiveInt,
-});
+export const createInventoryMovementSchema = z
+  .object({
+    type: movementTypeSchema,
+    quantity: z.number().positive(),
+    unitCost: z.number().min(0).optional().nullable(),
+    expirationDate: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
+    productId: z.number().int().positive(),
+    sourceWarehouseId: optionalPositiveInt,
+    destinationWarehouseId: optionalPositiveInt,
+  })
+  .superRefine((data, ctx) => {
+    if (data.type === MovementType.PURCHASE) {
+      if (
+        data.unitCost === undefined ||
+        data.unitCost === null ||
+        Number.isNaN(data.unitCost)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Costo unitario requerido para entrada por compra',
+          path: ['unitCost'],
+        });
+      }
+    } else if (data.unitCost !== undefined && data.unitCost !== null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'El costo unitario solo aplica a entradas por compra',
+        path: ['unitCost'],
+      });
+    }
+  });
 
 export const patchTransferMovementSchema = z
   .object({
     notes: z.string().optional().nullable(),
     quantity: z.number().positive().optional(),
+    expirationDate: z.string().optional().nullable(),
   })
-  .refine((d) => d.notes !== undefined || d.quantity !== undefined, {
-    message: 'Envía al menos notes o quantity',
-  });
+  .refine(
+    (d) =>
+      d.notes !== undefined ||
+      d.quantity !== undefined ||
+      d.expirationDate !== undefined,
+    { message: 'Envía al menos un campo a actualizar' }
+  );

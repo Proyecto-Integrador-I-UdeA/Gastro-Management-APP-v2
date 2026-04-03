@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma';
 import { createProductSchema, updateProductSchema } from '../../schemas/productSchema';
 
@@ -61,7 +61,6 @@ export const createProduct = async (req: Request, res: Response) => {
         inputUnitQuantity: data.inputUnitQuantity,
         minStock: data.minStock,
         maxStock: data.maxStock,
-        unitCost: new Prisma.Decimal(data.unitCost),
         supplierId: data.supplierId,
         active: data.active ?? true,
       },
@@ -107,7 +106,6 @@ export const updateProduct = async (req: Request, res: Response) => {
   if (data.inputUnitQuantity !== undefined) updateData.inputUnitQuantity = data.inputUnitQuantity;
   if (data.minStock !== undefined) updateData.minStock = data.minStock;
   if (data.maxStock !== undefined) updateData.maxStock = data.maxStock;
-  if (data.unitCost !== undefined) updateData.unitCost = new Prisma.Decimal(data.unitCost);
   if (data.supplierId !== undefined) updateData.supplier = { connect: { id: data.supplierId } };
   if (data.active !== undefined) updateData.active = data.active;
 

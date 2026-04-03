@@ -13,7 +13,6 @@ export const createProductSchema = z.object({
   inputUnitQuantity: z.number().positive().optional().default(1),
   minStock: z.number().min(0),
   maxStock: z.number().min(0),
-  unitCost: z.number().min(0).or(z.string().transform((v) => Number(v))),
   supplierId: z.number().int().positive(),
   active: z.boolean().optional().default(true),
 });
@@ -31,7 +30,6 @@ export const updateProductSchema = z.object({
   inputUnitQuantity: z.number().positive().optional(),
   minStock: z.number().min(0).optional(),
   maxStock: z.number().min(0).optional(),
-  unitCost: z.number().min(0).or(z.string().transform((v) => Number(v))).optional(),
   supplierId: z.number().int().positive().optional(),
   active: z.boolean().optional(),
 });

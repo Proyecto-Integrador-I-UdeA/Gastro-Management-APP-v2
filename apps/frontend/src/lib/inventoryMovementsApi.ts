@@ -35,7 +35,11 @@ export async function fetchInventoryMovementById(
 
 export async function patchTransferRequest(
   id: number,
-  body: { notes?: string | null; quantity?: number }
+  body: {
+    notes?: string | null;
+    quantity?: number;
+    expirationDate?: string | null;
+  }
 ): Promise<InventoryMovementRow> {
   return apiFetch<InventoryMovementRow>(`/inventory-movements/${id}`, {
     method: 'PATCH',

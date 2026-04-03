@@ -148,11 +148,6 @@ export const createInventoryMovement = async (req: AuthRequest, res: Response) =
     }
   }
 
-  const unitCostDecimal =
-    data.unitCost !== undefined && data.unitCost !== null
-      ? new Prisma.Decimal(data.unitCost)
-      : null;
-
   let expirationDate: Date | null = null;
   if (data.expirationDate != null && data.expirationDate !== '') {
     const d = new Date(data.expirationDate);
@@ -170,7 +165,8 @@ export const createInventoryMovement = async (req: AuthRequest, res: Response) =
         {
           productId: data.productId,
           quantity: data.quantity,
-          unitCost: unitCostDecimal,
+          unitCost:
+            data.type === MovementType.PURCHASE ? (data.unitCost ?? null) : null,
           expirationDate,
           notes: data.notes ?? null,
           sourceWarehouseId: data.sourceWarehouseId ?? null,
@@ -213,9 +209,26 @@ export const patchTransferMovement = async (req: AuthRequest, res: Response) => 
     });
   }
 
+  const { expirationDate: expRaw, ...patchRest } = validation.data;
+  let expirationDate: Date | null | undefined = undefined;
+  if (expRaw !== undefined) {
+    if (expRaw === null || expRaw === '') {
+      expirationDate = null;
+    } else {
+      const d = new Date(expRaw);
+      if (Number.isNaN(d.getTime())) {
+        return res.status(400).json({ error: 'expirationDate inválida' });
+      }
+      expirationDate = d;
+    }
+  }
+
   try {
     await prisma.$transaction(async (tx) => {
-      await updateTransferMovementInTransaction(tx, id, validation.data);
+      await updateTransferMovementInTransaction(tx, id, {
+        ...patchRest,
+        expirationDate,
+      });
     });
 
     const full = await prisma.inventoryMovement.findUnique({

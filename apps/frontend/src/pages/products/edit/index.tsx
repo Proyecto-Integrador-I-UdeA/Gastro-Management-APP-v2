@@ -5,15 +5,23 @@ import { useRouter } from 'next/router';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
+import ProductUnitFields from '@/components/ProductUnitFields';
 import { ROUTES } from '@/constants/routes';
 import { fetchProductById, updateProductRequest } from '@/lib/productsApi';
 import { fetchSuppliers } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import type { ProductSupplier } from '@/types/product';
-import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { useAuthGuard } from '@/hooks/useAuthGuard';
+import {
+  type ProductBaseUnit,
+  type ProductInputUnit,
+  coerceInputUnitForBase,
+  isProductInputUnit,
+  parseBaseUnitFromStored,
+} from '@/lib/productUnits';
 
 export default function ProductEditPage() {
-  useAuthGuard("products.update");
+  useAuthGuard('products.update');
   const router = useRouter();
   const { id } = router.query;
 
@@ -31,13 +39,16 @@ export default function ProductEditPage() {
   const [isIngredient, setIsIngredient] = useState(true);
   const [isSupply, setIsSupply] = useState(false);
   const [isFinishedProduct, setIsFinishedProduct] = useState(false);
-  const [unitOfMeasure, setUnitOfMeasure] = useState('kg');
-  const [currentStock, setCurrentStock] = useState('0');
-  const [expiryDate, setExpiryDate] = useState('');
+  const [baseUnit, setBaseUnit] = useState<ProductBaseUnit>('g');
+  const [inputUnit, setInputUnit] = useState<ProductInputUnit>('g');
+  const [inputUnitQuantity, setInputUnitQuantity] = useState('1');
   const [minStock, setMinStock] = useState('');
   const [maxStock, setMaxStock] = useState('');
   const [supplierId, setSupplierId] = useState('');
-  const [unitCost, setUnitCost] = useState('');
+
+  useEffect(() => {
+    setInputUnit((prev) => coerceInputUnitForBase(baseUnit, prev));
+  }, [baseUnit]);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -64,18 +75,17 @@ export default function ProductEditPage() {
         setIsIngredient(product.isIngredient);
         setIsSupply(product.isSupply);
         setIsFinishedProduct(product.isFinishedProduct);
-        setUnitOfMeasure(product.unitOfMeasure || 'kg');
-        setCurrentStock(String(product.currentStock ?? 0));
-        setExpiryDate(
-          product.expirationDate
-            ? product.expirationDate.slice(0, 10)
-            : ''
-        );
+
+        const base = parseBaseUnitFromStored(product.unitOfMeasure || 'g');
+        setBaseUnit(base);
+        const rawIu = product.inputUnit;
+        const iu = isProductInputUnit(rawIu) ? rawIu : 'g';
+        setInputUnit(coerceInputUnitForBase(base, iu));
+        setInputUnitQuantity(String(product.inputUnitQuantity ?? 1));
+
         setMinStock(String(product.minStock ?? 0));
         setMaxStock(String(product.maxStock ?? 0));
         setSupplierId(String(product.supplierId));
-        setUnitCost(String(product.unitCost ?? 0));
-
       } catch (e) {
         if (isUnauthorized(e)) {
           router.push('/login');
@@ -83,13 +93,12 @@ export default function ProductEditPage() {
         }
 
         setError(getApiErrorMessage(e, 'No se pudo cargar el producto'));
-
       } finally {
         setLoading(false);
       }
     };
 
-    loadData();
+    void loadData();
   }, [productId, router.isReady]);
 
   const handleUpdate = async () => {
@@ -97,6 +106,12 @@ export default function ProductEditPage() {
 
     if (!Number.isFinite(sid)) {
       alert('Proveedor inválido');
+      return;
+    }
+
+    const iuq = parseFloat(inputUnitQuantity.replace(',', '.'));
+    if (!Number.isFinite(iuq) || iuq <= 0) {
+      alert('La cantidad por unidad ingresada debe ser mayor a cero');
       return;
     }
 
@@ -111,19 +126,15 @@ export default function ProductEditPage() {
         isSupply,
         isFinishedProduct,
         presentation,
-        unitOfMeasure,
-        expirationDate: expiryDate
-          ? new Date(expiryDate).toISOString()
-          : null,
+        unitOfMeasure: baseUnit,
+        inputUnit,
+        inputUnitQuantity: iuq,
         minStock: parseFloat(minStock),
         maxStock: parseFloat(maxStock),
-        currentStock: parseFloat(currentStock),
-        unitCost: parseFloat(unitCost),
         supplierId: sid,
       });
 
       router.push(ROUTES.products.list);
-
     } catch (e) {
       if (isUnauthorized(e)) {
         router.push('/login');
@@ -131,7 +142,6 @@ export default function ProductEditPage() {
       }
 
       alert(getApiErrorMessage(e, 'No se pudo actualizar el producto'));
-
     } finally {
       setSubmitting(false);
     }
@@ -139,26 +149,15 @@ export default function ProductEditPage() {
 
   return (
     <DashboardLayout>
+      <h1 className="text-2xl font-bold text-[#001F3F] mb-6">Editar producto</h1>
 
-      <h1 className="text-2xl font-bold text-[#001F3F] mb-6">
-        Editar producto
-      </h1>
+      {loading && <div className="text-center py-10">Cargando...</div>}
 
-      {loading && (
-        <div className="text-center py-10">Cargando...</div>
-      )}
-
-      {error && (
-        <div className="bg-red-100 text-red-700 p-4 rounded mb-4">
-          {error}
-        </div>
-      )}
+      {error && <div className="bg-red-100 text-red-700 p-4 rounded mb-4">{error}</div>}
 
       {!loading && !error && (
         <div className="bg-white p-6 rounded-xl shadow-md max-w-4xl">
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
             <Input label="Código interno" value={internalCode} disabled />
 
             <Input label="Nombre" value={name} onChange={(e) => setName(e.target.value)} className="md:col-span-2" />
@@ -166,12 +165,17 @@ export default function ProductEditPage() {
             <Input label="Categoría" value={category} onChange={(e) => setCategory(e.target.value)} />
             <Input label="Presentación" value={presentation} onChange={(e) => setPresentation(e.target.value)} />
 
-            <Input label="Unidad de medida" value={unitOfMeasure} onChange={(e) => setUnitOfMeasure(e.target.value)} />
-            <Input label="Fecha de vencimiento" type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
+            <ProductUnitFields
+              baseUnit={baseUnit}
+              onBaseUnitChange={setBaseUnit}
+              inputUnit={inputUnit}
+              onInputUnitChange={setInputUnit}
+              inputUnitQuantity={inputUnitQuantity}
+              onInputUnitQuantityChange={setInputUnitQuantity}
+            />
 
             <Input label="Stock mínimo" type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} />
             <Input label="Stock máximo" type="number" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} />
-            <Input label="Stock actual" type="number" value={currentStock} onChange={(e) => setCurrentStock(e.target.value)} />
 
             <div className="md:col-span-2">
               <label className="block text-sm mb-1">Proveedor</label>
@@ -187,16 +191,20 @@ export default function ProductEditPage() {
                 ))}
               </select>
             </div>
-
-            <Input label="Costo unitario" type="number" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} />
-
           </div>
 
-          {/* tipo */}
           <div className="mt-4 flex gap-4 flex-wrap">
-            <label><input type="checkbox" checked={isIngredient} onChange={(e) => setIsIngredient(e.target.checked)} /> Ingrediente</label>
-            <label><input type="checkbox" checked={isSupply} onChange={(e) => setIsSupply(e.target.checked)} /> Insumo</label>
-            <label><input type="checkbox" checked={isFinishedProduct} onChange={(e) => setIsFinishedProduct(e.target.checked)} /> Producto terminado</label>
+            <label>
+              <input type="checkbox" checked={isIngredient} onChange={(e) => setIsIngredient(e.target.checked)} />{' '}
+              Ingrediente
+            </label>
+            <label>
+              <input type="checkbox" checked={isSupply} onChange={(e) => setIsSupply(e.target.checked)} /> Insumo
+            </label>
+            <label>
+              <input type="checkbox" checked={isFinishedProduct} onChange={(e) => setIsFinishedProduct(e.target.checked)} />{' '}
+              Producto terminado
+            </label>
           </div>
 
           <div className="flex justify-end gap-4 mt-6">
@@ -207,10 +215,8 @@ export default function ProductEditPage() {
               {submitting ? 'Guardando…' : 'Guardar cambios'}
             </Button>
           </div>
-
         </div>
       )}
-
     </DashboardLayout>
   );
 }

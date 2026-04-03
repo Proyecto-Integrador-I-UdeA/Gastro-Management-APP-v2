@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Button from '@/components/Button';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
@@ -14,8 +14,8 @@ import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
 import { showSuccess } from '@/utils/toast';
 import type { Product } from '@/types/product';
-import { parseUnitCost } from '@/types/product';
 import type { WarehouseSummary } from '@/types/transfer';
+import { formatProductInputUnitLabel } from '@/lib/productUnits';
 
 type MovementMode = 'transfer' | 'purchase';
 
@@ -33,8 +33,8 @@ export default function CreateTransferPage() {
   const [destinationWarehouseId, setDestinationWarehouseId] = useState('');
   const [productId, setProductId] = useState('');
   const [quantity, setQuantity] = useState('');
-  const [unitCost, setUnitCost] = useState('');
   const [expirationDate, setExpirationDate] = useState('');
+  const [unitCost, setUnitCost] = useState('');
   const [notes, setNotes] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
@@ -70,11 +70,10 @@ export default function CreateTransferPage() {
     loadReferences();
   }, [loadReferences]);
 
-  useEffect(() => {
-    if (mode !== 'purchase' || !productId) return;
-    const p = products.find((x) => String(x.id) === productId);
-    if (p) setUnitCost(String(parseUnitCost(p.unitCost)));
-  }, [mode, productId, products]);
+  const selectedProduct = useMemo(
+    () => products.find((x) => String(x.id) === productId),
+    [products, productId]
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,6 +120,7 @@ export default function CreateTransferPage() {
           sourceWarehouseId: src,
           destinationWarehouseId: dst,
           notes: notes.trim() || null,
+          expirationDate: expirationDate.trim() || null,
         });
         showSuccess('Traslado registrado correctamente');
         router.push(ROUTES.transfers.list);
@@ -148,8 +148,8 @@ export default function CreateTransferPage() {
         type: 'PURCHASE',
         productId: pid,
         quantity: qty,
-        destinationWarehouseId: dst,
         unitCost: cost,
+        destinationWarehouseId: dst,
         notes: notes.trim() || null,
         expirationDate: expirationDate.trim() || null,
       });
@@ -214,8 +214,8 @@ export default function CreateTransferPage() {
           </p>
         ) : (
           <p className="text-sm text-gray-600 mb-4">
-            Ingresa stock recibido de un proveedor u origen externo. El costo unitario actualiza el
-            producto en Kardex.
+            Ingresa stock recibido de un proveedor u origen externo. El costo unitario queda
+            registrado en este movimiento (Kardex).
           </p>
         )}
 
@@ -309,29 +309,47 @@ export default function CreateTransferPage() {
               required
             />
 
-            {mode === 'purchase' && (
+            {selectedProduct && (
               <>
                 <Input
-                  label="Costo unitario *"
-                  type="number"
-                  step="any"
-                  min="0"
-                  value={unitCost}
-                  onChange={(e) => setUnitCost(e.target.value)}
-                  required
+                  label="Unidad de ingreso (catálogo)"
+                  value={formatProductInputUnitLabel(selectedProduct.inputUnit)}
+                  readOnly
+                  disabled
+                  className="bg-gray-100 cursor-not-allowed"
                 />
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-gray-700">
-                    Fecha de vencimiento (opcional)
-                  </label>
-                  <input
-                    type="date"
-                    className="border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#001F3F]"
-                    value={expirationDate}
-                    onChange={(e) => setExpirationDate(e.target.value)}
-                  />
-                </div>
+                <Input
+                  label="Cantidad por unidad ingresada (catálogo)"
+                  value={String(selectedProduct.inputUnitQuantity ?? 1)}
+                  readOnly
+                  disabled
+                  className="bg-gray-100 cursor-not-allowed"
+                />
               </>
+            )}
+
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-gray-700">
+                Fecha de vencimiento (opcional)
+              </label>
+              <input
+                type="date"
+                className="border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#001F3F]"
+                value={expirationDate}
+                onChange={(e) => setExpirationDate(e.target.value)}
+              />
+            </div>
+
+            {mode === 'purchase' && (
+              <Input
+                label="Costo unitario *"
+                type="number"
+                step="any"
+                min="0"
+                value={unitCost}
+                onChange={(e) => setUnitCost(e.target.value)}
+                required
+              />
             )}
 
             <div className="flex flex-col gap-1">

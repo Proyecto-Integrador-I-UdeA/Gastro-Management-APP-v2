@@ -5,15 +5,21 @@ import { useRouter } from 'next/router';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
+import ProductUnitFields from '@/components/ProductUnitFields';
 import { ROUTES } from '@/constants/routes';
 import { createProductRequest } from '@/lib/productsApi';
 import { fetchSuppliers } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import type { ProductSupplier } from '@/types/product';
-import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { useAuthGuard } from '@/hooks/useAuthGuard';
+import {
+  type ProductBaseUnit,
+  type ProductInputUnit,
+  coerceInputUnitForBase,
+} from '@/lib/productUnits';
 
 export default function ProductCreatePage() {
-  useAuthGuard("products.create");
+  useAuthGuard('products.create');
   const router = useRouter();
 
   const [suppliers, setSuppliers] = useState<ProductSupplier[]>([]);
@@ -28,12 +34,16 @@ export default function ProductCreatePage() {
   const [isIngredient, setIsIngredient] = useState(true);
   const [isSupply, setIsSupply] = useState(false);
   const [isFinishedProduct, setIsFinishedProduct] = useState(false);
-  const [unitOfMeasure, setUnitOfMeasure] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
+  const [baseUnit, setBaseUnit] = useState<ProductBaseUnit>('g');
+  const [inputUnit, setInputUnit] = useState<ProductInputUnit>('kg');
+  const [inputUnitQuantity, setInputUnitQuantity] = useState('1');
   const [minStock, setMinStock] = useState('');
   const [maxStock, setMaxStock] = useState('');
   const [supplierId, setSupplierId] = useState('');
-  const [unitCost, setUnitCost] = useState('');
+
+  useEffect(() => {
+    setInputUnit((prev) => coerceInputUnitForBase(baseUnit, prev));
+  }, [baseUnit]);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,7 +59,6 @@ export default function ProductCreatePage() {
           setSuppliers(list);
           if (list.length === 1) setSupplierId(String(list[0].id));
         }
-
       } catch (e) {
         if (!cancelled) {
           if (isUnauthorized(e)) {
@@ -61,7 +70,6 @@ export default function ProductCreatePage() {
             getApiErrorMessage(e, 'No se pudieron cargar los proveedores')
           );
         }
-
       } finally {
         if (!cancelled) setLoadingSuppliers(false);
       }
@@ -70,7 +78,7 @@ export default function ProductCreatePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   const handleSave = async () => {
     if (
@@ -78,20 +86,23 @@ export default function ProductCreatePage() {
       !name ||
       !category ||
       !presentation ||
-      !unitOfMeasure ||
       !minStock ||
       !maxStock ||
-      !supplierId ||
-      unitCost === ''
+      !supplierId
     ) {
       alert('Completa todos los campos obligatorios');
       return;
     }
 
     const sid = Number(supplierId);
-
     if (!Number.isFinite(sid)) {
       alert('Proveedor inválido');
+      return;
+    }
+
+    const iuq = parseFloat(inputUnitQuantity.replace(',', '.'));
+    if (!Number.isFinite(iuq) || iuq <= 0) {
+      alert('La cantidad por unidad ingresada debe ser mayor a cero');
       return;
     }
 
@@ -106,19 +117,15 @@ export default function ProductCreatePage() {
         isSupply,
         isFinishedProduct,
         presentation,
-        unitOfMeasure,
-        expirationDate: expiryDate
-          ? new Date(expiryDate).toISOString()
-          : null,
+        unitOfMeasure: baseUnit,
+        inputUnit,
+        inputUnitQuantity: iuq,
         minStock: parseFloat(minStock),
         maxStock: parseFloat(maxStock),
-        currentStock: 0,
-        unitCost: parseFloat(unitCost),
         supplierId: sid,
       });
 
       router.push(ROUTES.products.list);
-
     } catch (e) {
       if (isUnauthorized(e)) {
         router.push('/login');
@@ -126,7 +133,6 @@ export default function ProductCreatePage() {
       }
 
       alert(getApiErrorMessage(e, 'No se pudo crear el producto'));
-
     } finally {
       setSubmitting(false);
     }
@@ -134,21 +140,12 @@ export default function ProductCreatePage() {
 
   return (
     <DashboardLayout>
+      <h1 className="text-2xl font-bold text-[#001F3F] mb-6">Nuevo producto</h1>
 
-      <h1 className="text-2xl font-bold text-[#001F3F] mb-6">
-        Nuevo producto
-      </h1>
-
-      {loadingSuppliers && (
-        <div className="text-center py-10">
-          Cargando proveedores...
-        </div>
-      )}
+      {loadingSuppliers && <div className="text-center py-10">Cargando proveedores...</div>}
 
       {supplierError && (
-        <div className="bg-red-100 text-red-700 p-4 rounded mb-4">
-          {supplierError}
-        </div>
+        <div className="bg-red-100 text-red-700 p-4 rounded mb-4">{supplierError}</div>
       )}
 
       {!loadingSuppliers && suppliers.length === 0 && (
@@ -166,17 +163,21 @@ export default function ProductCreatePage() {
 
       {!loadingSuppliers && suppliers.length > 0 && (
         <div className="bg-white p-6 rounded-xl shadow-md max-w-4xl">
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
             <Input label="Código interno" value={internalCode} onChange={(e) => setInternalCode(e.target.value)} />
             <Input label="Nombre" value={name} onChange={(e) => setName(e.target.value)} className="md:col-span-2" />
 
             <Input label="Categoría" value={category} onChange={(e) => setCategory(e.target.value)} />
             <Input label="Presentación" value={presentation} onChange={(e) => setPresentation(e.target.value)} />
 
-            <Input label="Unidad de medida" value={unitOfMeasure} onChange={(e) => setUnitOfMeasure(e.target.value)} />
-            <Input label="Fecha de vencimiento" type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
+            <ProductUnitFields
+              baseUnit={baseUnit}
+              onBaseUnitChange={setBaseUnit}
+              inputUnit={inputUnit}
+              onInputUnitChange={setInputUnit}
+              inputUnitQuantity={inputUnitQuantity}
+              onInputUnitQuantityChange={setInputUnitQuantity}
+            />
 
             <Input label="Stock mínimo" type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} />
             <Input label="Stock máximo" type="number" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} />
@@ -196,16 +197,20 @@ export default function ProductCreatePage() {
                 ))}
               </select>
             </div>
-
-            <Input label="Costo unitario" type="number" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} />
-
           </div>
 
-          {/* tipo producto */}
           <div className="mt-4 flex gap-4 flex-wrap">
-            <label><input type="checkbox" checked={isIngredient} onChange={(e) => setIsIngredient(e.target.checked)} /> Ingrediente</label>
-            <label><input type="checkbox" checked={isSupply} onChange={(e) => setIsSupply(e.target.checked)} /> Insumo</label>
-            <label><input type="checkbox" checked={isFinishedProduct} onChange={(e) => setIsFinishedProduct(e.target.checked)} /> Producto terminado</label>
+            <label>
+              <input type="checkbox" checked={isIngredient} onChange={(e) => setIsIngredient(e.target.checked)} />{' '}
+              Ingrediente
+            </label>
+            <label>
+              <input type="checkbox" checked={isSupply} onChange={(e) => setIsSupply(e.target.checked)} /> Insumo
+            </label>
+            <label>
+              <input type="checkbox" checked={isFinishedProduct} onChange={(e) => setIsFinishedProduct(e.target.checked)} />{' '}
+              Producto terminado
+            </label>
           </div>
 
           <div className="flex justify-end gap-4 mt-6">
@@ -216,10 +221,8 @@ export default function ProductCreatePage() {
               {submitting ? 'Guardando…' : 'Guardar Producto'}
             </Button>
           </div>
-
         </div>
       )}
-
     </DashboardLayout>
   );
 }

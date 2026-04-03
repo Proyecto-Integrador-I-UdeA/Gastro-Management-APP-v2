@@ -13,7 +13,8 @@ export class KardexError extends Error {
 export type MovementPayload = {
   productId: number;
   quantity: number;
-  unitCost?: Prisma.Decimal | null;
+  /** Obligatorio para PURCHASE; ignorado en otros tipos */
+  unitCost?: number | null;
   expirationDate?: Date | null;
   notes?: string | null;
   sourceWarehouseId?: number | null;
@@ -52,15 +53,15 @@ export async function applyInventoryMovement(
       if (sourceWarehouseId != null) {
         throw new KardexError('sourceWarehouseId no aplica para COMPRA');
       }
-      if (unitCost == null) {
-        throw new KardexError('unitCost es requerido para COMPRA');
+      if (unitCost == null || Number.isNaN(unitCost) || unitCost < 0) {
+        throw new KardexError('Costo unitario inválido para COMPRA');
       }
 
       const movement = await tx.inventoryMovement.create({
         data: {
           type,
           quantity,
-          unitCost,
+          unitCost: new Prisma.Decimal(unitCost),
           expirationDate: expirationDate ?? null,
           notes: notes ?? null,
           productId,
@@ -87,11 +88,6 @@ export async function applyInventoryMovement(
         },
       });
 
-      await tx.product.update({
-        where: { id: productId },
-        data: { unitCost },
-      });
-
       return movement;
     }
 
@@ -109,7 +105,7 @@ export async function applyInventoryMovement(
         data: {
           type,
           quantity,
-          unitCost: unitCost ?? null,
+          unitCost: null,
           expirationDate: expirationDate ?? null,
           notes: notes ?? null,
           productId,
@@ -155,7 +151,7 @@ export async function applyInventoryMovement(
         data: {
           type,
           quantity,
-          unitCost: unitCost ?? null,
+          unitCost: null,
           expirationDate: expirationDate ?? null,
           notes: notes ?? null,
           productId,
@@ -235,7 +231,6 @@ export async function reverseTransferInventory(
 
 /**
  * Revierte una COMPRA: descuenta cantidad en bodega destino.
- * No modifica unitCost del producto (puede requerir ajuste manual si aplica).
  */
 export async function reversePurchaseInventory(
   tx: Prisma.TransactionClient,
@@ -314,20 +309,45 @@ async function applyTransferStockOnly(
 }
 
 /**
- * Edita cantidad y/o notas de un traslado existente (misma transacción: revierte q anterior y aplica q nueva).
+ * Edita traslado (cantidad revierte stock) o entrada por compra (solo notas / vencimiento).
  */
 export async function updateTransferMovementInTransaction(
   tx: Prisma.TransactionClient,
   movementId: number,
-  updates: { quantity?: number; notes?: string | null }
+  updates: {
+    quantity?: number;
+    notes?: string | null;
+    expirationDate?: Date | null;
+  }
 ) {
   const mov = await tx.inventoryMovement.findUnique({ where: { id: movementId } });
   if (!mov) {
     throw new KardexError('Movimiento no encontrado', 404);
   }
-  if (mov.type !== MovementType.TRANSFER) {
-    throw new KardexError('Solo se pueden editar traslados', 400);
+
+  if (mov.type === MovementType.PURCHASE) {
+    if (updates.quantity !== undefined) {
+      throw new KardexError(
+        'La cantidad de una entrada por compra no se puede modificar desde aquí',
+        400
+      );
+    }
+    const data: { notes?: string | null; expirationDate?: Date | null } = {};
+    if (updates.notes !== undefined) data.notes = updates.notes;
+    if (updates.expirationDate !== undefined) data.expirationDate = updates.expirationDate;
+    if (Object.keys(data).length === 0) {
+      return mov;
+    }
+    return tx.inventoryMovement.update({
+      where: { id: movementId },
+      data,
+    });
   }
+
+  if (mov.type !== MovementType.TRANSFER) {
+    throw new KardexError('Este tipo de movimiento no se puede editar', 400);
+  }
+
   const src = mov.sourceWarehouseId;
   const dst = mov.destinationWarehouseId;
   if (src == null || dst == null) {
@@ -335,13 +355,16 @@ export async function updateTransferMovementInTransaction(
   }
 
   if (updates.quantity === undefined) {
-    if (updates.notes !== undefined) {
-      return tx.inventoryMovement.update({
-        where: { id: movementId },
-        data: { notes: updates.notes },
-      });
+    const data: { notes?: string | null; expirationDate?: Date | null } = {};
+    if (updates.notes !== undefined) data.notes = updates.notes;
+    if (updates.expirationDate !== undefined) data.expirationDate = updates.expirationDate;
+    if (Object.keys(data).length === 0) {
+      return mov;
     }
-    return mov;
+    return tx.inventoryMovement.update({
+      where: { id: movementId },
+      data,
+    });
   }
 
   const q1 = mov.quantity;
@@ -353,11 +376,12 @@ export async function updateTransferMovementInTransaction(
   await reverseTransferInventory(tx, mov.productId, q1, src, dst);
   await applyTransferStockOnly(tx, mov.productId, q2, src, dst);
 
+  const data: Prisma.InventoryMovementUpdateInput = { quantity: q2 };
+  if (updates.notes !== undefined) data.notes = updates.notes;
+  if (updates.expirationDate !== undefined) data.expirationDate = updates.expirationDate;
+
   return tx.inventoryMovement.update({
     where: { id: movementId },
-    data: {
-      quantity: q2,
-      ...(updates.notes !== undefined && { notes: updates.notes }),
-    },
+    data,
   });
 }

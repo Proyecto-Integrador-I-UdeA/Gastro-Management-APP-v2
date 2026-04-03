@@ -210,7 +210,7 @@ export default function TransfersPage() {
                       </td>
                       <td className="py-2 whitespace-nowrap">
                         <div className="flex flex-wrap items-center gap-2">
-                          {m.type === 'TRANSFER' ? (
+                          {m.type === 'TRANSFER' || m.type === 'PURCHASE' ? (
                             canUpdateTransfer ? (
                               <Link
                                 href={ROUTES.transfers.edit(m.id)}
@@ -227,12 +227,7 @@ export default function TransfersPage() {
                               </span>
                             )
                           ) : (
-                            <span
-                              className="text-gray-500 text-sm cursor-default"
-                              title="Las entradas por compra no se editan. Si hubo un error, elimina el movimiento y registra de nuevo."
-                            >
-                              No editable
-                            </span>
+                            <span className="text-gray-500 text-sm">—</span>
                           )}
                           {canDeleteTransfer ? (
                             <Button

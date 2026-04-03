@@ -44,7 +44,6 @@ model Product {
   inputUnitQuantity Float               @default(1)
   minStock          Float
   maxStock          Float
-  unitCost          Decimal             @db.Decimal(10, 2)
   active            Boolean             @default(true)
   supplierId        Int
   supplier          Supplier            @relation(fields: [supplierId], references: [id])
