@@ -26,6 +26,7 @@ export default function CreateWarehousePage() {
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [isMain, setIsMain] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -42,6 +43,7 @@ export default function CreateWarehousePage() {
         name: name.trim(),
         description: description.trim() || null,
         active: true,
+        isMain,
       });
       showSuccess('Bodega creada');
       void router.push(ROUTES.transfers.warehouses);
@@ -72,6 +74,21 @@ export default function CreateWarehousePage() {
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={isMain}
+              onChange={(e) => setIsMain(e.target.checked)}
+            />
+            <span>
+              <span className="font-medium text-gray-800">Bodega principal</span>
+              <span className="block text-gray-600 mt-0.5">
+                Las entradas por compra se registran aquí. Solo puede haber una bodega principal; al
+                marcar esta, se quita la marca en las demás.
+              </span>
+            </span>
+          </label>
           <div className="flex gap-2">
             <Button type="submit" disabled={submitting}>
               {submitting ? 'Guardando…' : 'Guardar'}

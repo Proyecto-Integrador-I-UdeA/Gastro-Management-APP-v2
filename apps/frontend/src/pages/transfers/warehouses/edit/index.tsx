@@ -25,6 +25,7 @@ export default function EditWarehousePage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [active, setActive] = useState(true);
+  const [isMain, setIsMain] = useState(false);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -40,6 +41,7 @@ export default function EditWarehousePage() {
         setName(w.name);
         setDescription(w.description ?? '');
         setActive(w.active);
+        setIsMain(Boolean(w.isMain));
       } catch (e) {
         if (isUnauthorized(e)) {
           void router.push('/login');
@@ -67,6 +69,7 @@ export default function EditWarehousePage() {
         name: name.trim(),
         description: description.trim() || null,
         active,
+        isMain,
       });
       showSuccess('Bodega actualizada');
       void router.push(ROUTES.transfers.warehouses);
@@ -102,6 +105,21 @@ export default function EditWarehousePage() {
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={isMain}
+                onChange={(e) => setIsMain(e.target.checked)}
+              />
+              <span>
+                <span className="font-medium text-gray-800">Bodega principal</span>
+                <span className="block text-gray-600 mt-0.5">
+                  Entradas por compra van a la bodega principal. Solo puede haber una; al marcar esta,
+                  se quita la marca en las demás.
+                </span>
+              </span>
+            </label>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"

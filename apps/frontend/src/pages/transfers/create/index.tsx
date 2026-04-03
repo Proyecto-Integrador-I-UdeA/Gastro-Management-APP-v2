@@ -75,19 +75,49 @@ export default function CreateTransferPage() {
     [products, productId]
   );
 
+  const principalWarehouse = useMemo(
+    () => warehouses.find((w) => w.isMain === true),
+    [warehouses]
+  );
+
+  useEffect(() => {
+    if (mode !== 'purchase' || !principalWarehouse) return;
+    setDestinationWarehouseId(String(principalWarehouse.id));
+  }, [mode, principalWarehouse]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
-    const dst = parseInt(destinationWarehouseId, 10);
     const pid = parseInt(productId, 10);
     const qty = parseFloat(quantity);
 
-    if (!destinationWarehouseId || !productId || !quantity) {
+    let dst: number;
+    if (mode === 'purchase') {
+      if (!principalWarehouse) {
+        setFormError(
+          'No hay bodega principal. Marca una en Bodegas (editar bodega → «Bodega principal») antes de registrar compras.'
+        );
+        return;
+      }
+      dst = principalWarehouse.id;
+    } else {
+      dst = parseInt(destinationWarehouseId, 10);
+      if (!destinationWarehouseId) {
+        setFormError('Completa todos los campos obligatorios');
+        return;
+      }
+      if (Number.isNaN(dst)) {
+        setFormError('Valores numéricos inválidos');
+        return;
+      }
+    }
+
+    if (!productId || !quantity) {
       setFormError('Completa todos los campos obligatorios');
       return;
     }
-    if (Number.isNaN(dst) || Number.isNaN(pid) || Number.isNaN(qty)) {
+    if (Number.isNaN(pid) || Number.isNaN(qty)) {
       setFormError('Valores numéricos inválidos');
       return;
     }
@@ -214,8 +244,9 @@ export default function CreateTransferPage() {
           </p>
         ) : (
           <p className="text-sm text-gray-600 mb-4">
-            Ingresa stock recibido de un proveedor u origen externo. El costo unitario queda
-            registrado en este movimiento (Kardex).
+            Ingresa stock recibido de un proveedor u origen externo. La entrada se registra siempre en
+            la <strong>bodega principal</strong> (configurada en Bodegas). El costo unitario queda en el
+            movimiento (Kardex).
           </p>
         )}
 
@@ -265,22 +296,55 @@ export default function CreateTransferPage() {
               </div>
             )}
 
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-700">Bodega destino *</label>
-              <select
-                className="border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#001F3F]"
-                value={destinationWarehouseId}
-                onChange={(e) => setDestinationWarehouseId(e.target.value)}
-                required
-              >
-                <option value="">Selecciona…</option>
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {mode === 'purchase' ? (
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700">Bodega destino</label>
+                {principalWarehouse ? (
+                  <input
+                    type="text"
+                    readOnly
+                    disabled
+                    value={principalWarehouse.name}
+                    className="border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-gray-100 cursor-not-allowed"
+                  />
+                ) : (
+                  <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                    No hay bodega principal entre las bodegas activas.{' '}
+                    <Link
+                      href={ROUTES.transfers.warehouses}
+                      className="underline font-medium text-amber-900"
+                    >
+                      Ir a Bodegas
+                    </Link>{' '}
+                    y marca una como principal, o{' '}
+                    <Link
+                      href={ROUTES.transfers.warehousesCreate}
+                      className="underline font-medium text-amber-900"
+                    >
+                      crea una nueva
+                    </Link>
+                    .
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700">Bodega destino *</label>
+                <select
+                  className="border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#001F3F]"
+                  value={destinationWarehouseId}
+                  onChange={(e) => setDestinationWarehouseId(e.target.value)}
+                  required
+                >
+                  <option value="">Selecciona…</option>
+                  {warehouses.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-gray-700">Producto *</label>
@@ -363,7 +427,12 @@ export default function CreateTransferPage() {
             </div>
 
             <div className="flex gap-3 pt-4">
-              <Button type="submit" disabled={submitting}>
+              <Button
+                type="submit"
+                disabled={
+                  submitting || (mode === 'purchase' && !principalWarehouse)
+                }
+              >
                 {submitting
                   ? 'Registrando…'
                   : mode === 'transfer'

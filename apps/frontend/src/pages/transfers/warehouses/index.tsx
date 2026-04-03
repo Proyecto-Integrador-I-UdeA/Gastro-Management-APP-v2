@@ -118,6 +118,7 @@ export default function TransferWarehousesPage() {
                 <tr>
                   <th className="py-2 pr-3">Nombre</th>
                   <th className="py-2 pr-3">Descripción</th>
+                  <th className="py-2 pr-3">Principal</th>
                   <th className="py-2 pr-3">Estado</th>
                   <th className="py-2">Acciones</th>
                 </tr>
@@ -125,7 +126,7 @@ export default function TransferWarehousesPage() {
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="text-center py-8 text-gray-500">
+                    <td colSpan={5} className="text-center py-8 text-gray-500">
                       No hay bodegas.{' '}
                       {canCreate && (
                         <Link
@@ -143,6 +144,15 @@ export default function TransferWarehousesPage() {
                       <td className="py-2 pr-3 font-semibold">{w.name}</td>
                       <td className="py-2 pr-3 text-gray-600 max-w-xs truncate">
                         {w.description || '—'}
+                      </td>
+                      <td className="py-2 pr-3">
+                        {w.isMain ? (
+                          <span className="px-2 inline-flex text-xs font-semibold rounded-full bg-[#001F3F]/10 text-[#001F3F]">
+                            Sí
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="py-2 pr-3">
                         <span

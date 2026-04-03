@@ -43,12 +43,18 @@ export const createWarehouse = async (req: Request, res: Response) => {
   }
   const data = validation.data;
   try {
-    const warehouse = await prisma.warehouse.create({
-      data: {
-        name: data.name,
-        description: data.description ?? null,
-        active: data.active ?? true,
-      },
+    const warehouse = await prisma.$transaction(async (tx) => {
+      if (data.isMain) {
+        await tx.warehouse.updateMany({ data: { isMain: false } });
+      }
+      return tx.warehouse.create({
+        data: {
+          name: data.name,
+          description: data.description ?? null,
+          active: data.active ?? true,
+          isMain: data.isMain ?? false,
+        },
+      });
     });
     res.status(201).json(warehouse);
   } catch (error: unknown) {
@@ -75,13 +81,19 @@ export const updateWarehouse = async (req: Request, res: Response) => {
   }
   const data = validation.data;
   try {
-    const warehouse = await prisma.warehouse.update({
-      where: { id },
-      data: {
-        ...(data.name !== undefined && { name: data.name }),
-        ...(data.description !== undefined && { description: data.description }),
-        ...(data.active !== undefined && { active: data.active }),
-      },
+    const warehouse = await prisma.$transaction(async (tx) => {
+      if (data.isMain === true) {
+        await tx.warehouse.updateMany({ data: { isMain: false } });
+      }
+      return tx.warehouse.update({
+        where: { id },
+        data: {
+          ...(data.name !== undefined && { name: data.name }),
+          ...(data.description !== undefined && { description: data.description }),
+          ...(data.active !== undefined && { active: data.active }),
+          ...(data.isMain !== undefined && { isMain: data.isMain }),
+        },
+      });
     });
     res.json(warehouse);
   } catch (error: unknown) {

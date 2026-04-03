@@ -8,6 +8,8 @@ export type WarehouseSummary = {
   id: number;
   name: string;
   description: string | null;
+  /** Solo una debería ser true; entradas por compra usan esta bodega */
+  isMain?: boolean;
   active: boolean;
 };
 

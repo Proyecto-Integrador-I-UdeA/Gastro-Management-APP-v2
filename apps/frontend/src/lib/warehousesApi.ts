@@ -17,6 +17,7 @@ export type CreateWarehousePayload = {
   name: string;
   description?: string | null;
   active?: boolean;
+  isMain?: boolean;
 };
 
 export async function createWarehouseRequest(
@@ -28,6 +29,7 @@ export async function createWarehouseRequest(
       name: payload.name,
       description: payload.description ?? null,
       active: payload.active ?? true,
+      isMain: payload.isMain ?? false,
     },
   });
 }
@@ -36,6 +38,7 @@ export type UpdateWarehousePayload = {
   name?: string;
   description?: string | null;
   active?: boolean;
+  isMain?: boolean;
 };
 
 export async function updateWarehouseRequest(
