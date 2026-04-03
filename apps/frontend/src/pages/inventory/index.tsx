@@ -14,10 +14,9 @@ import { useAuthGuard } from '@/hooks/useAuthGuard';
 import type { InventoryListRow } from '@/types/inventory';
 import type { WarehouseSummary } from '@/types/transfer';
 
-// Columna «Estado» (bajo mínimo / OK) — desactivada por ahora; ver cuerpo de tabla.
-// function rowLowStock(row: InventoryListRow): boolean {
-//   return row.quantity < row.product.minStock;
-// }
+function rowLowStock(row: InventoryListRow): boolean {
+  return row.quantity < row.product.minStock;
+}
 
 export default function InventoryPage() {
   useAuthGuard('inventory.read');
@@ -152,18 +151,20 @@ export default function InventoryPage() {
                   <th className="py-2 pr-3">Unidad</th>
                   <th className="py-2 pr-3 text-right">Stock mín.</th>
                   <th className="py-2 pr-3 text-right">Stock máx.</th>
-                  {/* <th className="py-2">Estado</th> */}
+                  <th className="py-2">Estado</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-10 text-gray-500">
+                    <td colSpan={9} className="text-center py-10 text-gray-500">
                       No hay líneas de inventario para este criterio.
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((r) => (
+                  filtered.map((r) => {
+                    const low = rowLowStock(r);
+                    return (
                       <tr
                         key={r.id}
                         className="border-b border-gray-200/50 hover:bg-white/30"
@@ -182,7 +183,6 @@ export default function InventoryPage() {
                         <td className="py-2 pr-3 text-right tabular-nums text-gray-600">
                           {r.product.maxStock}
                         </td>
-                        {/* Estado (rowLowStock):
                         <td className="py-2">
                           {low ? (
                             <span className="text-red-700 font-medium text-xs uppercase tracking-wide">
@@ -192,9 +192,9 @@ export default function InventoryPage() {
                             <span className="text-green-800 text-xs">OK</span>
                           )}
                         </td>
-                        */}
                       </tr>
-                    ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
