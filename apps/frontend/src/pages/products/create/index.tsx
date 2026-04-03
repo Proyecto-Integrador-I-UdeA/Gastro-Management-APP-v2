@@ -30,7 +30,7 @@ export default function ProductCreatePage() {
   const [internalCode, setInternalCode] = useState('');
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
-  const [presentation, setPresentation] = useState('Granel');
+  const [presentation, setPresentation] = useState('');
   const [isIngredient, setIsIngredient] = useState(true);
   const [isSupply, setIsSupply] = useState(false);
   const [isFinishedProduct, setIsFinishedProduct] = useState(false);

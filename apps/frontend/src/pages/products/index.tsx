@@ -8,7 +8,6 @@ import { ROUTES } from '@/constants/routes';
 import { useProductList } from '@/hooks/useProductList';
 import { deleteProductRequest } from '@/lib/productsApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
-import { formatStockDisplay, productLowStock } from '@/types/product';
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { useEffect, useState } from "react";
 import { getUserPermissions } from "@/utils/permissions";
@@ -95,10 +94,12 @@ export default function ProductsPage() {
 
               <thead className="text-left border-b">
                 <tr>
-                  <th className="py-2">Código</th>
-                  <th>Producto</th>
-                  <th>Categoría</th>
-                  <th>Stock</th>
+                  <th className="py-2 pr-3">Código</th>
+                  <th className="pr-3">Producto</th>
+                  <th className="pr-3">Categoría</th>
+                  <th className="pr-3 whitespace-nowrap">Stock mín.</th>
+                  <th className="pr-3 whitespace-nowrap">Stock máx.</th>
+                  <th className="pr-3">Proveedor</th>
                   <th></th>
                 </tr>
               </thead>
@@ -106,7 +107,7 @@ export default function ProductsPage() {
               <tbody>
                 {products.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center py-6">
+                    <td colSpan={7} className="text-center py-6">
                       No hay productos
                     </td>
                   </tr>
@@ -116,14 +117,15 @@ export default function ProductsPage() {
                       key={prod.id}
                       className="hover:bg-gray-200/20 transition"
                     >
-                      <td className="py-2">{prod.internalCode}</td>
-                      <td><strong>{prod.name}</strong></td>
-                      <td>{prod.category}</td>
-                      <td>
-                        {formatStockDisplay(prod)}
-                        {productLowStock(prod) && (
-                          <span className="text-red-500 ml-2">⚠</span>
-                        )}
+                      <td className="py-2 pr-3">{prod.internalCode}</td>
+                      <td className="pr-3">
+                        <strong>{prod.name}</strong>
+                      </td>
+                      <td className="pr-3">{prod.category}</td>
+                      <td className="pr-3 text-gray-700">{prod.minStock}</td>
+                      <td className="pr-3 text-gray-700">{prod.maxStock}</td>
+                      <td className="pr-3 text-gray-700">
+                        {prod.supplier?.name ?? '—'}
                       </td>
 
                       <td className="text-right space-x-3">
