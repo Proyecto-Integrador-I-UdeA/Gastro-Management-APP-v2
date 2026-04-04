@@ -43,11 +43,12 @@ export default function PriceCalculationPage() {
   useEffect(() => {
     fetchRecipes();
   }, []);
+
   useEffect(() => {
-  if (margin && tax) {
-    fetchSuggestedPrices();
-  }
-}, [margin, tax]);
+    if (margin && tax) {
+      fetchSuggestedPrices();
+    }
+  }, [margin, tax]);
 
   // 🔥 obtener costo
   const fetchCost = async () => {
@@ -72,76 +73,80 @@ export default function PriceCalculationPage() {
     }
   };
 
-  // 🔥 calcular precio
+  // 🔥 CALCULO CORREGIDO
   const handleCalculate = () => {
-  if (!cost) return showError("Primero calcula el costo");
+    if (!cost) return showError("Primero calcula el costo");
 
-  const priceWithoutTax = cost / (1 - margin);
-  const finalPrice = priceWithoutTax * (1 + tax);
+    if (margin >= 1) {
+      return showError("El margen no puede ser mayor o igual a 100%");
+    }
 
-  const suggested = Math.round(finalPrice / 1000) * 1000;
+    const priceWithoutTax = cost / (1 - margin);
+    const taxValue = priceWithoutTax * tax;
+    const finalPrice = priceWithoutTax + taxValue;
+    const utility = priceWithoutTax - cost;
 
-  setPrice({
-    priceWithoutTax,
-    finalPrice
-  });
+    const suggested = Math.ceil(finalPrice / 1000) * 1000;
 
-  setSuggestedPrice(suggested);
-};
-const fetchSuggestedPrices = async () => {
-  try {
-    const res = await fetch("http://localhost:3001/recipes", {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
+    setPrice({
+      priceWithoutTax,
+      finalPrice,
+      utility,
+      taxValue,
+      cost
     });
 
-    const data = await res.json();
+    setSuggestedPrice(suggested);
+  };
 
-    const list = Array.isArray(data)
-      ? data
-      : data.recipes || data.data || [];
+  const fetchSuggestedPrices = async () => {
+    try {
+      const res = await fetch("http://localhost:3001/recipes", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
 
-    // 🔥 calcular precio para cada receta
-    const results = await Promise.all(
-      list.map(async (r: any) => {
-        const resCost = await fetch(
-          `http://localhost:3001/costs/recipe/${r.id}`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-            },
-          }
-        );
+      const data = await res.json();
 
-        const costData = await resCost.json();
+      const list = Array.isArray(data)
+        ? data
+        : data.recipes || data.data || [];
 
-        const cost = costData.costPerPortion;
+      const results = await Promise.all(
+        list.map(async (r: any) => {
+          const resCost = await fetch(
+            `http://localhost:3001/costs/recipe/${r.id}`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem("token")}`,
+              },
+            }
+          );
 
-        const priceWithoutTax = cost / (1 - margin);
-        const finalPrice = priceWithoutTax * (1 + tax);
-        const suggested = Math.ceil(finalPrice / 1000) * 1000;
+          const costData = await resCost.json();
+          const cost = costData.costPerPortion;
 
-        return {
-          name: r.name,
-          cost,
-          finalPrice,
-          suggested
-        };
-      })
-    );
+          const priceWithoutTax = cost / (1 - margin);
+          const finalPrice = priceWithoutTax * (1 + tax);
+          const suggested = Math.ceil(finalPrice / 1000) * 1000;
 
-    setPriceList(results);
+          return {
+            name: r.name,
+            cost,
+            finalPrice,
+            suggested
+          };
+        })
+      );
 
-  } catch (error) {
-    console.error(error);
-  }
-};
+      setPriceList(results);
 
-
-
-
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -152,7 +157,6 @@ const fetchSuggestedPrices = async () => {
 
       <div className="bg-gray-400/20 p-6 rounded-2xl space-y-6">
 
-        {/* RECETA */}
         <div>
           <label>Seleccionar receta</label>
           <select
@@ -173,14 +177,12 @@ const fetchSuggestedPrices = async () => {
           Obtener costo
         </Button>
 
-        {/* COSTO */}
         {cost && (
           <div>
             <strong>Costo por porción:</strong> ${cost.toFixed(2)}
           </div>
         )}
 
-        {/* MARGEN */}
         <div>
           <label>Margen (ej: 0.3 = 30%)</label>
           <input
@@ -192,7 +194,6 @@ const fetchSuggestedPrices = async () => {
           />
         </div>
 
-        {/* IMPUESTO */}
         <div>
           <label>Impuesto (ej: 0.19 = 19%)</label>
           <input
@@ -210,7 +211,6 @@ const fetchSuggestedPrices = async () => {
 
       </div>
 
-      {/* RESULTADOS */}
       {price && (
         <div className="mt-10 bg-white p-6 rounded-xl shadow">
 
@@ -225,22 +225,45 @@ const fetchSuggestedPrices = async () => {
           <p className="text-green-600 font-bold">
             <strong>Precio final:</strong> ${price.finalPrice.toFixed(2)}
           </p>
+
+          {/* 🔥 DESGLOSE */}
+          <div className="mt-6 border-t pt-4 space-y-2">
+
+            <h3 className="font-semibold text-gray-700">
+              Desglose del precio
+            </h3>
+
+            <p>
+              <strong>Costo:</strong> ${price.cost.toFixed(2)}
+            </p>
+
+            <p className="text-blue-600">
+              <strong>Utilidad (negocio):</strong> ${price.utility.toFixed(2)}
+            </p>
+
+            <p className="text-orange-600">
+              <strong>Impuestos:</strong> ${price.taxValue.toFixed(2)}
+            </p>
+
+            <p className="text-green-700 font-bold">
+              <strong>Total validado:</strong>{" "}
+              ${(price.cost + price.utility + price.taxValue).toFixed(2)}
+            </p>
+
+          </div>
+
           {suggestedPrice && (
-  <div className="mt-6 text-center">
-
-    <p className="text-sm text-gray-500 mb-2">
-      Precio de venta sugerido
-    </p>
-
-    <div className="bg-green-600 text-white text-2xl font-bold py-4 rounded-xl shadow-lg">
-      ${suggestedPrice.toLocaleString()}
-    </div>
-
-  </div>
-)}
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-500 mb-2">
+                Precio de venta sugerido
+              </p>
+              <div className="bg-green-600 text-white text-2xl font-bold py-4 rounded-xl shadow-lg">
+                ${suggestedPrice.toLocaleString()}
+              </div>
+            </div>
+          )}
 
         </div>
-        
       )}
       {priceList.length > 0 && (
   <div className="mt-10 bg-white p-6 rounded-xl shadow">
@@ -254,6 +277,7 @@ const fetchSuggestedPrices = async () => {
         <tr className="border-b">
           <th className="text-left">Producto</th>
           <th>Costo</th>
+          <th>Precio sin impuesto</th>
           <th>Precio final</th>
           <th>Precio sugerido</th>
         </tr>
@@ -263,8 +287,17 @@ const fetchSuggestedPrices = async () => {
         {priceList.map((p, i) => (
           <tr key={i} className="border-b text-center">
             <td className="text-left">{p.name}</td>
+
             <td>${p.cost?.toFixed(0)}</td>
-            <td>${p.finalPrice?.toFixed(0)}</td>
+
+            <td>
+              ${(p.cost / (1 - margin)).toFixed(0)}
+            </td>
+
+            <td>
+              ${(p.finalPrice)?.toFixed(0)}
+            </td>
+
             <td className="font-bold text-green-600">
               ${p.suggested?.toLocaleString()}
             </td>
