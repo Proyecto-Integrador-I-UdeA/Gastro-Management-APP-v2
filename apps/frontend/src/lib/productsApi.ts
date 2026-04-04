@@ -1,6 +1,7 @@
 import { apiFetch } from '@/utils/apiFetch';
 import type { Product } from '@/types/product';
 import { normalizeProductFromApi } from '@/lib/normalizeProduct';
+import type { ProductBaseUnit } from '@/lib/productUnitConversion';
 
 export type ProductWritePayload = {
   internalCode: string;
@@ -10,7 +11,9 @@ export type ProductWritePayload = {
   isSupply: boolean;
   isFinishedProduct: boolean;
   presentation: string;
-  unitOfMeasure: string;
+  unitOfMeasure: ProductBaseUnit;
+  inputUnit: string;
+  inputUnitQuantity: number;
   expirationDate: string | null;
   minStock: number;
   maxStock: number;
@@ -54,6 +57,20 @@ export async function updateProductRequest(
     json: body,
   });
   return normalizeProductFromApi(data);
+}
+
+export async function inactivateProductRequest(id: number): Promise<void> {
+  await setProductActiveRequest(id, false);
+}
+
+export async function setProductActiveRequest(
+  id: number,
+  active: boolean
+): Promise<void> {
+  await apiFetch<undefined>(`/products/${id}`, {
+    method: 'PATCH',
+    json: { active },
+  });
 }
 
 export async function deleteProductRequest(id: number): Promise<void> {

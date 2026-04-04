@@ -10,6 +10,7 @@ import { ROUTES } from '@/constants/routes';
 import { fetchSupplierById, updateSupplierRequest } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { showError } from '@/utils/toast';
 
 
 export default function SupplierEditPage() {
@@ -72,7 +73,7 @@ export default function SupplierEditPage() {
 
   const handleUpdate = async () => {
     if (!internalCode || !name || !taxId || !phone || !address) {
-      alert('Completa todos los campos obligatorios');
+      showError('Completa todos los campos obligatorios');
       return;
     }
 
@@ -101,7 +102,7 @@ export default function SupplierEditPage() {
       }
 
 
-      alert(getApiErrorMessage(e, 'No se pudo actualizar el proveedor'));
+      showError(getApiErrorMessage(e, 'No se pudo actualizar el proveedor'));
 
 
     } finally {

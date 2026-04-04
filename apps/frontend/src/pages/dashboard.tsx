@@ -1,23 +1,30 @@
 "use client";
 
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import Button from "@/components/Button";
 import { getUserRole } from "@/utils/auth";
+import { UserPlus, List } from "lucide-react";
+import { showError } from "@/utils/toast";
+
 
 export default function Dashboard() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [permissions, setPermissions] = useState<string[]>([]);
 
+
   // 🔥 evitar SSR
   useEffect(() => {
     setMounted(true);
 
+
     if (typeof window !== "undefined") {
       const token = localStorage.getItem("token");
+
 
 if (token) {
   try {
@@ -31,68 +38,82 @@ if (token) {
     }
   }, []);
 
+
   if (!mounted) return null;
 
-  // 🔥 helper permisos
-  const can = (perm: string) => {
-  if (typeof window === "undefined") return false;
 
+  // 🔥 helper permisos
+const can = (permission: string) => {
+    return permissions.includes(permission);
   const token = localStorage.getItem("token");
   if (!token) return false;
 
+
   try {
     const payload = JSON.parse(atob(token.split(".")[1]));
-    return payload.permissions?.includes(perm);
+    return payload.permissions?.includes(permission);
   } catch {
     return false;
   }
 };
 
+
   // 🔥 navegación con control
   /*const handleNavigate = (path: string, permission: string) => {
     if (!can(permission)) {
-      alert("No cuentas con los permisos para ingresar a este modulo");
+      showError("No cuentas con los permisos para ingresar a este modulo");
       return;
     }
     router.push(path);
   };*/
+
 
   const handleNavigate = (path: string, permission?: string) => {
   console.log("🚀 CLICK DASHBOARD");
   console.log("PATH:", path);
   console.log("PERMISO RECIBIDO:", permission);
 
+
   const token = localStorage.getItem("token");
   const payload = token ? JSON.parse(atob(token.split(".")[1])) : null;
 
+
   console.log("PERMISOS DEL TOKEN:", payload?.permissions);
+
 
   if (permission && !payload?.permissions?.includes(permission)) {
     console.log("❌ BLOQUEADO");
-    alert("No cuentas con los permisos para ingresar a este modulo");
+    showError("No cuentas con los permisos para ingresar a este módulo");
     return;
   }
+
 
   console.log("✅ PERMITIDO");
   router.push(path);
 };
 
+
   return (
     <div className="flex min-h-screen relative z-0">
       <Sidebar />
 
+
       <div className="flex-1 lg:ml-72 bg-white rounded-bl-2xl overflow-hidden">
         <Header />
 
+
         <main className="p-4 sm:p-6 lg:p-8">
           <div className="bg-white rounded-tl-2xl shadow-md p-6 min-h-screen">
+
 
             <h1 className="text-2xl sm:text-3xl font-bold text-[#001F3F] mb-6">
               Dashboard Principal
             </h1>
 
+
             {/* BOTONES DASHBOARD */}
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          {/*  <div className="flex flex-col sm:flex-row gap-4 mb-6">
+
 
               <Button
                 onClick={() => handleNavigate("/users/create", "users.create")}
@@ -101,6 +122,7 @@ if (token) {
                 Registrar Usuario
               </Button>
 
+
               <Button
                 onClick={() => handleNavigate("/users", "users.read")}
                 variant="secondary"
@@ -108,88 +130,65 @@ if (token) {
                 Ver Usuarios
               </Button>
 
-            </div>
+
+            </div>*/}
+
 
             {/* TARJETAS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+
 
               {/* PRODUCTOS */}
               <div
                 onClick={() => handleNavigate("/products", "products.read")}
                 className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
                 shadow-[0_4px_20px_rgba(30,64,175,0.25)]
+                hover:scale-107
+                hover:-translate-y-2
                 hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
-                transition-all duration-300 cursor-pointer flex flex-col"
+                transition-all duration-300 cursor-pointer flex flex-col ease-out"
               >
                 <h2 className="text-lg font-semibold text-gray-800 mb-2">PRODUCTOS</h2>
                 <p className="text-sm text-gray-600">Gestiona stocks y categorías</p>
               </div>
+
 
               {/* PROVEEDORES */}
               <div
                 onClick={() => handleNavigate("/suppliers", "suppliers.read")}
                 className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
                 shadow-[0_4px_20px_rgba(30,64,175,0.25)]
+                hover:scale-107
+                hover:-translate-y-2
                 hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
                 transition-all duration-300 cursor-pointer flex flex-col"
               >
                 <h2 className="text-lg font-semibold text-gray-800 mb-2">PROVEEDORES</h2>
                 <p className="text-sm text-gray-600">Directorio y Datos de tus Aliados</p>
               </div>
-
-              {/* TRASLADOS */}
+                {/* PRODUCCIÓN */}
               <div
-                onClick={() => handleNavigate("/transfers", "transfers.read")}
-                className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
-                shadow-[0_4px_20px_rgba(30,64,175,0.25)]
-                hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
-                transition-all duration-300 cursor-pointer flex flex-col"
-              >
-                <h2 className="text-lg font-semibold text-gray-800 mb-2">TRASLADOS</h2>
-                <p className="text-sm text-gray-600">Registra Entradas y Salidas</p>
-              </div>
+                      onClick={() => handleNavigate("/production", "recipes.read")}
+                      className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
+                      shadow-[0_4px_20px_rgba(30,64,175,0.25)]
+                       hover:scale-107
+                       hover:-translate-y-2
+                       hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
+                      transition-all duration-300 cursor-pointer flex flex-col"
+  >
+                  <h2 className="text-lg font-semibold text-gray-800 mb-2">PRODUCCIÓN</h2> 
+                     <p className="text-sm text-gray-600">Estandariza tus platos</p>
+             </div>
+                 
 
-              {/* INVENTARIO */}
-              <div
-                onClick={() => handleNavigate("/inventory", "inventory.read")}
-                className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
-                shadow-[0_4px_20px_rgba(30,64,175,0.25)]
-                hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
-                transition-all duration-300 cursor-pointer flex flex-col"
-              >
-                <h2 className="text-lg font-semibold text-gray-800 mb-2">INVENTARIOS</h2>
-                <p className="text-sm text-gray-600">Consulta existencias</p>
-              </div>
-
-              {/* PRODUCCIÓN */}
-              <div
-                onClick={() => handleNavigate("/production", "recipes.read")}
-                className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
-                shadow-[0_4px_20px_rgba(30,64,175,0.25)]
-                hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
-                transition-all duration-300 cursor-pointer flex flex-col"
-              >
-                <h2 className="text-lg font-semibold text-gray-800 mb-2">PRODUCCIÓN</h2>
-                <p className="text-sm text-gray-600">Estandariza tus platos</p>
-              </div>
-
-              {/* MENÚ */}
-              <div
-                onClick={() => handleNavigate("/menu", "recipes.read")}
-                className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
-                shadow-[0_4px_20px_rgba(30,64,175,0.25)]
-                hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
-                transition-all duration-300 cursor-pointer flex flex-col"
-              >
-                <h2 className="text-lg font-semibold text-gray-800 mb-2">MENÚ</h2>
-                <p className="text-sm text-gray-600">Consulta tu menú</p>
-              </div>
 
               {/* COSTOS */}
               <div
                 onClick={() => handleNavigate("/costs", "costs.read")}
                 className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
                 shadow-[0_4px_20px_rgba(30,64,175,0.25)]
+                hover:scale-107
+                hover:-translate-y-2
                 hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
                 transition-all duration-300 cursor-pointer flex flex-col"
               >
@@ -197,11 +196,59 @@ if (token) {
                 <p className="text-sm text-gray-600">Costos y precios</p>
               </div>
 
+
+              {/* TRASLADOS */}
+              <div
+                onClick={() => handleNavigate("/transfers", "transfers.read")}
+                className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
+                shadow-[0_4px_20px_rgba(30,64,175,0.25)]
+                hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
+                hover:scale-107
+                hover:-translate-y-2
+                transition-all duration-300 cursor-pointer flex flex-col"
+              >
+                <h2 className="text-lg font-semibold text-gray-800 mb-2">TRASLADOS</h2>
+                <p className="text-sm text-gray-600">Registra Entradas y Salidas</p>
+              </div>
+
+
+              {/* INVENTARIO */}
+              <div
+                onClick={() => handleNavigate("/inventory", "inventory.read")}
+                className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
+                shadow-[0_4px_20px_rgba(30,64,175,0.25)]
+                hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
+                hover:scale-107
+                hover:-translate-y-2
+                transition-all duration-300 cursor-pointer flex flex-col"
+              >
+                <h2 className="text-lg font-semibold text-gray-800 mb-2">INVENTARIOS</h2>
+                <p className="text-sm text-gray-600">Consulta existencias</p>
+              </div>
+
+
+              {/* CONTABILIDAD */}
+              <div
+              onClick={() => handleNavigate("/menu", "recipes.read")}
+              className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
+              shadow-[0_4px_20px_rgba(30,64,175,0.25)]
+              hover:scale-107
+              hover:-translate-y-2
+              hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
+              transition-all duration-300 cursor-pointer flex flex-col"
+>
+               <h2 className="text-lg font-semibold text-gray-800 mb-2">CONTABILIDAD</h2>
+               <p className="text-sm text-gray-600">Registra tu Actividad Contable</p>
+              </div>
+              
+
               {/* VENTAS */}
               <div
                 onClick={() => handleNavigate("/sales", "sales.read")}
                 className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
                 shadow-[0_4px_20px_rgba(30,64,175,0.25)]
+                hover:scale-107
+                hover:-translate-y-2
                 hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
                 transition-all duration-300 cursor-pointer flex flex-col"
               >
@@ -209,17 +256,21 @@ if (token) {
                 <p className="text-sm text-gray-600">Gestión de ventas</p>
               </div>
 
+
               {/* REPORTES */}
               <div
                 onClick={() => handleNavigate("/reports", "reports.read")}
                 className="bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
                 shadow-[0_4px_20px_rgba(30,64,175,0.25)]
+                hover:scale-107
+                hover:-translate-y-2
                 hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]
                 transition-all duration-300 cursor-pointer flex flex-col"
               >
                 <h2 className="text-lg font-semibold text-gray-800 mb-2">REPORTES</h2>
                 <p className="text-sm text-gray-600">Accede a reportes</p>
               </div>
+
 
             </div>
           </div>
@@ -228,6 +279,7 @@ if (token) {
     </div>
   );
 }
+
 
 
 

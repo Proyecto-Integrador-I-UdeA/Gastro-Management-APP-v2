@@ -3,6 +3,34 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+export const getRecipeById = async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+
+    const recipe = await prisma.recipe.findUnique({
+      where: { id },
+      include: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+        processes: true // 🔥 quitamos orderBy por ahora
+      },
+    });
+
+    if (!recipe) {
+      return res.status(404).json({ error: "Receta no encontrada" });
+    }
+
+    res.json(recipe);
+
+  } catch (error) {
+    console.error("Error obteniendo receta:", error);
+    res.status(500).json({ error: "Error interno" });
+  }
+};
+
 export const getRecipeSummary = async (req: Request, res: Response) => {
   try {
     const id = Number.parseInt(req.params.id, 10);
@@ -23,26 +51,23 @@ export const getRecipeSummary = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Recipe not found' });
     }
 
-    // 🔹 1. Costo de ingredientes
     const ingredientsCost = recipe.items.reduce((sum, item) => {
       return sum + Number(item.totalCost);
     }, 0);
 
-    // 🔹 2. Tiempo total
     const totalTime = recipe.processes.reduce((sum, process) => {
       return sum + process.duration;
     }, 0);
 
-    // 🔹 3. Tiempo de mano de obra
     const laborTime = recipe.processes.reduce((sum, process) => {
       return sum + (process.duration * process.operators);
     }, 0);
 
     let ingredientsCostPerPortion = 0;
 
-if (recipe.portions && recipe.portions > 0) {
-  ingredientsCostPerPortion = ingredientsCost / recipe.portions;
-}
+    if (recipe.portions && recipe.portions > 0) {
+      ingredientsCostPerPortion = ingredientsCost / recipe.portions;
+    }
 
     res.json({
       recipeId: recipe.id,
@@ -77,16 +102,15 @@ export const listRecipes = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Error interno' });
   }
 };
+
 export const createRecipe = async (req: Request, res: Response) => {
   try {
     const { name, description, batchQuantity, portions, items, processes } = req.body;
 
-    // 1. Validación básica
     if (!name || !items || items.length === 0) {
       return res.status(400).json({ error: 'Datos incompletos' });
     }
 
-    // 2. Obtener productos (para costos)
     const productIds = items.map((item: any) => item.productId);
 
     const products = await prisma.product.findMany({
@@ -96,15 +120,13 @@ export const createRecipe = async (req: Request, res: Response) => {
       }
     });
 
-    // 3. Crear mapa de productos
     const productMap = new Map(products.map(p => [p.id, p]));
 
-    // 4. Construir items con costo
     const recipeItems = items.map((item: any) => {
       const product = productMap.get(item.productId);
 
       if (!product) {
-        throw new Error(`Producto inválido o no es ingrediente: ${item.productId}`);
+        throw new Error(`Producto inválido: ${item.productId}`);
       }
 
       const unitCost = Number(product.unitCost);
@@ -118,7 +140,6 @@ export const createRecipe = async (req: Request, res: Response) => {
       };
     });
 
-    // 5. Crear receta con relaciones
     const recipe = await prisma.recipe.create({
       data: {
         name,
@@ -129,7 +150,11 @@ export const createRecipe = async (req: Request, res: Response) => {
           create: recipeItems
         },
         processes: {
-          create: processes || []
+          create: (processes || []).map((p: any) => ({
+            name: p.name,
+            duration: Number(p.duration),
+            operators: Number(p.operators)
+          }))
         }
       },
       include: {
@@ -143,5 +168,77 @@ export const createRecipe = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error al crear receta:', error);
     res.status(500).json({ error: 'Error interno al crear receta' });
+  }
+};
+
+// ✅ UPDATE LIMPIO Y FUNCIONAL
+export const updateRecipe = async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const { name, portions, description, processes, items } = req.body;
+
+    console.log("🔥 PROCESSES:", processes);
+
+    // 🔹 actualizar receta
+    await prisma.recipe.update({
+      where: { id },
+      data: {
+        name,
+        portions,
+        description
+      }
+    });
+
+    // 🔹 eliminar procesos anteriores
+    await prisma.recipeProcess.deleteMany({
+      where: { recipeId: id }
+    });
+
+    // 🔹 crear procesos nuevos
+    if (processes && processes.length > 0) {
+      for (let index = 0; index < processes.length; index++) {
+        const p = processes[index];
+        await prisma.recipeProcess.create({
+          data: {
+            recipeId: id,
+            name: p.name,
+            duration: Number(p.duration),
+            operators: Number(p.operators),
+             stepDescription: p.stepDescription,
+            processType: p.processType || 'standard',
+            order: p.order ?? index + 1
+          }
+        });
+      }
+    }
+    // 🔴 4. ELIMINAR INGREDIENTES
+    await prisma.recipeItem.deleteMany({
+      where: { recipeId: id }
+    });
+
+    // 🔴 5. CREAR INGREDIENTES
+    if (items && items.length > 0) {
+      for (const item of items) {
+
+        if (!item.productId) continue; // evita vacíos
+
+        await prisma.recipeItem.create({
+          data: {
+            recipeId: id,
+            productId: Number(item.productId),
+            quantity: Number(item.quantity),
+            unitCost: Number(item.unitCost || 0),
+            totalCost: Number(item.totalCost || 0),
+          }
+        });
+
+      }
+    }
+    res.json({ message: "Receta actualizada correctamente" });
+
+  
+  } catch (error) {
+    console.error("❌ ERROR:", error);
+    res.status(500).json({ error: "Error interno" });
   }
 };

@@ -7,10 +7,21 @@ import Button from '@/components/Button';
 import Input from '@/components/Input';
 import { ROUTES } from '@/constants/routes';
 import { fetchProductById, updateProductRequest } from '@/lib/productsApi';
-import { fetchSuppliers } from '@/lib/suppliersApi';
+import { fetchSuppliers, fetchSupplierById } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
+import {
+  isExpirationDateNotBeforeToday,
+  todayLocalDateInputValue,
+} from '@/utils/expirationDate';
 import type { ProductSupplier } from '@/types/product';
-import { useAuthGuard } from "@/hooks/useAuthGuard";
+import {
+  PRODUCT_INPUT_UNITS,
+  convertToBaseUnits,
+  isProductInputUnit,
+  type ProductInputUnit,
+} from '@/lib/productUnitConversion';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
+import { showError, showSuccess } from '@/utils/toast';
 
 export default function ProductEditPage() {
   useAuthGuard("products.update");
@@ -31,13 +42,19 @@ export default function ProductEditPage() {
   const [isIngredient, setIsIngredient] = useState(true);
   const [isSupply, setIsSupply] = useState(false);
   const [isFinishedProduct, setIsFinishedProduct] = useState(false);
-  const [unitOfMeasure, setUnitOfMeasure] = useState('kg');
+  const [inputUnit, setInputUnit] = useState<ProductInputUnit>('kg');
+  const [inputUnitQuantity, setInputUnitQuantity] = useState('1');
   const [currentStock, setCurrentStock] = useState('0');
   const [expiryDate, setExpiryDate] = useState('');
   const [minStock, setMinStock] = useState('');
   const [maxStock, setMaxStock] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [unitCost, setUnitCost] = useState('');
+
+  const normalized = convertToBaseUnits(
+    inputUnit,
+    Number.parseFloat(inputUnitQuantity)
+  );
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -50,10 +67,15 @@ export default function ProductEditPage() {
 
     const loadData = async () => {
       try {
-        const [product, supplierList] = await Promise.all([
-          fetchProductById(productId),
-          fetchSuppliers(),
-        ]);
+        const product = await fetchProductById(productId);
+        let supplierList = await fetchSuppliers();
+
+        // Si el producto quedó asociado a un proveedor inactivo, `fetchSuppliers()` lo filtra.
+        // En ese caso, agregamos el proveedor actual para que el select no quede vacío.
+        if (!supplierList.some((s) => s.id === product.supplierId)) {
+          const currentSupplier = await fetchSupplierById(product.supplierId);
+          supplierList = [...supplierList, currentSupplier];
+        }
 
         setSuppliers(supplierList);
 
@@ -64,7 +86,12 @@ export default function ProductEditPage() {
         setIsIngredient(product.isIngredient);
         setIsSupply(product.isSupply);
         setIsFinishedProduct(product.isFinishedProduct);
-        setUnitOfMeasure(product.unitOfMeasure || 'kg');
+        setInputUnit(
+          isProductInputUnit(product.inputUnit)
+            ? product.inputUnit
+            : product.unitOfMeasure
+        );
+        setInputUnitQuantity(String(product.inputUnitQuantity ?? 1));
         setCurrentStock(String(product.currentStock ?? 0));
         setExpiryDate(
           product.expirationDate
@@ -94,9 +121,43 @@ export default function ProductEditPage() {
 
   const handleUpdate = async () => {
     const sid = Number(supplierId);
+    const quantityPerInputUnit = Number.parseFloat(inputUnitQuantity);
 
     if (!Number.isFinite(sid)) {
-      alert('Proveedor inválido');
+      showError('Proveedor inválido');
+      return;
+    }
+    if (!Number.isFinite(quantityPerInputUnit) || quantityPerInputUnit <= 0) {
+      showError('La cantidad por unidad debe ser mayor a 0');
+      return;
+    }
+    if (expiryDate && !isExpirationDateNotBeforeToday(expiryDate)) {
+      showError('La fecha de vencimiento no puede ser anterior a la fecha actual.');
+      return;
+    }
+
+    const minStockN = parseFloat(minStock);
+    const maxStockN = parseFloat(maxStock);
+    const currentStockN = parseFloat(currentStock);
+    const unitCostN = parseFloat(unitCost);
+    if (!Number.isFinite(minStockN) || minStockN < 0) {
+      showError('El stock mínimo no puede ser negativo.');
+      return;
+    }
+    if (!Number.isFinite(maxStockN) || maxStockN < 0) {
+      showError('El stock máximo no puede ser negativo.');
+      return;
+    }
+    if (!Number.isFinite(currentStockN) || currentStockN < 0) {
+      showError('El stock actual no puede ser negativo.');
+      return;
+    }
+    if (!Number.isFinite(unitCostN) || unitCostN < 0) {
+      showError('El costo unitario no puede ser negativo.');
+      return;
+    }
+
+    if (!confirm('¿Confirmas que deseas guardar los cambios de este producto?')) {
       return;
     }
 
@@ -111,17 +172,20 @@ export default function ProductEditPage() {
         isSupply,
         isFinishedProduct,
         presentation,
-        unitOfMeasure,
+        unitOfMeasure: normalized.baseUnit,
+        inputUnit,
+        inputUnitQuantity: quantityPerInputUnit,
         expirationDate: expiryDate
           ? new Date(expiryDate).toISOString()
           : null,
-        minStock: parseFloat(minStock),
-        maxStock: parseFloat(maxStock),
-        currentStock: parseFloat(currentStock),
-        unitCost: parseFloat(unitCost),
+        minStock: minStockN,
+        maxStock: maxStockN,
+        currentStock: currentStockN,
+        unitCost: unitCostN,
         supplierId: sid,
       });
 
+      showSuccess('Los cambios se guardaron correctamente.');
       router.push(ROUTES.products.list);
 
     } catch (e) {
@@ -130,7 +194,7 @@ export default function ProductEditPage() {
         return;
       }
 
-      alert(getApiErrorMessage(e, 'No se pudo actualizar el producto'));
+      showError(getApiErrorMessage(e, 'No se pudo actualizar el producto'));
 
     } finally {
       setSubmitting(false);
@@ -166,12 +230,66 @@ export default function ProductEditPage() {
             <Input label="Categoría" value={category} onChange={(e) => setCategory(e.target.value)} />
             <Input label="Presentación" value={presentation} onChange={(e) => setPresentation(e.target.value)} />
 
-            <Input label="Unidad de medida" value={unitOfMeasure} onChange={(e) => setUnitOfMeasure(e.target.value)} />
-            <Input label="Fecha de vencimiento" type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
+            <div>
+              <label className="block text-sm mb-1">Unidad ingresada</label>
+              <select
+                value={inputUnit}
+                onChange={(e) => setInputUnit(e.target.value as ProductInputUnit)}
+                className="w-full border rounded-md p-2"
+              >
+                {PRODUCT_INPUT_UNITS.map((u) => (
+                  <option key={u.value} value={u.value}>
+                    {u.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Input
+              label="Cantidad por unidad ingresada"
+              type="number"
+              min="0.0001"
+              step="any"
+              value={inputUnitQuantity}
+              onChange={(e) => setInputUnitQuantity(e.target.value)}
+            />
+            <Input
+              label="Conversión automática"
+              value={`${normalized.factor.toFixed(2)} ${normalized.baseUnit}`}
+              disabled
+              className="md:col-span-2 bg-gray-100"
+            />
+            <Input
+              label="Fecha de vencimiento"
+              type="date"
+              min={todayLocalDateInputValue()}
+              value={expiryDate}
+              onChange={(e) => setExpiryDate(e.target.value)}
+            />
 
-            <Input label="Stock mínimo" type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} />
-            <Input label="Stock máximo" type="number" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} />
-            <Input label="Stock actual" type="number" value={currentStock} onChange={(e) => setCurrentStock(e.target.value)} />
+            <Input
+              label="Stock mínimo"
+              type="number"
+              min="0"
+              step="any"
+              value={minStock}
+              onChange={(e) => setMinStock(e.target.value)}
+            />
+            <Input
+              label="Stock máximo"
+              type="number"
+              min="0"
+              step="any"
+              value={maxStock}
+              onChange={(e) => setMaxStock(e.target.value)}
+            />
+            <Input
+              label="Stock actual"
+              type="number"
+              min="0"
+              step="any"
+              value={currentStock}
+              onChange={(e) => setCurrentStock(e.target.value)}
+            />
 
             <div className="md:col-span-2">
               <label className="block text-sm mb-1">Proveedor</label>
@@ -188,7 +306,14 @@ export default function ProductEditPage() {
               </select>
             </div>
 
-            <Input label="Costo unitario" type="number" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} />
+            <Input
+              label="Costo unitario"
+              type="number"
+              min="0"
+              step="any"
+              value={unitCost}
+              onChange={(e) => setUnitCost(e.target.value)}
+            />
 
           </div>
 
@@ -213,4 +338,8 @@ export default function ProductEditPage() {
 
     </DashboardLayout>
   );
+}
+
+function showAlert(arg0: string) {
+  throw new Error('Function not implemented.');
 }

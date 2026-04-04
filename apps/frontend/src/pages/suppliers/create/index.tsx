@@ -10,6 +10,7 @@ import { ROUTES } from '@/constants/routes';
 import { createSupplierRequest } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { showError } from '@/utils/toast';
 
 
 export default function SupplierCreatePage() {
@@ -28,7 +29,7 @@ export default function SupplierCreatePage() {
 
   const handleSave = async () => {
     if (!internalCode || !name || !taxId || !phone || !address) {
-      alert('Completa código interno, nombre, NIT/RUT, teléfono y dirección.');
+      showError('Completa código interno, nombre, NIT/RUT, teléfono y dirección.');
       return;
     }
 
@@ -57,7 +58,7 @@ export default function SupplierCreatePage() {
       }
 
 
-      alert(getApiErrorMessage(e, 'No se pudo crear el proveedor'));
+      showError(getApiErrorMessage(e, 'No se pudo crear el proveedor'));
 
 
     } finally {

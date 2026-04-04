@@ -3,7 +3,12 @@
 import { useRouter, usePathname } from "next/navigation";
 import { useSidebar } from "@/context/SidebarContext";
 import { useEffect, useState } from "react";
-import { showError, showSuccess } from "@/utils/toast";
+import {
+  ArrowLeft,
+  Folder,
+  UserPlus,
+  List,
+} from "lucide-react";
 
 export default function Sidebar() {
   const router = useRouter();
@@ -15,71 +20,89 @@ export default function Sidebar() {
   const { open, setOpen } = sidebar;
 
   const safePath = pathname || "";
+
+  // 🔥 TIPOS DE VISTA
   const isDashboard = safePath === "/dashboard";
 
-  // 🔥 (se deja pero ya no se usa para validar)
+  const mainModules = [
+    "/products",
+    "/suppliers",
+    "/production",
+    "/costs",
+    "/transfers",
+    "/inventory",
+    "/accounting",
+    "/sales",
+    "/reports",
+  ];
+
+  const isMainModule = mainModules.includes(safePath);
+
+  const getParentModule = () => {
+    if (safePath.startsWith("/products")) return "/products";
+    if (safePath.startsWith("/suppliers")) return "/suppliers";
+    if (safePath.startsWith("/production") || safePath.startsWith("/recipes")) return "/production";
+    if (safePath.startsWith("/costs")) return "/costs";
+    if (safePath.startsWith("/inventory")) return "/inventory";
+    if (safePath.startsWith("/sales")) return "/sales";
+    if (safePath.startsWith("/reports")) return "/reports";
+    return null;
+  };
+
+  const parentModule = getParentModule();
+
   const [permissions, setPermissions] = useState<string[]>([]);
 
   useEffect(() => {
-    if (globalThis.window !== undefined) {
+    if (typeof window !== "undefined") {
       const token = localStorage.getItem("token");
 
       if (token) {
         try {
           const payload = JSON.parse(atob(token.split(".")[1]));
           setPermissions(payload.permissions || []);
-        } catch (e) {
-          console.error("Error leyendo token", e);
+        } catch {
           setPermissions([]);
         }
       }
     }
   }, []);
 
-  // 🔥 VALIDACIÓN REAL DESDE TOKEN
-  const can = (permissions: string) => {
-    if (globalThis.window === undefined) return false;
+  const can = (permission: string) => {
+    if (typeof window === "undefined") return false;
 
     const token = localStorage.getItem("token");
     if (!token) return false;
 
     try {
       const payload = JSON.parse(atob(token.split(".")[1]));
-      console.log("PERMISO QUE SE ENVÍA:", permissions);
-      console.log("PERMISOS DEL USUARIO:", payload.permissions);
-
-      return payload.permissions?.includes(permissions);
+      return payload.permissions?.includes(permission);
     } catch {
       return false;
     }
   };
 
-
-  const handleNavigate = (path: string, permission?: string) => {
-    if (permission && !can(permission)) {
-      showError("No tienes permiso para acceder a esta sección");
-      return;
-    }
-
+  // 🔥 NAVEGACIÓN LIMPIA
+  const handleNavigate = (path: string) => {
     router.push(path);
     setOpen(false);
+
+    // guardar última ruta
+    localStorage.setItem("lastPath", path);
   };
 
-  
-  
-  const menuItems = [
-    { name: "Dashboard", path: "/dashboard", icon: "📈" },
-    { name: "Productos", path: "/products", icon: "📦", permission: "products.read" },
-    { name: "Proveedores", path: "/suppliers", icon: "🚚", permission: "suppliers.read" },
-  ];
+  // 🎨 ESTILO BASE
+  const baseBtn =
+    "flex items-center gap-4 px-6 py-3 text-left transition-all duration-200 hover:bg-[#33566E] hover:pl-8";
+
+  const disabledStyle = "opacity-30 cursor-not-allowed";
 
   return (
     <>
-      {/* OVERLAY */}
       {open && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setOpen(false)} // 🔥 FIX (no navegación aquí)
+          onClick={() => setOpen(false)}
         />
       )}
 
@@ -91,41 +114,81 @@ export default function Sidebar() {
           lg:translate-x-0 lg:flex
         `}
       >
-        <div className="h-24 flex items-center justify-center border-b border-white/10"></div>
+        <div className="h-24 flex items-center justify-center border-b border-white/10">
+          <span className="text-lg font-semibold">Navigation Board</span>
+        </div>
 
         <nav className="flex flex-col mt-4">
-          {isDashboard ? (
+
+          {/* 🔵 DASHBOARD */}
+          {isDashboard && (
+            <>
+              {(() => {
+                const allowed = can("users.create");
+                return (
+                  <button
+                    disabled={!allowed}
+                    onClick={() => allowed && handleNavigate("/users/create")}
+                    className={`${baseBtn} ${!allowed ? disabledStyle : ""}`}
+                  >
+                    <UserPlus size={20} />
+                    <span className="text-lg">Crear Usuario</span>
+                  </button>
+                );
+              })()}
+
+              {(() => {
+                const allowed = can("users.read");
+                return (
+                  <button
+                    disabled={!allowed}
+                    onClick={() => allowed && handleNavigate("/users")}
+                    className={`${baseBtn} ${!allowed ? disabledStyle : ""}`}
+                  >
+                    <List size={20} />
+                    <span className="text-lg">Ver Usuarios</span>
+                  </button>
+                );
+              })()}
+            </>
+          )}
+
+          {/* 🟡 MÓDULO PRINCIPAL */}
+          {isMainModule && !isDashboard && (
+            <button
+              onClick={() => handleNavigate("/dashboard")}
+              className={baseBtn}
+            >
+              <ArrowLeft size={20} />
+              <span className="text-lg">Dashboard</span>
+            </button>
+          )}
+
+          {/* 🟢 SUBMÓDULOS */}
+          {!isDashboard && !isMainModule && (
             <>
               <button
-                onClick={() => handleNavigate("/users/create", "users.create")}
-                className="flex items-center gap-4 px-6 py-4 hover:bg-[#33566E]"
+                onClick={() => handleNavigate("/dashboard")}
+                className={baseBtn}
               >
-                👤 <span className="text-lg">Crear Usuario</span>
+                <ArrowLeft size={20} />
+                <span className="text-lg">Dashboard</span>
               </button>
 
-              <button
-                onClick={() => handleNavigate("/users", "users.read")}
-                className="flex items-center gap-4 px-6 py-4 hover:bg-[#33566E]"
-              >
-                📋 <span className="text-lg">Ver Usuarios</span>
-              </button>
-            </>
-          ) : (
-            menuItems
-              .filter((item) => !safePath.startsWith(item.path))
-              .map((item) => (
+              {parentModule && (
                 <button
-                  key={item.name}
-                  onClick={() => handleNavigate(item.path, item.permission)}
-                  className="flex items-center gap-4 px-6 py-4 text-left hover:bg-[#33566E]"
+                  onClick={() => handleNavigate(parentModule)}
+                  className={baseBtn}
                 >
-                  <span className="text-xl">{item.icon}</span>
-                  <span className="text-lg">{item.name}</span>
+                  <Folder size={20} />
+                  <span className="text-lg">Volver al módulo</span>
                 </button>
-              ))
+              )}
+            </>
           )}
         </nav>
 
+        {/* IMAGEN DINÁMICA */}
         <div className="mt-auto p-4">
           <img
             src={

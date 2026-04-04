@@ -8,6 +8,7 @@ import Dropdown from '@/components/Dropdown';
 import Button from '@/components/Button';
 import { api } from '@/utils/api';
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { showError, showSuccess } from '@/utils/toast';
 
 interface FormData {
   email: string;
@@ -46,7 +47,7 @@ export default function EditUser() {
 
       } catch (err) {
         console.error(err);
-        alert('Error al cargar usuario');
+        showError('Error al cargar usuario');
       } finally {
         setLoading(false);
       }
@@ -74,16 +75,16 @@ export default function EditUser() {
     if (formData.roleId !== undefined) updateData.roleId = formData.roleId;
 
     if (Object.keys(updateData).length === 0) {
-      alert('No hay cambios para guardar');
+      showError('No hay cambios para guardar');
       return;
     }
 
     try {
       await api.put(`/users/${id}`, updateData);
-      alert('Usuario actualizado');
+      showSuccess('Usuario actualizado');
       router.push('/users');
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Error al actualizar');
+      showError(err.response?.data?.error || 'Error al actualizar');
     }
   };
 

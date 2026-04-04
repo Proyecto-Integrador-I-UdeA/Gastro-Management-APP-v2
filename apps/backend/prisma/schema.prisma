@@ -8,37 +8,47 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum ProductBaseUnit {
+  g
+  ml
+  und
+}
+
 model Supplier {
-  id            Int       @id @default(autoincrement())
-  internalCode  String
-  name          String
-  taxId         String
-  phone         String
-  address       String
-  contactPerson String
-  products      Product[]
+  id              Int       @id @default(autoincrement())
+  internalCode    String
+  name            String
+  taxId           String
+  phone           String
+  address         String
+  contactPerson   String
+  active          Boolean   @default(true)
+  products        Product[]
 
   @@map("suppliers")
 }
 
 model Product {
-  id                Int          @id @default(autoincrement())
-  internalCode      String
-  name              String
-  isIngredient      Boolean
-  isSupply          Boolean
-  isFinishedProduct Boolean
-  presentation      String
-  unitOfMeasure     String
-  expirationDate    DateTime?
-  minStock          Float
-  maxStock          Float
-  currentStock      Float
-  unitCost          Decimal      @db.Decimal(10, 2)
-  supplierId        Int
-  category          String       @default("")
-  supplier          Supplier     @relation(fields: [supplierId], references: [id])
-  recipeItems       RecipeItem[]
+  id                 Int             @id @default(autoincrement())
+  internalCode       String
+  name               String
+  category           String          @default("")
+  isIngredient       Boolean
+  isSupply           Boolean
+  isFinishedProduct  Boolean
+  presentation       String
+  unitOfMeasure      ProductBaseUnit
+  inputUnit          String          @default("g")
+  inputUnitQuantity  Float           @default(1)
+  expirationDate     DateTime?
+  minStock           Float
+  maxStock           Float
+  currentStock       Float
+  unitCost           Decimal         @db.Decimal(10, 2)
+  active             Boolean         @default(true)
+  supplierId         Int
+  supplier           Supplier        @relation(fields: [supplierId], references: [id])
+  recipeItems RecipeItem[]
 
   @@map("products")
 }
@@ -130,7 +140,8 @@ model RecipeProcess {
   processType String
   duration    Float
   operators   Int
-
+    stepDescription String?
+order Int
   recipe Recipe @relation(fields: [recipeId], references: [id])
 
   @@map("recipe_processes")
@@ -142,4 +153,21 @@ model Cost {
   monthlyValue Float
 
   @@map("costs")
+}
+model Config {
+  id    Int    @id @default(autoincrement())
+  key   String @unique
+  value String
+
+  @@map("config")
+}
+model OtherCosts {
+  id            Int      @id @default(autoincrement())
+  month         String
+  fixedCosts    Float
+  variableCosts Float
+  payroll       Float
+  monthlyProduction Float?
+  
+  createdAt     DateTime @default(now())
 }

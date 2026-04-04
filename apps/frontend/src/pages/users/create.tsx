@@ -10,6 +10,7 @@ import Button from '../../components/Button';
 import { api } from '../../utils/api';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { showError, showSuccess } from '@/utils/toast';
 
 const createUserSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -39,10 +40,10 @@ export default function CreateUser() {
   const onSubmit = async (data: CreateUserForm) => {
     try {
       await api.post('/auth/register', data);
-      alert('Usuario creado exitosamente');
+      showSuccess('Usuario creado exitosamente');
       router.push('/users');
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error al crear usuario');
+      showError(error.response?.data?.error || 'Error al crear usuario');
     }
   };
 

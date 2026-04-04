@@ -9,8 +9,18 @@ import { ROUTES } from '@/constants/routes';
 import { createProductRequest } from '@/lib/productsApi';
 import { fetchSuppliers } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
+import {
+  isExpirationDateNotBeforeToday,
+  todayLocalDateInputValue,
+} from '@/utils/expirationDate';
 import type { ProductSupplier } from '@/types/product';
-import { useAuthGuard } from "@/hooks/useAuthGuard";
+import {
+  PRODUCT_INPUT_UNITS,
+  convertToBaseUnits,
+  type ProductInputUnit,
+} from '@/lib/productUnitConversion';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
+import { showError, showSuccess } from '@/utils/toast';
 
 export default function ProductCreatePage() {
   useAuthGuard("products.create");
@@ -28,12 +38,18 @@ export default function ProductCreatePage() {
   const [isIngredient, setIsIngredient] = useState(true);
   const [isSupply, setIsSupply] = useState(false);
   const [isFinishedProduct, setIsFinishedProduct] = useState(false);
-  const [unitOfMeasure, setUnitOfMeasure] = useState('');
+  const [inputUnit, setInputUnit] = useState<ProductInputUnit>('kg');
+  const [inputUnitQuantity, setInputUnitQuantity] = useState('1');
   const [expiryDate, setExpiryDate] = useState('');
   const [minStock, setMinStock] = useState('');
   const [maxStock, setMaxStock] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [unitCost, setUnitCost] = useState('');
+
+  const normalized = convertToBaseUnits(
+    inputUnit,
+    Number.parseFloat(inputUnitQuantity)
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -78,20 +94,49 @@ export default function ProductCreatePage() {
       !name ||
       !category ||
       !presentation ||
-      !unitOfMeasure ||
+      !inputUnitQuantity ||
       !minStock ||
       !maxStock ||
       !supplierId ||
       unitCost === ''
     ) {
-      alert('Completa todos los campos obligatorios');
+      showError('Completa todos los campos obligatorios');
       return;
     }
 
     const sid = Number(supplierId);
+    const quantityPerInputUnit = Number.parseFloat(inputUnitQuantity);
 
     if (!Number.isFinite(sid)) {
-      alert('Proveedor inválido');
+      showError('Proveedor inválido');
+      return;
+    }
+    if (!Number.isFinite(quantityPerInputUnit) || quantityPerInputUnit <= 0) {
+      showError('La cantidad por unidad debe ser mayor a 0');
+      return;
+    }
+    if (expiryDate && !isExpirationDateNotBeforeToday(expiryDate)) {
+      showError('La fecha de vencimiento no puede ser anterior a la fecha actual.');
+      return;
+    }
+
+    const minStockN = parseFloat(minStock);
+    const maxStockN = parseFloat(maxStock);
+    const unitCostN = parseFloat(unitCost);
+    if (!Number.isFinite(minStockN) || minStockN < 0) {
+      showError('El stock mínimo no puede ser negativo.');
+      return;
+    }
+    if (!Number.isFinite(maxStockN) || maxStockN < 0) {
+      showError('El stock máximo no puede ser negativo.');
+      return;
+    }
+    if (!Number.isFinite(unitCostN) || unitCostN < 0) {
+      showError('El costo unitario no puede ser negativo.');
+      return;
+    }
+
+    if (!confirm('¿Confirmas que deseas guardar este nuevo producto?')) {
       return;
     }
 
@@ -106,17 +151,20 @@ export default function ProductCreatePage() {
         isSupply,
         isFinishedProduct,
         presentation,
-        unitOfMeasure,
+        unitOfMeasure: normalized.baseUnit,
+        inputUnit,
+        inputUnitQuantity: quantityPerInputUnit,
         expirationDate: expiryDate
           ? new Date(expiryDate).toISOString()
           : null,
-        minStock: parseFloat(minStock),
-        maxStock: parseFloat(maxStock),
+        minStock: minStockN,
+        maxStock: maxStockN,
         currentStock: 0,
-        unitCost: parseFloat(unitCost),
+        unitCost: unitCostN,
         supplierId: sid,
       });
 
+      showSuccess('El producto se guardó correctamente.');
       router.push(ROUTES.products.list);
 
     } catch (e) {
@@ -125,7 +173,7 @@ export default function ProductCreatePage() {
         return;
       }
 
-      alert(getApiErrorMessage(e, 'No se pudo crear el producto'));
+      showError(getApiErrorMessage(e, 'No se pudo crear el producto'));
 
     } finally {
       setSubmitting(false);
@@ -175,11 +223,58 @@ export default function ProductCreatePage() {
             <Input label="Categoría" value={category} onChange={(e) => setCategory(e.target.value)} />
             <Input label="Presentación" value={presentation} onChange={(e) => setPresentation(e.target.value)} />
 
-            <Input label="Unidad de medida" value={unitOfMeasure} onChange={(e) => setUnitOfMeasure(e.target.value)} />
-            <Input label="Fecha de vencimiento" type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
+            <div>
+              <label className="block text-sm mb-1">Unidad ingresada</label>
+              <select
+                value={inputUnit}
+                onChange={(e) => setInputUnit(e.target.value as ProductInputUnit)}
+                className="w-full border rounded-md p-2"
+              >
+                {PRODUCT_INPUT_UNITS.map((u) => (
+                  <option key={u.value} value={u.value}>
+                    {u.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Input
+              label="Cantidad por unidad ingresada"
+              type="number"
+              min="0.0001"
+              step="any"
+              value={inputUnitQuantity}
+              onChange={(e) => setInputUnitQuantity(e.target.value)}
+            />
+            <Input
+              label="Conversión automática"
+              value={`${normalized.factor.toFixed(2)} ${normalized.baseUnit}`}
+              disabled
+              className="md:col-span-2 bg-gray-100"
+            />
+            <Input
+              label="Fecha de vencimiento"
+              type="date"
+              min={todayLocalDateInputValue()}
+              value={expiryDate}
+              onChange={(e) => setExpiryDate(e.target.value)}
+            />
 
-            <Input label="Stock mínimo" type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} />
-            <Input label="Stock máximo" type="number" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} />
+            <Input
+              label="Stock mínimo"
+              type="number"
+              min="0"
+              step="any"
+              value={minStock}
+              onChange={(e) => setMinStock(e.target.value)}
+            />
+            <Input
+              label="Stock máximo"
+              type="number"
+              min="0"
+              step="any"
+              value={maxStock}
+              onChange={(e) => setMaxStock(e.target.value)}
+            />
 
             <div className="md:col-span-2">
               <label className="block text-sm mb-1">Proveedor</label>
@@ -197,7 +292,14 @@ export default function ProductCreatePage() {
               </select>
             </div>
 
-            <Input label="Costo unitario" type="number" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} />
+            <Input
+              label="Costo unitario"
+              type="number"
+              min="0"
+              step="any"
+              value={unitCost}
+              onChange={(e) => setUnitCost(e.target.value)}
+            />
 
           </div>
 

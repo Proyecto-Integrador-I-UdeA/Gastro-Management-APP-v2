@@ -16,4 +16,5 @@ export const updateSupplierSchema = z.object({
   phone: z.string().min(1).optional(),
   address: z.string().min(1).optional(),
   contactPerson: z.string().optional(),
+  active: z.boolean().optional(),
 });

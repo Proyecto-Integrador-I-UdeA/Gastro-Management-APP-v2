@@ -2,8 +2,11 @@
 
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
+import Breadcrumb from "@/components/Breadcrumb";
+
 
 export default function DashboardLayout({
+  
   children,
 }: {
   children: React.ReactNode;
@@ -22,6 +25,9 @@ export default function DashboardLayout({
 
         {/* Contenido dinámico */}
         <main className="p-8">
+
+          <Breadcrumb />
+          
           {children}
         </main>
 

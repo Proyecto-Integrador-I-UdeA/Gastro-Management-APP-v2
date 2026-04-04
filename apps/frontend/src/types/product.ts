@@ -3,6 +3,7 @@
  * `unitCost` may arrive as string from JSON (Prisma Decimal).
  */
 import type { Supplier } from './supplier';
+import type { ProductBaseUnit } from '@/lib/productUnitConversion';
 
 /** Same entity as `Supplier` when embedded on a product */
 export type ProductSupplier = Supplier;
@@ -16,14 +17,26 @@ export interface Product {
   isSupply: boolean;
   isFinishedProduct: boolean;
   presentation: string;
-  unitOfMeasure: string;
+  unitOfMeasure: ProductBaseUnit;
+  inputUnit: string;
+  inputUnitQuantity: number;
   expirationDate: string | null;
   minStock: number;
   maxStock: number;
   currentStock: number;
   unitCost: number;
   supplierId: number;
+  active: boolean;
   supplier?: ProductSupplier;
+}
+
+/** Etiquetas según los flags del producto (puede haber varias). */
+export function productTypeLabels(p: Product): string[] {
+  const labels: string[] = [];
+  if (p.isIngredient) labels.push('Ingrediente');
+  if (p.isSupply) labels.push('Insumo');
+  if (p.isFinishedProduct) labels.push('Producto terminado');
+  return labels;
 }
 
 export function productLowStock(p: Product): boolean {
