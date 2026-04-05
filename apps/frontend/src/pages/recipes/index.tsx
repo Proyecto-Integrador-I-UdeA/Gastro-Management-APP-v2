@@ -13,13 +13,7 @@ export default function RecipesPage() {
 
   const fetchRecipes = async () => {
     try {
-      const token = localStorage.getItem("token");
-
-      if (!token || token === "null") {
-        console.error("❌ Token inválido o no existe");
-        setLoading(false);
-        return;
-      }
+      
 
       const API_URL = process.env.NEXT_PUBLIC_API_URL;
       const data = await apiFetch("/recipes");
@@ -38,10 +32,19 @@ export default function RecipesPage() {
       setLoading(false);
     }
   };
-
+ 
   useEffect(() => {
-    fetchRecipes();
-  }, []);
+  const token = localStorage.getItem("token");
+
+  if (!token || token === "null") {
+    router.push("/login");
+    return;
+  }
+
+  fetchRecipes();
+}, []);
+
+
 
   return (
     <DashboardLayout>
