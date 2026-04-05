@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import Button from "@/components/Button";
+import { apiFetch } from "@/lib/api";
 
 export default function RecipesPage() {
   const router = useRouter();
@@ -12,33 +13,12 @@ export default function RecipesPage() {
 
   const fetchRecipes = async () => {
     try {
-      const token = localStorage.getItem("token");
-
-      if (!token || token === "null") {
-        console.error("❌ Token inválido o no existe");
-        setLoading(false);
-        return;
-      }
+      
 
       const API_URL = process.env.NEXT_PUBLIC_API_URL;
+      const data = await apiFetch("/recipes");
 
-      const res = await fetch(`${API_URL}/recipes`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
 
-      const text = await res.text();
-      console.log("RECIPES RAW RESPONSE:", text);
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        console.error("❌ Respuesta no es JSON");
-        setLoading(false);
-        return;
-      }
 
       const list = Array.isArray(data)
         ? data
@@ -52,10 +32,19 @@ export default function RecipesPage() {
       setLoading(false);
     }
   };
-
+ 
   useEffect(() => {
-    fetchRecipes();
-  }, []);
+  const token = localStorage.getItem("token");
+
+  if (!token || token === "null") {
+    router.push("/login");
+    return;
+  }
+
+  fetchRecipes();
+}, []);
+
+
 
   return (
     <DashboardLayout>
