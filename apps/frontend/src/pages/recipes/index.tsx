@@ -20,7 +20,9 @@ export default function RecipesPage() {
         return;
       }
 
-      const res = await fetch("http://localhost:3001/recipes", {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+      const res = await fetch(`${API_URL}/recipes`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
