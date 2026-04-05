@@ -51,6 +51,7 @@ model Product {
   updatedAt         DateTime            @updatedAt
   inventories       Inventory[]
   movements         InventoryMovement[]
+  recipeItems       RecipeItem[]
 
   @@map("products")
 }
@@ -155,4 +156,81 @@ model RolePermission {
 
   @@unique([roleId, permissionId])
   @@map("role_permissions")
+}
+
+model Recipe {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+
+  batchQuantity Float
+  portions      Int
+
+  totalCost Decimal? @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+
+  items     RecipeItem[]
+  processes RecipeProcess[]
+
+  @@map("recipes")
+}
+
+model RecipeItem {
+  id        Int @id @default(autoincrement())
+  recipeId  Int
+  productId Int
+
+  quantity  Float
+  unitCost  Decimal @db.Decimal(10, 2)
+  totalCost Decimal @db.Decimal(10, 2)
+
+  recipe  Recipe  @relation(fields: [recipeId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("recipe_items")
+}
+
+model RecipeProcess {
+  id              Int    @id @default(autoincrement())
+  recipeId        Int
+  name            String
+  processType     String
+  duration        Float
+  operators       Int
+  stepDescription String?
+  stepOrder       Int    @default(0) @map("order")
+
+  recipe Recipe @relation(fields: [recipeId], references: [id])
+
+  @@map("recipe_processes")
+}
+
+model Cost {
+  id           Int     @id @default(autoincrement())
+  name         String
+  type         String // fijo | variable | impuesto
+  monthlyValue Float
+
+  @@map("costs")
+}
+
+model Config {
+  id    Int    @id @default(autoincrement())
+  key   String @unique
+  value String
+
+  @@map("config")
+}
+
+model OtherCosts {
+  id                Int      @id @default(autoincrement())
+  month             String
+  fixedCosts        Float
+  variableCosts     Float
+  payroll           Float
+  monthlyProduction Float?
+  createdAt         DateTime @default(now())
+
+  @@map("other_costs")
 }

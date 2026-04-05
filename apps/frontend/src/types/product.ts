@@ -29,6 +29,15 @@ export interface Product {
   supplier?: ProductSupplier;
 }
 
+/** Etiquetas según los flags del producto (puede haber varias). */
+export function productTypeLabels(p: Product): string[] {
+  const labels: string[] = [];
+  if (p.isIngredient) labels.push('Ingrediente');
+  if (p.isSupply) labels.push('Insumo');
+  if (p.isFinishedProduct) labels.push('Producto terminado');
+  return labels;
+}
+
 export function productLowStock(p: Product): boolean {
   return (p.currentStock ?? 0) < p.minStock;
 }

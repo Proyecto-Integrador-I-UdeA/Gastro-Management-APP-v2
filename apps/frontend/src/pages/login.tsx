@@ -6,6 +6,7 @@ import Button from '../components/Button';
 import { api } from '../utils/api';
 import { useEffect, useState } from 'react';
 import Header from '../components/Header';
+import { showError, showSuccess } from '@/utils/toast';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -48,11 +49,11 @@ export default function Login() {
       const response = await api.post('/auth/login', data);
       const token = response.data.token;
       localStorage.setItem('token', token);
-      alert('¡Login exitoso! Redirigiendo...');
+      showSuccess('¡Login exitoso! Redirigiendo...');
       globalThis.location.href = '/dashboard';
     } catch (error: any) {
       const errMsg = error.response?.data?.error || error.message || 'Error desconocido';
-      alert(errMsg);
+      showError(errMsg);
     }
   };
 

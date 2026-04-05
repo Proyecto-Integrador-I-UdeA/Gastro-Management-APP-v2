@@ -1,0 +1,150 @@
+import { Request, Response } from 'express';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// 🔥 CALCULAR COSTO DE RECETA (MODELO PRORRATEADO)
+export const calculateRecipeCost = async (req: Request, res: Response) => {
+  try {
+    const recipeId = Number.parseInt(req.params.id, 10);
+
+    if (Number.isNaN(recipeId)) {
+      return res.status(400).json({ error: 'Invalid recipe id' });
+    }
+
+    // 🔹 1. Obtener receta
+    const recipe = await prisma.recipe.findUnique({
+      where: { id: recipeId },
+      include: {
+        items: true,
+      }
+    });
+
+    if (!recipe) {
+      return res.status(404).json({ error: 'Recipe not found' });
+    }
+
+    // 🔹 2. Costo de ingredientes
+    const ingredientsCost = recipe.items.reduce((sum: number, item: any) => {
+      return sum + Number(item.totalCost);
+    }, 0);
+
+    // 🔥 3. TRAER ÚLTIMO REGISTRO DE COSTOS
+    const latestCosts = await prisma.otherCosts.findFirst({
+      orderBy: { createdAt: 'desc' }
+    });
+
+    let indirectCostPerUnit = 0;
+
+    if (latestCosts) {
+      const totalMonthlyCosts =
+        Number(latestCosts.fixedCosts) +
+        Number(latestCosts.variableCosts) +
+        Number(latestCosts.payroll);
+
+      const production = Number(latestCosts.monthlyProduction || 1);
+
+      indirectCostPerUnit = totalMonthlyCosts / production;
+    }
+
+    // 🔹 4. Costo total receta
+    const indirectCostTotal =
+    indirectCostPerUnit * recipe.portions;
+    const totalCost =
+      ingredientsCost +
+      indirectCostTotal;
+
+    // 🔹 5. Costo por porción
+    const costPerPortion = totalCost / recipe.portions;
+
+    res.json({
+      recipeId,
+      ingredientsCost,
+      indirectCostPerUnit,
+      indirectCostTotal,
+      totalCost,
+      costPerPortion
+    });
+
+  } catch (error) {
+    console.error('Error calculando costos:', error);
+    res.status(500).json({ error: 'Error interno' });
+  }
+};
+
+
+// 🔥 CREAR OTROS COSTOS
+export const createOtherCosts = async (req: Request, res: Response) => {
+  try {
+    const { month, fixedCosts, variableCosts, payroll, monthlyProduction } = req.body;
+
+    const data = await prisma.otherCosts.create({
+      data: {
+        month,
+        fixedCosts: Number(fixedCosts),
+        variableCosts: Number(variableCosts),
+        payroll: Number(payroll),
+        monthlyProduction: Number(monthlyProduction),
+      }
+    });
+
+    res.status(201).json(data);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error guardando costos' });
+  }
+};
+
+
+// 🔥 LISTAR OTROS COSTOS
+export const getOtherCosts = async (req: Request, res: Response) => {
+  try {
+    const data = await prisma.otherCosts.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: 'Error listando costos' });
+  }
+};
+
+
+// 🔥 ACTUALIZAR OTROS COSTOS
+export const updateOtherCosts = async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const { month, fixedCosts, variableCosts, payroll, monthlyProduction } = req.body;
+
+    const data = await prisma.otherCosts.update({
+      where: { id },
+      data: {
+        month,
+        fixedCosts: Number(fixedCosts),
+        variableCosts: Number(variableCosts),
+        payroll: Number(payroll),
+        monthlyProduction: Number(monthlyProduction),
+      }
+    });
+
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: 'Error actualizando costos' });
+  }
+};
+
+
+// 🔥 ELIMINAR
+export const deleteOtherCosts = async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+
+    await prisma.otherCosts.delete({
+      where: { id }
+    });
+
+    res.json({ message: 'Costos eliminados' });
+  } catch (error) {
+    res.status(500).json({ error: 'Error eliminando costos' });
+  }
+};

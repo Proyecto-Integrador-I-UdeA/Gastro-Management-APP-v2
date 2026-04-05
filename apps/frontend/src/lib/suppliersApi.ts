@@ -11,9 +11,10 @@ export type SupplierWritePayload = {
   contactPerson: string;
 };
 
-/** Used by product forms — same as list */
+/** Used by product forms — only active suppliers */
 export async function fetchSuppliers(): Promise<Supplier[]> {
-  return fetchSuppliersList();
+  const all = await fetchSuppliersList();
+  return all.filter((s) => s.active);
 }
 
 export async function fetchSuppliersList(): Promise<Supplier[]> {
@@ -52,6 +53,20 @@ export async function updateSupplierRequest(
   const s = normalizeSupplierFromApi(data);
   if (!s) throw new Error('Invalid supplier response');
   return s;
+}
+
+export async function inactivateSupplierRequest(id: number): Promise<void> {
+  await setSupplierActiveRequest(id, false);
+}
+
+export async function setSupplierActiveRequest(
+  id: number,
+  active: boolean
+): Promise<void> {
+  await apiFetch<undefined>(`/suppliers/${id}`, {
+    method: 'PATCH',
+    json: { active },
+  });
 }
 
 export async function deleteSupplierRequest(id: number): Promise<void> {

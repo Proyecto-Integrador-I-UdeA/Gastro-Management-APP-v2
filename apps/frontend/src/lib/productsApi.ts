@@ -49,6 +49,20 @@ export async function updateProductRequest(
   return normalizeProductFromApi(data);
 }
 
+export async function inactivateProductRequest(id: number): Promise<void> {
+  await setProductActiveRequest(id, false);
+}
+
+export async function setProductActiveRequest(
+  id: number,
+  active: boolean
+): Promise<void> {
+  await apiFetch<undefined>(`/products/${id}`, {
+    method: 'PATCH',
+    json: { active },
+  });
+}
+
 export async function deleteProductRequest(id: number): Promise<void> {
   await apiFetch<undefined>(`/products/${id}`, { method: 'DELETE' });
 }

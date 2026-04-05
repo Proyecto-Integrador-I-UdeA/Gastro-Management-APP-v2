@@ -8,7 +8,7 @@ import Input from '@/components/Input';
 import ProductUnitFields from '@/components/ProductUnitFields';
 import { ROUTES } from '@/constants/routes';
 import { fetchProductById, updateProductRequest } from '@/lib/productsApi';
-import { fetchSuppliers } from '@/lib/suppliersApi';
+import { fetchSuppliers, fetchSupplierById } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import type { ProductSupplier } from '@/types/product';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
@@ -61,17 +61,20 @@ export default function ProductEditPage() {
 
     const loadData = async () => {
       try {
-        const [product, supplierList] = await Promise.all([
-          fetchProductById(productId),
-          fetchSuppliers(),
-        ]);
+        const product = await fetchProductById(productId);
+        let supplierList = await fetchSuppliers();
+
+        if (!supplierList.some((s) => s.id === product.supplierId)) {
+          const currentSupplier = await fetchSupplierById(product.supplierId);
+          supplierList = [...supplierList, currentSupplier];
+        }
 
         setSuppliers(supplierList);
 
         setInternalCode(product.internalCode);
         setName(product.name || '');
         setCategory(product.category || '');
-        setPresentation(product.presentation || 'Granel');
+        setPresentation(product.presentation || '');
         setIsIngredient(product.isIngredient);
         setIsSupply(product.isSupply);
         setIsFinishedProduct(product.isFinishedProduct);
@@ -99,7 +102,7 @@ export default function ProductEditPage() {
     };
 
     void loadData();
-  }, [productId, router.isReady]);
+  }, [productId, router.isReady, router]);
 
   const handleUpdate = async () => {
     const sid = Number(supplierId);
