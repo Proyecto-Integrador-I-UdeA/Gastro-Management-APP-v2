@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import Button from "@/components/Button";
 import { showError } from "@/utils/toast";
+import { apiFetch } from "@/lib/api"; // 🔥 IMPORTANTE
 
 export default function TotalCostPage() {
 
@@ -14,13 +15,7 @@ export default function TotalCostPage() {
   // 🔥 cargar recetas
   const fetchRecipes = async () => {
     try {
-      const res = await fetch("http://localhost:3001/recipes", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
-
-      const data = await res.json();
+      const data = await apiFetch("/recipes");
 
       const list = Array.isArray(data)
         ? data
@@ -42,17 +37,10 @@ export default function TotalCostPage() {
     if (!selectedRecipe) return showError("Selecciona una receta");
 
     try {
-      const res = await fetch(
-        `http://localhost:3001/costs/recipe/${selectedRecipe}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        }
-      );
+      const data = await apiFetch(`/costs/recipe/${selectedRecipe}`, {
+        method: "POST",
+      });
 
-      const data = await res.json();
       setResult(data);
 
     } catch (error) {
@@ -104,23 +92,23 @@ export default function TotalCostPage() {
 
             <div>
               <strong>Ingredientes:</strong>
-              <p>${result.ingredientsCost.toFixed(2) || "0.00"}</p>
+              <p>${result.ingredientsCost?.toFixed(2) || "0.00"}</p>
             </div>
 
             <div>
               <strong>Costos prorrateados:</strong>
-              <p>${result.indirectCostPerUnit.toFixed(2) || "0.00"}</p>
+              <p>${result.indirectCostPerUnit?.toFixed(2) || "0.00"}</p>
             </div>
 
             <div>
               <strong>Costo total receta:</strong>
-              <p>${result.totalCost.toFixed(2) || "0.00"}</p>
+              <p>${result.totalCost?.toFixed(2) || "0.00"}</p>
             </div>
 
             <div>
               <strong>Costo por porción:</strong>
               <p className="text-blue-600 font-bold">
-                ${result.costPerPortion.toFixed(2) || "0.00"}
+                ${result.costPerPortion?.toFixed(2) || "0.00"}
               </p>
             </div>
 

@@ -1,12 +1,14 @@
+"use client";
+
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Input from '../components/Input';
 import Button from '../components/Button';
-import { api } from '../utils/api';
 import { useEffect, useState } from 'react';
 import Header from '../components/Header';
 import { showError, showSuccess } from '@/utils/toast';
+import { apiFetch } from "@/lib/api"; // 🔥 CAMBIO CLAVE
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -44,15 +46,26 @@ export default function Login() {
     return () => clearInterval(interval);
   }, []);
 
+  // 🔥 LOGIN CORREGIDO
   const onSubmit = async (data: LoginForm) => {
     try {
-      const response = await api.post('/auth/login', data);
-      const token = response.data.token;
+      const response = await apiFetch('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+
+      const token = response.token;
+
       localStorage.setItem('token', token);
+
       showSuccess('¡Login exitoso! Redirigiendo...');
+
       globalThis.location.href = '/dashboard';
+
     } catch (error: any) {
-      const errMsg = error.response?.data?.error || error.message || 'Error desconocido';
+      console.error(error);
+      const errMsg =
+        error?.message || 'Error desconocido';
       showError(errMsg);
     }
   };
@@ -70,24 +83,30 @@ export default function Login() {
         <div className="h-full grid grid-rows-3 gap-6 p-4">
 
           <div className="flex flex-col bg-gray-800 overflow-hidden shadow-2xl">
-            <div className="h-[96%] bg-cover bg-center"
-              style={{ backgroundImage: "url('/images/costos  calculados, utilidad segura.jpg')" }} />
+            <div
+              className="h-[96%] bg-cover bg-center"
+              style={{ backgroundImage: "url('/images/costos  calculados, utilidad segura.jpg')" }}
+            />
             <p className="text-white text-center py-1 text-sm bg-black/60">
               Costos calculados, utilidad segura
             </p>
           </div>
 
           <div className="flex flex-col bg-gray-800 overflow-hidden shadow-2xl">
-            <div className="h-[96%] bg-cover bg-center"
-              style={{ backgroundImage: "url('/images/estandariza tu menu y fideliza tus clientes.jpg')" }} />
+            <div
+              className="h-[96%] bg-cover bg-center"
+              style={{ backgroundImage: "url('/images/estandariza tu menu y fideliza tus clientes.jpg')" }}
+            />
             <p className="text-white text-center py-1 text-sm bg-black/60">
               Establece precios justos para tu negocio
             </p>
           </div>
 
           <div className="flex flex-col bg-gray-800 overflow-hidden shadow-2xl">
-            <div className="h-[96%] bg-cover bg-center"
-              style={{ backgroundImage: "url('/images/controla tus inventarios y asegura tus ganancias.jpg')" }} />
+            <div
+              className="h-[96%] bg-cover bg-center"
+              style={{ backgroundImage: "url('/images/controla tus inventarios y asegura tus ganancias.jpg')" }}
+            />
             <p className="text-white text-center py-1 text-sm bg-black/60">
               Controla inventarios y asegura tu ganancia
             </p>
@@ -133,20 +152,6 @@ export default function Login() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

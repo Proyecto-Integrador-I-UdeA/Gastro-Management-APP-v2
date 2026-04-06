@@ -16,16 +16,17 @@ enum MovementType {
 }
 
 model Supplier {
-  id            Int       @id @default(autoincrement())
-  internalCode  String
-  name          String
-  taxId         String
-  phone         String
-  address       String
-  contactPerson String
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  products      Product[]
+  id              Int       @id @default(autoincrement())
+  internalCode    String    @unique
+  name            String
+  taxId           String
+  phone           String
+  address         String
+  contactPerson   String
+  active          Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  products        Product[]
 
   @@map("suppliers")
 }
@@ -157,9 +158,12 @@ model RolePermission {
   @@unique([roleId, permissionId])
   @@map("role_permissions")
 }
-
 model Recipe {
   id          Int     @id @default(autoincrement())
+
+  internalCode String @unique   // 🔥 NUEVO
+  active       Boolean @default(true) // 🔥 NUEVO
+
   name        String
   description String?
 
@@ -175,6 +179,7 @@ model Recipe {
 
   @@map("recipes")
 }
+
 
 model RecipeItem {
   id        Int @id @default(autoincrement())

@@ -3,20 +3,25 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
+import { apiFetch } from "@/lib/api"; // 🔥 IMPORTANTE
 
 export default function ProcessesPage() {
   const router = useRouter();
   const [recipes, setRecipes] = useState<any[]>([]);
 
   const fetchRecipes = async () => {
-    const res = await fetch("http://localhost:3001/recipes", {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-    });
+    try {
+      const data = await apiFetch("/recipes");
 
-    const data = await res.json();
-    setRecipes(data);
+      const list = Array.isArray(data)
+        ? data
+        : data.recipes || data.data || [];
+
+      setRecipes(list);
+
+    } catch (error) {
+      console.error("Error cargando recetas:", error);
+    }
   };
 
   useEffect(() => {

@@ -5,11 +5,14 @@ import { useRouter } from "next/router";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import Button from "@/components/Button";
 import { showError, showSuccess } from "@/utils/toast";
-
+import { apiFetch } from "@/lib/api";
 
 export default function RecipeDetail() {
   const router = useRouter();
   const { id } = router.query;
+
+  // 🔥 normalizar id
+  const recipeId = Array.isArray(id) ? id[0] : id;
 
   const [recipe, setRecipe] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -19,49 +22,41 @@ export default function RecipeDetail() {
   const [products, setProducts] = useState<any[]>([]);
 
   const fetchRecipe = async () => {
-    if (!id) return;
+    if (!recipeId) return;
 
     try {
-      const res = await fetch(`http://localhost:3001/recipes/${id}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
+      console.log("📌 ID receta:", recipeId);
 
-
-      const data = await res.json();
+      const data = await apiFetch(`/recipes/${recipeId}`);
 
       setRecipe(data);
       setProcesses(data.processes || []);
     } catch (error) {
-      console.error("Error cargando receta:", error);
-    } finally {
-      setLoading(false);
+      console.error("❌ Error cargando receta:", error);
+      showError("Error cargando receta");
     }
   };
-  const fetchProducts = async () => {
-  try {
-    const res = await fetch("http://localhost:3001/products", {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-    });
 
-    const data = await res.json();
-    setProducts(data);
-  } catch (error) {
-    console.error("Error cargando productos:", error);
-   } finally {
-   setLoading(false);
- }
-};
+  const fetchProducts = async () => {
+    try {
+      const data = await apiFetch("/products");
+      setProducts(data);
+    } catch (error) {
+      console.error("❌ Error cargando productos:", error);
+    }
+  };
 
   useEffect(() => {
-    if (router.isReady && id) {
-      fetchRecipe();
-      fetchProducts();
+    if (router.isReady && recipeId) {
+      const loadData = async () => {
+        setLoading(true);
+        await Promise.all([fetchRecipe(), fetchProducts()]);
+        setLoading(false);
+      };
+
+      loadData();
     }
-  }, [router.isReady, id]);
+  }, [router.isReady, recipeId]);
 
   const addProcess = () => {
     setProcesses([
@@ -78,15 +73,8 @@ export default function RecipeDetail() {
 
   const saveAll = async () => {
     try {
-      console.log("🔥 ENVIANDO:", {
-  items: recipe.items
-});
-      await fetch(`http://localhost:3001/recipes/${id}`, {
+      await apiFetch(`/recipes/${recipeId}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
         body: JSON.stringify({
           name: recipe.name,
           portions: recipe.portions,
@@ -109,7 +97,6 @@ export default function RecipeDetail() {
   return (
     <DashboardLayout>
 
-      {/* 🔹 DATOS GENERALES */}
       <div className="mb-6 space-y-4">
         <input
           value={recipe.name}
@@ -131,7 +118,6 @@ export default function RecipeDetail() {
         />
       </div>
 
-      {/* 🔹 BOTONES */}
       <div className="flex gap-4 mb-6">
         <button
           onClick={() => {
@@ -156,7 +142,6 @@ export default function RecipeDetail() {
 
       <div className="p-6 bg-white rounded shadow">
 
-        {/* 🔹 INGREDIENTES EDITABLE */}
         {viewMode === "ingredients" && editIngredients && (
           <div>
 
@@ -216,11 +201,9 @@ export default function RecipeDetail() {
 
               </div>
             ))}
-
           </div>
         )}
 
-        {/* 🔹 PROCESOS */}
         {viewMode === "preparation" && (
           <div>
 
@@ -263,7 +246,6 @@ export default function RecipeDetail() {
 
               </div>
             ))}
-
           </div>
         )}
 
@@ -272,7 +254,6 @@ export default function RecipeDetail() {
         </Button>
 
       </div>
-
     </DashboardLayout>
   );
 }

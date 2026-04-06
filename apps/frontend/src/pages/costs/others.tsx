@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import Button from "@/components/Button";
 import { showError, showSuccess } from "@/utils/toast";
+import { apiFetch } from "@/lib/api"; // 🔥 IMPORTANTE
 
 export default function OtherCostsPage() {
 
@@ -19,18 +20,13 @@ export default function OtherCostsPage() {
   // 🔥 TRAER COSTOS
   const fetchCosts = async () => {
     try {
-      const res = await fetch("http://localhost:3001/costs/others", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
-    const data = await res.json();
+      const data = await apiFetch("/costs/others");
 
-    const list = Array.isArray(data)
-    ? data
-   : data.data || data.costs || [];
+      const list = Array.isArray(data)
+        ? data
+        : data.data || data.costs || [];
 
-   setCostsList(list);
+      setCostsList(list);
 
     } catch (error) {
       console.error("Error cargando costos:", error);
@@ -44,18 +40,14 @@ export default function OtherCostsPage() {
   // 🔥 GUARDAR / EDITAR
   const handleSave = async () => {
     try {
-      const url = editingId
-        ? `http://localhost:3001/costs/others/${editingId}`
-        : "http://localhost:3001/costs/others";
+      const endpoint = editingId
+        ? `/costs/others/${editingId}`
+        : "/costs/others";
 
       const method = editingId ? "PUT" : "POST";
 
-      const res = await fetch(url, {
+      await apiFetch(endpoint, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
         body: JSON.stringify({
           month,
           fixedCosts,
@@ -64,8 +56,6 @@ export default function OtherCostsPage() {
           monthlyProduction,
         }),
       });
-
-      if (!res.ok) throw new Error();
 
       showSuccess(editingId ? "Costos actualizados" : "Costos guardados");
 
@@ -81,7 +71,7 @@ export default function OtherCostsPage() {
 
     } catch (error) {
       console.error(error);
-      showError("Error al guardar costos")
+      showError("Error al guardar costos");
     }
   };
 
@@ -100,11 +90,8 @@ export default function OtherCostsPage() {
     if (!confirm("¿Eliminar este registro?")) return;
 
     try {
-      await fetch(`http://localhost:3001/costs/others/${id}`, {
+      await apiFetch(`/costs/others/${id}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
       });
 
       fetchCosts();
@@ -169,7 +156,7 @@ export default function OtherCostsPage() {
           />
         </div>
 
-        {/* 🔥 PRODUCCIÓN */}
+        {/* PRODUCCIÓN */}
         <div>
           <label className="text-sm text-gray-600">
             Producción mensual (platos)
@@ -189,7 +176,7 @@ export default function OtherCostsPage() {
 
       </div>
 
-      {/* 🔥 TABLA */}
+      {/* TABLA */}
       <div className="mt-10 bg-white rounded-xl p-6 shadow">
 
         <h2 className="text-xl font-semibold mb-4">
@@ -216,7 +203,7 @@ export default function OtherCostsPage() {
                 </td>
               </tr>
             ) : (
-              Array.isArray(costsList) && costsList.map((c) => (
+              costsList.map((c) => (
                 <tr key={c.id} className="text-center border-t">
                   <td className="p-2">{c.month}</td>
                   <td>{c.fixedCosts}</td>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import Button from "@/components/Button";
 import { showError, showSuccess } from "@/utils/toast";
+import { apiFetch } from "@/lib/api"; // 🔥 IMPORTANTE
 
 export default function CreateRecipePage() {
   const router = useRouter();
@@ -14,30 +15,29 @@ export default function CreateRecipePage() {
   const [products, setProducts] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
 
-  // 🔥 cargar productos (solo ingredientes)
+  // 🔥 cargar productos
   const fetchProducts = async () => {
-    const res = await fetch("http://localhost:3001/products", {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-    });
+    try {
+      const data = await apiFetch("/products");
 
-    const data = await res.json();
-    const list = Array.isArray(data) ? data : data.data || [];
+      const list = Array.isArray(data) ? data : data.data || [];
 
-    setProducts(list.filter((p: any) => p.isIngredient));
+      setProducts(list.filter((p: any) => p.isIngredient));
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   useEffect(() => {
     fetchProducts();
   }, []);
 
-  // 🔹 agregar fila ingrediente
+  // 🔹 agregar ingrediente
   const addItem = () => {
     setItems([...items, { productId: "", quantity: 0 }]);
   };
 
-  // 🔹 actualizar fila
+  // 🔹 actualizar ingrediente
   const handleItemChange = (index: number, field: string, value: any) => {
     const updated = [...items];
     updated[index][field] = value;
@@ -47,12 +47,8 @@ export default function CreateRecipePage() {
   // 🔥 enviar
   const handleSubmit = async () => {
     try {
-      await fetch("http://localhost:3001/recipes", {
+      await apiFetch("/recipes", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
         body: JSON.stringify({
           name,
           batchQuantity: 1,
@@ -122,6 +118,7 @@ export default function CreateRecipePage() {
 
               <select
                 className="border p-2 rounded w-1/2"
+                value={item.productId || ""}
                 onChange={(e) =>
                   handleItemChange(index, "productId", Number(e.target.value))
                 }
@@ -138,15 +135,16 @@ export default function CreateRecipePage() {
                 type="number"
                 placeholder="Cantidad"
                 className="border p-2 rounded w-1/2"
+                value={item.quantity}
                 onChange={(e) =>
                   handleItemChange(index, "quantity", Number(e.target.value))
                 }
               />
+
             </div>
           ))}
         </div>
 
-        {/* BOTÓN */}
         <Button onClick={handleSubmit}>
           Guardar Receta
         </Button>
