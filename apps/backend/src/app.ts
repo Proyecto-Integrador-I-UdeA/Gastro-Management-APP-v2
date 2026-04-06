@@ -11,32 +11,48 @@ import configRoutes from './routes/config';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// 🔥 CORS DINÁMICO (MEJOR SOLUCIÓN)
-app.use(cors({
-  origin: function (origin, callback) {
-    // permitir requests sin origin (postman, etc.)
-    if (!origin) return callback(null, true);
+// 🔥 CONFIGURACIÓN CORS ROBUSTA
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "https://gastro-management-app-v2.vercel.app"
+];
 
-    // permitir localhost
-    if (origin.includes('localhost')) {
-      return callback(null, true);
-    }
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // permitir herramientas sin origin (Postman, curl, etc.)
+      if (!origin) return callback(null, true);
 
-    // permitir cualquier deploy de vercel
-    if (origin.includes('vercel.app')) {
-      return callback(null, true);
-    }
+      // permitir localhost
+      if (origin.includes("localhost")) {
+        return callback(null, true);
+      }
 
-    return callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true
-}));
+      // permitir vercel (todos los deploys)
+      if (origin.includes("vercel.app")) {
+        return callback(null, true);
+      }
 
-// 🔥 IMPORTANTE PARA PREFLIGHT
-app.options('*', cors());
+      // permitir lista explícita
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.warn("❌ CORS bloqueado para:", origin);
+      return callback(null, false); // ⚠️ importante: no lanzar error
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    credentials: true,
+  })
+);
+
+// 🔥 PREFLIGHT (IMPORTANTE)
+app.options("*", cors());
 
 app.use(express.json());
 
+// 🔥 RUTAS
 app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
 app.use('/suppliers', supplierRoutes);
@@ -45,18 +61,15 @@ app.use('/recipes', recipeRoutes);
 app.use('/costs', costRoutes);
 app.use('/config', configRoutes);
 
+// 🔥 HEALTH CHECK
 app.get('/', (req, res) => {
   res.json({ message: '¡Backend de Gastro Management API funcionando!' });
 });
 
+// 🔥 START SERVER
 app.listen(PORT, () => {
   console.log(`Servidor backend corriendo en http://localhost:${PORT}`);
 });
-
-
-
-
-
 
 
 
