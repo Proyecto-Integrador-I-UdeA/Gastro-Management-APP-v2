@@ -31,23 +31,20 @@ export const calculateRecipeCost = async (req: Request, res: Response) => {
     // 🔥 DEBUG CLAVE
     console.log("🧾 ITEMS RECIBIDOS:", recipe.items);
 
-    // 🔹 2. Costo de ingredientes (SIEMPRE dinámico)
+    // 🔹 2. Costo de ingredientes (RecipeItem.unitCost/totalCost; Product ya no tiene unitCost)
     const ingredientsCost = recipe.items.reduce((sum: number, item: any) => {
-
       const quantity = Number(item.quantity ?? 0);
-      const unitCost = Number(item.product?.unitCost ?? 0);
-
-      const itemCost = quantity * unitCost;
+      const unitCost = Number(item.unitCost ?? 0);
+      const itemCost = Number(item.totalCost ?? quantity * unitCost);
 
       console.log("➡️ ITEM:", {
         productId: item.productId,
         quantity,
         unitCost,
-        itemCost
+        itemCost,
       });
 
       return sum + itemCost;
-
     }, 0);
 
     // 🔥 3. COSTOS INDIRECTOS

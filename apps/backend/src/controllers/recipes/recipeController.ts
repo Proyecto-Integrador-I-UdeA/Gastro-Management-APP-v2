@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { MovementType, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -252,13 +252,39 @@ export const updateRecipe = async (req: Request, res: Response) => {
 
       const productMap = new Map(products.map(p => [p.id, p]));
 
+      const purchaseMovements = await prisma.inventoryMovement.findMany({
+        where: {
+          productId: { in: productIds },
+          type: MovementType.PURCHASE,
+          unitCost: { not: null },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const latestPurchaseUnitCost = new Map<number, number>();
+      for (const m of purchaseMovements) {
+        if (!latestPurchaseUnitCost.has(m.productId)) {
+          latestPurchaseUnitCost.set(m.productId, Number(m.unitCost));
+        }
+      }
+
       for (const item of items) {
 
         if (!item.productId) continue;
 
         const product = productMap.get(Number(item.productId));
 
-        const unitCost = Number(product?.unitCost || 0);
+        const hasExplicitUnitCost =
+          item.unitCost !== undefined &&
+          item.unitCost !== null &&
+          item.unitCost !== '';
+        const unitCost = hasExplicitUnitCost
+          ? Number(item.unitCost)
+          : Number(
+              (product != null
+                ? latestPurchaseUnitCost.get(product.id)
+                : undefined) ?? 0
+            );
         const quantity = Number(item.quantity || 0);
         const totalCost = unitCost * quantity;
 
