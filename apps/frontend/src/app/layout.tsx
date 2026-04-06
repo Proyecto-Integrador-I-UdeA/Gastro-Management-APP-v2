@@ -1,5 +1,4 @@
 import './globals.css';
-import Sidebar from '@/components/Sidebar';
 
 export const metadata = {
   title: 'Gastronomic Management App',
@@ -19,10 +18,7 @@ export default function RootLayout({
       </head>
       <body>
         <div className="app-container">
-          <Sidebar />
-          <main className="main-content">
-            {children}
-          </main>
+          <main className="main-content">{children}</main>
         </div>
       </body>
     </html>

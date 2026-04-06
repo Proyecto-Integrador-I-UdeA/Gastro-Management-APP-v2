@@ -152,8 +152,11 @@ export const createRecipe = async (req: Request, res: Response) => {
         throw new Error(`Producto inválido: ${item.productId}`);
       }
 
-      const unitCost = Number(product.unitCost);
-      const totalCost = unitCost * item.quantity;
+      const unitCost = Number(item.unitCost ?? 0);
+      const totalCost =
+        item.totalCost != null
+          ? Number(item.totalCost)
+          : unitCost * Number(item.quantity);
 
       return {
         productId: item.productId,
@@ -174,12 +177,15 @@ export const createRecipe = async (req: Request, res: Response) => {
           create: recipeItems
         },
         processes: {
-          create: (processes || []).map((p: any) => ({
+          create: (processes || []).map((p: any, index: number) => ({
             name: p.name,
+            processType: p.processType || 'standard',
             duration: Number(p.duration),
-            operators: Number(p.operators)
+            operators: Number(p.operators),
+            stepDescription: p.stepDescription ?? null,
+            stepOrder: p.order != null ? Number(p.order) : index + 1,
           }))
-        }
+        },
       },
       include: {
         items: true,
@@ -225,7 +231,7 @@ export const updateRecipe = async (req: Request, res: Response) => {
             operators: Number(p.operators),
             stepDescription: p.stepDescription,
             processType: p.processType || 'standard',
-            order: p.order ?? index + 1
+            stepOrder: p.order != null ? Number(p.order) : index + 1,
           }
         });
       }

@@ -9,14 +9,10 @@ import { ROUTES } from '@/constants/routes';
 import { useProductList } from '@/hooks/useProductList';
 import { setProductActiveRequest } from '@/lib/productsApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
-import {
-  formatStockDisplay,
-  productLowStock,
-  productTypeLabels,
-} from '@/types/product';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
 import { getUserPermissions } from '@/utils/permissions';
-import { showError } from '@/utils/toast';
+import { productTypeLabels } from '@/types/product';
+import { showError, showSuccess } from '@/utils/toast';
 
 export default function ProductsPage() {
   useAuthGuard('products.read');
@@ -24,20 +20,18 @@ export default function ProductsPage() {
   const [permissions, setPermissions] = useState<string[]>([]);
   const router = useRouter();
   const { products, loading, error, refetch } = useProductList();
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
 
   const handleToggleActive = async (id: number, name: string, active: boolean) => {
     const action = active ? 'inactivar' : 'activar';
-    if (
-      !confirm(`¿Confirmas que deseas ${action} el producto "${name}"?`)
-    ) {
+    if (!confirm(`¿Confirmas que deseas ${action} el producto "${name}"?`)) {
       return;
     }
 
-    setDeletingId(id);
+    setBusyId(id);
     try {
       await setProductActiveRequest(id, !active);
-      showError(
+      showSuccess(
         active
           ? `El producto "${name}" se inactivó correctamente.`
           : `El producto "${name}" se activó correctamente.`
@@ -50,72 +44,59 @@ export default function ProductsPage() {
       }
       showError(getApiErrorMessage(e, `No se pudo ${action} el producto`));
     } finally {
-      setDeletingId(null);
+      setBusyId(null);
     }
   };
 
   useEffect(() => {
-    const perms = getUserPermissions();
-      console.log("PERMISOS REALES:", perms);
-    setPermissions(perms);
+    setPermissions(getUserPermissions());
   }, []);
 
   const can = (perm: string) =>
-     permissions.some(p => p.trim().toLowerCase() === perm.toLowerCase());
+    permissions.some((p) => p.trim().toLowerCase() === perm.toLowerCase());
 
   return (
     <DashboardLayout>
+      <h1 className="text-3xl font-bold text-[#001F3F] mb-6">Productos</h1>
 
-      <h1 className="text-3xl font-bold text-[#001F3F] mb-6">
-        Productos
-      </h1>
-
-      {/* CONTENEDOR */}
       <div className="bg-gray-400/20 backdrop-blur-md border border-white/20 rounded-2xl p-6 shadow-[0_8px_30px_rgba(0,0,0,0.25)]">
-
-        {/* HEADER */}
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-lg font-semibold text-gray-800">
             Gestión completa del catálogo de productos
           </h3>
 
           <Button
-            disabled={!can("products.create")}
+            disabled={!can('products.create')}
             onClick={() => router.push(ROUTES.products.create)}
           >
             + Nuevo Producto
           </Button>
         </div>
 
-        {/* ERROR */}
         {error && (
           <div className="p-4 mb-4 rounded-lg bg-red-100 text-red-700 border border-red-300">
             <p>{error}</p>
-            <Button
-              variant="secondary"
-              className="mt-2"
-              onClick={() => refetch()}
-            >
+            <Button variant="secondary" className="mt-2" onClick={() => refetch()}>
               Reintentar
             </Button>
           </div>
         )}
 
-        {/* LOADING */}
         {loading ? (
           <div className="text-center py-10">Cargando productos…</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-
               <thead className="text-left border-b">
                 <tr>
-                  <th className="py-2">Código</th>
-                  <th>Producto</th>
-                  <th>Categoría</th>
-                  <th>Tipo</th>
-                  <th>Stock</th>
-                  <th>Estado</th>
+                  <th className="py-2 pr-3">Código</th>
+                  <th className="pr-3">Producto</th>
+                  <th className="pr-3">Categoría</th>
+                  <th className="pr-3">Tipo</th>
+                  <th className="pr-3 whitespace-nowrap">Stock mín.</th>
+                  <th className="pr-3 whitespace-nowrap">Stock máx.</th>
+                  <th className="pr-3">Proveedor</th>
+                  <th className="pr-3">Estado</th>
                   <th className="py-2">Acciones</th>
                 </tr>
               </thead>
@@ -123,7 +104,7 @@ export default function ProductsPage() {
               <tbody>
                 {products.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-6">
+                    <td colSpan={9} className="text-center py-6">
                       No hay productos
                     </td>
                   </tr>
@@ -135,10 +116,12 @@ export default function ProductsPage() {
                         key={prod.id}
                         className="hover:bg-gray-200/20 transition"
                       >
-                        <td className="py-2">{prod.internalCode}</td>
-                        <td><strong>{prod.name}</strong></td>
-                        <td>{prod.category}</td>
-                        <td className="max-w-[220px]">
+                        <td className="py-2 pr-3">{prod.internalCode}</td>
+                        <td className="pr-3">
+                          <strong>{prod.name}</strong>
+                        </td>
+                        <td className="pr-3">{prod.category}</td>
+                        <td className="pr-3 max-w-[220px]">
                           {types.length === 0 ? (
                             <span className="text-gray-400">—</span>
                           ) : (
@@ -154,25 +137,22 @@ export default function ProductsPage() {
                             </div>
                           )}
                         </td>
-                        <td>
-                          {formatStockDisplay(prod)}
-                          {productLowStock(prod) && (
-                            <span className="text-red-500 ml-2">⚠</span>
-                          )}
+                        <td className="pr-3 text-gray-700">{prod.minStock}</td>
+                        <td className="pr-3 text-gray-700">{prod.maxStock}</td>
+                        <td className="pr-3 text-gray-700">
+                          {prod.supplier?.name ?? '—'}
                         </td>
-
-                        <td>
+                        <td className="pr-3">
                           <span
                             className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              prod.active
+                              prod.active !== false
                                 ? 'bg-green-100 text-green-800'
                                 : 'bg-red-100 text-red-800'
                             }`}
                           >
-                            {prod.active ? 'Activo' : 'Inactivo'}
+                            {prod.active !== false ? 'Activo' : 'Inactivo'}
                           </span>
                         </td>
-
                         <td className="text-left space-x-3 whitespace-nowrap">
                           {can('products.update') ? (
                             <Link
@@ -186,18 +166,20 @@ export default function ProductsPage() {
                           )}
 
                           <Button
-                            variant={prod.active ? 'danger' : 'secondary'}
+                            variant={prod.active !== false ? 'danger' : 'secondary'}
                             className="text-sm px-3 py-1"
-                            disabled={
-                              deletingId !== null || !can('products.update')
-                            }
+                            disabled={busyId !== null || !can('products.update')}
                             onClick={() =>
-                              handleToggleActive(prod.id, prod.name, prod.active)
+                              handleToggleActive(
+                                prod.id,
+                                prod.name,
+                                prod.active !== false
+                              )
                             }
                           >
-                            {deletingId === prod.id
+                            {busyId === prod.id
                               ? '…'
-                              : prod.active
+                              : prod.active !== false
                                 ? 'Inactivar'
                                 : 'Activar'}
                           </Button>
@@ -207,13 +189,10 @@ export default function ProductsPage() {
                   })
                 )}
               </tbody>
-
             </table>
           </div>
         )}
-
       </div>
-
     </DashboardLayout>
   );
 }

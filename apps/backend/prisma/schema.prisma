@@ -8,10 +8,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum ProductBaseUnit {
-  g
-  ml
-  und
+enum MovementType {
+  PURCHASE
+  TRANSFER
+  WASTE
+  CONSUMPTION
 }
 
 model Supplier {
@@ -23,46 +24,101 @@ model Supplier {
   address         String
   contactPerson   String
   active          Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
   products        Product[]
 
   @@map("suppliers")
 }
 
 model Product {
-  id                 Int             @id @default(autoincrement())
-  internalCode       String          @unique
-  name               String
-  category           String          @default("")
-  isIngredient       Boolean
-  isSupply           Boolean
-  isFinishedProduct  Boolean
-  presentation       String
-  unitOfMeasure      ProductBaseUnit
-  inputUnit          String          @default("g")
-  inputUnitQuantity  Float           @default(1)
-  expirationDate     DateTime?
-  minStock           Float
-  maxStock           Float
-  currentStock       Float
-  unitCost           Decimal         @db.Decimal(10, 2)
-  active             Boolean         @default(true)
-  supplierId         Int
-  supplier           Supplier        @relation(fields: [supplierId], references: [id])
-  recipeItems RecipeItem[]
+  id                Int                 @id @default(autoincrement())
+  internalCode      String              @unique @db.Text
+  name              String              @db.Text
+  category          String              @default("") @db.Text
+  isIngredient      Boolean             @default(false)
+  isSupply          Boolean             @default(false)
+  isFinishedProduct Boolean             @default(false)
+  presentation      String              @db.Text
+  unitOfMeasure     String              @db.Text
+  inputUnit         String              @default("g") @db.Text
+  inputUnitQuantity Float               @default(1)
+  minStock          Float
+  maxStock          Float
+  active            Boolean             @default(true)
+  supplierId        Int
+  supplier          Supplier            @relation(fields: [supplierId], references: [id])
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  inventories       Inventory[]
+  movements         InventoryMovement[]
+  recipeItems       RecipeItem[]
 
   @@map("products")
 }
 
+model Warehouse {
+  id                Int                 @id @default(autoincrement())
+  name              String              @unique
+  description       String?
+  /// Solo una bodega puede ser principal (entradas por compra).
+  isMain            Boolean             @default(false)
+  active            Boolean             @default(true)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  inventories       Inventory[]
+  movementsAsSource InventoryMovement[] @relation("SourceWarehouse")
+  movementsAsDest   InventoryMovement[] @relation("DestinationWarehouse")
+
+  @@map("warehouses")
+}
+
+model Inventory {
+  id          Int       @id @default(autoincrement())
+  quantity    Float     @default(0)
+  productId   Int
+  product     Product   @relation(fields: [productId], references: [id])
+  warehouseId Int
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([productId, warehouseId])
+  @@map("inventories")
+}
+
+model InventoryMovement {
+  id                     Int          @id @default(autoincrement())
+  type                   MovementType
+  quantity               Float
+  unitCost               Decimal?     @db.Decimal(10, 2)
+  expirationDate         DateTime?
+  notes                  String?
+  productId              Int
+  product                Product      @relation(fields: [productId], references: [id])
+  sourceWarehouseId      Int?
+  sourceWarehouse        Warehouse?   @relation("SourceWarehouse", fields: [sourceWarehouseId], references: [id])
+  destinationWarehouseId Int?
+  destinationWarehouse   Warehouse?   @relation("DestinationWarehouse", fields: [destinationWarehouseId], references: [id])
+  userId                 Int
+  user                   User         @relation(fields: [userId], references: [id])
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  @@map("inventory_movements")
+}
+
 model User {
-  id           Int      @id @default(autoincrement())
-  email        String   @unique
+  id           Int                 @id @default(autoincrement())
+  email        String              @unique
   passwordHash String
   fullName     String?
   roleId       Int?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  active       Boolean  @default(true)
-  role         Role?    @relation(fields: [roleId], references: [id])
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  active       Boolean             @default(true)
+  role         Role?               @relation(fields: [roleId], references: [id])
+  movements    InventoryMovement[]
 
   @@map("users")
 }
@@ -83,6 +139,8 @@ model Permission {
   id          Int              @id @default(autoincrement())
   name        String           @unique
   description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
   roles       RolePermission[]
 
   @@map("permissions")
@@ -92,6 +150,8 @@ model RolePermission {
   id           Int        @id @default(autoincrement())
   roleId       Int
   permissionId Int
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
   permission   Permission @relation(fields: [permissionId], references: [id])
   role         Role       @relation(fields: [roleId], references: [id])
 
@@ -137,27 +197,29 @@ model RecipeItem {
 }
 
 model RecipeProcess {
-  id       Int @id @default(autoincrement())
-  recipeId Int
+  id              Int    @id @default(autoincrement())
+  recipeId        Int
+  name            String
+  processType     String
+  duration        Float
+  operators       Int
+  stepDescription String?
+  stepOrder       Int    @default(0) @map("order")
 
-  name        String
-  processType String
-  duration    Float
-  operators   Int
-    stepDescription String?
-order Int
   recipe Recipe @relation(fields: [recipeId], references: [id])
 
   @@map("recipe_processes")
 }
+
 model Cost {
   id           Int     @id @default(autoincrement())
   name         String
-  type         String  // fijo | variable | impuesto
+  type         String // fijo | variable | impuesto
   monthlyValue Float
 
   @@map("costs")
 }
+
 model Config {
   id    Int    @id @default(autoincrement())
   key   String @unique
@@ -165,13 +227,15 @@ model Config {
 
   @@map("config")
 }
+
 model OtherCosts {
-  id            Int      @id @default(autoincrement())
-  month         String
-  fixedCosts    Float
-  variableCosts Float
-  payroll       Float
+  id                Int      @id @default(autoincrement())
+  month             String
+  fixedCosts        Float
+  variableCosts     Float
+  payroll           Float
   monthlyProduction Float?
-  
-  createdAt     DateTime @default(now())
+  createdAt         DateTime @default(now())
+
+  @@map("other_costs")
 }

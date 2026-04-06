@@ -1,16 +1,9 @@
 import type { Product } from '@/types/product';
-import { parseUnitCost } from '@/types/product';
 import { normalizeSupplierFromApi } from '@/lib/normalizeSupplier';
-import type { ProductBaseUnit } from '@/lib/productUnitConversion';
+import { isProductInputUnit } from '@/lib/productUnits';
 
 function asRecord(v: unknown): Record<string, unknown> | null {
   return v && typeof v === 'object' ? (v as Record<string, unknown>) : null;
-}
-
-function normalizeBaseUnit(raw: unknown): ProductBaseUnit {
-  const unit = String(raw ?? '').toLowerCase();
-  if (unit === 'g' || unit === 'ml' || unit === 'und') return unit;
-  return 'und';
 }
 
 export function normalizeProductFromApi(raw: unknown): Product {
@@ -24,6 +17,10 @@ export function normalizeProductFromApi(raw: unknown): Product {
     expirationDate = new Date(String(exp)).toISOString();
   }
 
+  const rawInputUnit = r.inputUnit;
+  const inputUnit = isProductInputUnit(rawInputUnit) ? rawInputUnit : 'g';
+  const inputUnitQuantity = Number(r.inputUnitQuantity ?? 1);
+
   return {
     id: Number(r.id),
     internalCode: String(r.internalCode ?? ''),
@@ -33,16 +30,15 @@ export function normalizeProductFromApi(raw: unknown): Product {
     isSupply: Boolean(r.isSupply),
     isFinishedProduct: Boolean(r.isFinishedProduct),
     presentation: String(r.presentation ?? ''),
-    unitOfMeasure: normalizeBaseUnit(r.unitOfMeasure),
-    inputUnit: String(r.inputUnit ?? normalizeBaseUnit(r.unitOfMeasure)),
-    inputUnitQuantity: Number(r.inputUnitQuantity ?? 1),
+    unitOfMeasure: String(r.unitOfMeasure ?? ''),
+    inputUnit,
+    inputUnitQuantity: Number.isFinite(inputUnitQuantity) && inputUnitQuantity > 0 ? inputUnitQuantity : 1,
     expirationDate,
     minStock: Number(r.minStock ?? 0),
     maxStock: Number(r.maxStock ?? 0),
     currentStock: Number(r.currentStock ?? 0),
-    unitCost: parseUnitCost(r.unitCost),
     supplierId: Number(r.supplierId ?? 0),
+    active: r.active === undefined ? true : Boolean(r.active),
     supplier: normalizeSupplierFromApi(r.supplier),
-    active: Boolean(r.active ?? true),
   };
 }
