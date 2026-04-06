@@ -20,8 +20,8 @@ export default function ProcessDetail() {
       },
     });
 
-    const data = await res.json();
-    setRecipe(data);
+    
+    setRecipe(res);
   };
 
   useEffect(() => {
