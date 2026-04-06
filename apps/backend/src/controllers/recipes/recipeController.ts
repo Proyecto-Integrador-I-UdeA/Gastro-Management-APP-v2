@@ -15,7 +15,7 @@ export const getRecipeById = async (req: Request, res: Response) => {
             product: true,
           },
         },
-        processes: true // 🔥 quitamos orderBy por ahora
+        processes: true
       },
     });
 
@@ -111,6 +111,30 @@ export const createRecipe = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Datos incompletos' });
     }
 
+    // 🔥 GENERAR CÓDIGO AUTOMÁTICO RC-XXX
+    const recipesWithCode = await prisma.recipe.findMany({
+      where: {
+        internalCode: {
+          startsWith: "RC-",
+        },
+      },
+      select: {
+        internalCode: true,
+      },
+    });
+
+    let maxNumber = 0;
+
+    for (const r of recipesWithCode) {
+      const num = parseInt(r.internalCode.split("-")[1]);
+      if (!isNaN(num) && num > maxNumber) {
+        maxNumber = num;
+      }
+    }
+
+    const nextNumber = maxNumber + 1;
+    const newCode = `RC-${String(nextNumber).padStart(3, "0")}`;
+
     const productIds = items.map((item: any) => item.productId);
 
     const products = await prisma.product.findMany({
@@ -142,6 +166,7 @@ export const createRecipe = async (req: Request, res: Response) => {
 
     const recipe = await prisma.recipe.create({
       data: {
+        internalCode: newCode, // 🔥 AQUÍ ESTÁ LA SOLUCIÓN
         name,
         description,
         batchQuantity,
@@ -171,7 +196,7 @@ export const createRecipe = async (req: Request, res: Response) => {
   }
 };
 
-// ✅ UPDATE LIMPIO Y FUNCIONAL
+// ✅ UPDATE (NO TOCADO)
 export const updateRecipe = async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
@@ -179,7 +204,6 @@ export const updateRecipe = async (req: Request, res: Response) => {
 
     console.log("🔥 PROCESSES:", processes);
 
-    // 🔹 actualizar receta
     await prisma.recipe.update({
       where: { id },
       data: {
@@ -189,12 +213,10 @@ export const updateRecipe = async (req: Request, res: Response) => {
       }
     });
 
-    // 🔹 eliminar procesos anteriores
     await prisma.recipeProcess.deleteMany({
       where: { recipeId: id }
     });
 
-    // 🔹 crear procesos nuevos
     if (processes && processes.length > 0) {
       for (let index = 0; index < processes.length; index++) {
         const p = processes[index];
@@ -204,23 +226,22 @@ export const updateRecipe = async (req: Request, res: Response) => {
             name: p.name,
             duration: Number(p.duration),
             operators: Number(p.operators),
-             stepDescription: p.stepDescription,
+            stepDescription: p.stepDescription,
             processType: p.processType || 'standard',
             order: p.order ?? index + 1
           }
         });
       }
     }
-    // 🔴 4. ELIMINAR INGREDIENTES
+
     await prisma.recipeItem.deleteMany({
       where: { recipeId: id }
     });
 
-    // 🔴 5. CREAR INGREDIENTES
     if (items && items.length > 0) {
       for (const item of items) {
 
-        if (!item.productId) continue; // evita vacíos
+        if (!item.productId) continue;
 
         await prisma.recipeItem.create({
           data: {
@@ -234,9 +255,9 @@ export const updateRecipe = async (req: Request, res: Response) => {
 
       }
     }
+
     res.json({ message: "Receta actualizada correctamente" });
 
-  
   } catch (error) {
     console.error("❌ ERROR:", error);
     res.status(500).json({ error: "Error interno" });

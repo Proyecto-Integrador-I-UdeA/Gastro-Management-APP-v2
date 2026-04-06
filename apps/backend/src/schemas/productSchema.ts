@@ -97,7 +97,6 @@ const updateExpirationDateSchema = z
   });
 
 export const createProductSchema = z.object({
-  internalCode: z.string().min(1, 'Código interno requerido'),
   name: z.string().min(1, 'Nombre requerido'),
   category: z.string().optional().default(''),
   isIngredient: z.boolean(),
@@ -116,7 +115,6 @@ export const createProductSchema = z.object({
 });
 
 export const updateProductSchema = z.object({
-  internalCode: z.string().min(1).optional(),
   name: z.string().min(1).optional(),
   category: z.string().optional(),
   isIngredient: z.boolean().optional(),

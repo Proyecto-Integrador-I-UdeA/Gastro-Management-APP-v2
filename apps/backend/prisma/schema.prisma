@@ -16,7 +16,7 @@ enum ProductBaseUnit {
 
 model Supplier {
   id              Int       @id @default(autoincrement())
-  internalCode    String
+  internalCode    String    @unique
   name            String
   taxId           String
   phone           String
@@ -30,7 +30,7 @@ model Supplier {
 
 model Product {
   id                 Int             @id @default(autoincrement())
-  internalCode       String
+  internalCode       String          @unique
   name               String
   category           String          @default("")
   isIngredient       Boolean
@@ -98,9 +98,12 @@ model RolePermission {
   @@unique([roleId, permissionId])
   @@map("role_permissions")
 }
-
 model Recipe {
   id          Int     @id @default(autoincrement())
+
+  internalCode String @unique   // 🔥 NUEVO
+  active       Boolean @default(true) // 🔥 NUEVO
+
   name        String
   description String?
 
@@ -116,6 +119,7 @@ model Recipe {
 
   @@map("recipes")
 }
+
 
 model RecipeItem {
   id        Int @id @default(autoincrement())
