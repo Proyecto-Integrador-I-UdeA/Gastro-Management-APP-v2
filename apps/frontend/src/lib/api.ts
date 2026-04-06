@@ -11,6 +11,12 @@ export const apiFetch = async (
 ) => {
   const token = getToken();
 
+  // 🔥 VALIDACIÓN CLAVE
+  if (!API_URL) {
+    console.error("❌ API_URL no definida");
+    throw new Error("API_URL no está configurada");
+  }
+
   const headers: HeadersInit = {
     "Content-Type": "application/json",
     ...(options.headers || {}),
@@ -21,7 +27,10 @@ export const apiFetch = async (
   }
 
   try {
-    const res = await fetch(`${API_URL}${endpoint}`, {
+    const url = `${API_URL}${endpoint}`;
+    console.log("🚀 Request a:", url);
+
+    const res = await fetch(url, {
       ...options,
       headers,
     });
@@ -36,7 +45,8 @@ export const apiFetch = async (
     }
 
     if (!res.ok) {
-      throw new Error(data?.message || "Error en la petición");
+      console.error("❌ Backend respondió error:", data);
+      throw new Error(data?.error || "Error en la petición");
     }
 
     return data;
