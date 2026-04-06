@@ -12,13 +12,13 @@ export const calculateRecipeCost = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid recipe id' });
     }
 
-    // 🔹 1. Obtener receta (🔥 INCLUYENDO PRODUCTOS)
+    // 🔹 1. Obtener receta con productos
     const recipe = await prisma.recipe.findUnique({
       where: { id: recipeId },
       include: {
         items: {
           include: {
-            product: true, // 🔥 CLAVE
+            product: true,
           },
         },
       },
@@ -28,15 +28,29 @@ export const calculateRecipeCost = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Recipe not found' });
     }
 
-    // 🔹 2. Costo de ingredientes (🔥 CORREGIDO)
-    const ingredientsCost = recipe.items.reduce((sum: number, item: any) => {
-      const unitCost = Number(item.product?.unitCost || 0);
-      const quantity = Number(item.quantity || 0);
+    // 🔥 DEBUG CLAVE
+    console.log("🧾 ITEMS RECIBIDOS:", recipe.items);
 
-      return sum + (unitCost * quantity);
+    // 🔹 2. Costo de ingredientes (SIEMPRE dinámico)
+    const ingredientsCost = recipe.items.reduce((sum: number, item: any) => {
+
+      const quantity = Number(item.quantity ?? 0);
+      const unitCost = Number(item.product?.unitCost ?? 0);
+
+      const itemCost = quantity * unitCost;
+
+      console.log("➡️ ITEM:", {
+        productId: item.productId,
+        quantity,
+        unitCost,
+        itemCost
+      });
+
+      return sum + itemCost;
+
     }, 0);
 
-    // 🔥 3. TRAER ÚLTIMO REGISTRO DE COSTOS
+    // 🔥 3. COSTOS INDIRECTOS
     const latestCosts = await prisma.otherCosts.findFirst({
       orderBy: { createdAt: 'desc' }
     });
@@ -45,24 +59,27 @@ export const calculateRecipeCost = async (req: Request, res: Response) => {
 
     if (latestCosts) {
       const totalMonthlyCosts =
-        Number(latestCosts.fixedCosts) +
-        Number(latestCosts.variableCosts) +
-        Number(latestCosts.payroll);
+        Number(latestCosts.fixedCosts ?? 0) +
+        Number(latestCosts.variableCosts ?? 0) +
+        Number(latestCosts.payroll ?? 0);
 
-      const production = Number(latestCosts.monthlyProduction || 1);
+      const production = Number(latestCosts.monthlyProduction ?? 1);
 
-      indirectCostPerUnit = totalMonthlyCosts / production;
+      indirectCostPerUnit = production > 0
+        ? totalMonthlyCosts / production
+        : 0;
     }
 
-    // 🔹 4. Costo total receta
-    const indirectCostTotal = indirectCostPerUnit * recipe.portions;
+    // 🔹 4. Totales
+    const portions = Number(recipe.portions ?? 1);
 
-    const totalCost =
-      ingredientsCost +
-      indirectCostTotal;
+    const indirectCostTotal = indirectCostPerUnit * portions;
 
-    // 🔹 5. Costo por porción
-    const costPerPortion = totalCost / recipe.portions;
+    const totalCost = ingredientsCost + indirectCostTotal;
+
+    const costPerPortion = portions > 0
+      ? totalCost / portions
+      : 0;
 
     res.json({
       recipeId,
@@ -74,7 +91,7 @@ export const calculateRecipeCost = async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    console.error('Error calculando costos:', error);
+    console.error('❌ Error calculando costos:', error);
     res.status(500).json({ error: 'Error interno' });
   }
 };
