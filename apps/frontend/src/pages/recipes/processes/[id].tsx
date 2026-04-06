@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
+import { apiFetch } from "@/lib/api";
 
 export default function ProcessDetail() {
   const router = useRouter();
@@ -13,7 +14,7 @@ export default function ProcessDetail() {
   const fetchRecipe = async () => {
     if (!id) return;
 
-    const res = await fetch(`http://localhost:3001/recipes/${id}`, {
+    const res = await apiFetch(`/recipes/${id}`, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
       },
