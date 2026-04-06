@@ -2,7 +2,7 @@ const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://gastro-management-app-production-6187.up.railway.app";
 
-console.log("🌍 API_URL FINAL:", API_URL);
+console.log("🌍 BUILD NUEVO EJECUTANDOSE");
 
 const getToken = () => {
   if (typeof window === "undefined") return null;
