@@ -12,21 +12,28 @@ export const calculateRecipeCost = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid recipe id' });
     }
 
-    // 🔹 1. Obtener receta
+    // 🔹 1. Obtener receta (🔥 INCLUYENDO PRODUCTOS)
     const recipe = await prisma.recipe.findUnique({
       where: { id: recipeId },
       include: {
-        items: true,
-      }
+        items: {
+          include: {
+            product: true, // 🔥 CLAVE
+          },
+        },
+      },
     });
 
     if (!recipe) {
       return res.status(404).json({ error: 'Recipe not found' });
     }
 
-    // 🔹 2. Costo de ingredientes
+    // 🔹 2. Costo de ingredientes (🔥 CORREGIDO)
     const ingredientsCost = recipe.items.reduce((sum: number, item: any) => {
-      return sum + Number(item.totalCost);
+      const unitCost = Number(item.product?.unitCost || 0);
+      const quantity = Number(item.quantity || 0);
+
+      return sum + (unitCost * quantity);
     }, 0);
 
     // 🔥 3. TRAER ÚLTIMO REGISTRO DE COSTOS
@@ -48,8 +55,8 @@ export const calculateRecipeCost = async (req: Request, res: Response) => {
     }
 
     // 🔹 4. Costo total receta
-    const indirectCostTotal =
-    indirectCostPerUnit * recipe.portions;
+    const indirectCostTotal = indirectCostPerUnit * recipe.portions;
+
     const totalCost =
       ingredientsCost +
       indirectCostTotal;
@@ -71,7 +78,6 @@ export const calculateRecipeCost = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Error interno' });
   }
 };
-
 
 // 🔥 CREAR OTROS COSTOS
 export const createOtherCosts = async (req: Request, res: Response) => {
@@ -95,7 +101,6 @@ export const createOtherCosts = async (req: Request, res: Response) => {
   }
 };
 
-
 // 🔥 LISTAR OTROS COSTOS
 export const getOtherCosts = async (req: Request, res: Response) => {
   try {
@@ -108,7 +113,6 @@ export const getOtherCosts = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Error listando costos' });
   }
 };
-
 
 // 🔥 ACTUALIZAR OTROS COSTOS
 export const updateOtherCosts = async (req: Request, res: Response) => {
@@ -132,7 +136,6 @@ export const updateOtherCosts = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Error actualizando costos' });
   }
 };
-
 
 // 🔥 ELIMINAR
 export const deleteOtherCosts = async (req: Request, res: Response) => {
