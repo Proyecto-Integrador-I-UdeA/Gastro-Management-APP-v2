@@ -111,7 +111,6 @@ export const createRecipe = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Datos incompletos' });
     }
 
-    // 🔥 GENERAR CÓDIGO AUTOMÁTICO RC-XXX
     const recipesWithCode = await prisma.recipe.findMany({
       where: {
         internalCode: {
@@ -166,7 +165,7 @@ export const createRecipe = async (req: Request, res: Response) => {
 
     const recipe = await prisma.recipe.create({
       data: {
-        internalCode: newCode, // 🔥 AQUÍ ESTÁ LA SOLUCIÓN
+        internalCode: newCode,
         name,
         description,
         batchQuantity,
@@ -196,13 +195,11 @@ export const createRecipe = async (req: Request, res: Response) => {
   }
 };
 
-// ✅ UPDATE (NO TOCADO)
+// ✅ UPDATE CORREGIDO (SOLO ESTA PARTE CAMBIÓ)
 export const updateRecipe = async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
     const { name, portions, description, processes, items } = req.body;
-
-    console.log("🔥 PROCESSES:", processes);
 
     await prisma.recipe.update({
       where: { id },
@@ -239,17 +236,33 @@ export const updateRecipe = async (req: Request, res: Response) => {
     });
 
     if (items && items.length > 0) {
+
+      // 🔥 TRAER PRODUCTOS PARA COSTOS REALES
+      const productIds = items.map((item: any) => Number(item.productId));
+
+      const products = await prisma.product.findMany({
+        where: { id: { in: productIds } }
+      });
+
+      const productMap = new Map(products.map(p => [p.id, p]));
+
       for (const item of items) {
 
         if (!item.productId) continue;
+
+        const product = productMap.get(Number(item.productId));
+
+        const unitCost = Number(product?.unitCost || 0);
+        const quantity = Number(item.quantity || 0);
+        const totalCost = unitCost * quantity;
 
         await prisma.recipeItem.create({
           data: {
             recipeId: id,
             productId: Number(item.productId),
-            quantity: Number(item.quantity),
-            unitCost: Number(item.unitCost || 0),
-            totalCost: Number(item.totalCost || 0),
+            quantity,
+            unitCost,
+            totalCost, // 🔥 AHORA SE CALCULA BIEN
           }
         });
 
