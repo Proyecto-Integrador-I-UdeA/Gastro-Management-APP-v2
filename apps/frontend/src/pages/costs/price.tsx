@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import Button from "@/components/Button";
 import { showError } from "@/utils/toast";
+import { apiFetch } from "@/lib/api"; // 🔥 IMPORTANTE
 
 export default function PriceCalculationPage() {
 
@@ -21,13 +22,7 @@ export default function PriceCalculationPage() {
   // 🔥 cargar recetas
   const fetchRecipes = async () => {
     try {
-      const res = await fetch("http://localhost:3001/recipes", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
-
-      const data = await res.json();
+      const data = await apiFetch("/recipes");
 
       const list = Array.isArray(data)
         ? data
@@ -55,17 +50,10 @@ export default function PriceCalculationPage() {
     if (!selectedRecipe) return;
 
     try {
-      const res = await fetch(
-        `http://localhost:3001/costs/recipe/${selectedRecipe}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        }
-      );
+      const data = await apiFetch(`/costs/recipe/${selectedRecipe}`, {
+        method: "POST",
+      });
 
-      const data = await res.json();
       setCost(data.costPerPortion);
 
     } catch (error) {
@@ -73,7 +61,7 @@ export default function PriceCalculationPage() {
     }
   };
 
-  // 🔥 CALCULO CORREGIDO
+  // 🔥 CALCULO
   const handleCalculate = () => {
     if (!cost) return showError("Primero calcula el costo");
 
@@ -101,13 +89,7 @@ export default function PriceCalculationPage() {
 
   const fetchSuggestedPrices = async () => {
     try {
-      const res = await fetch("http://localhost:3001/recipes", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
-
-      const data = await res.json();
+      const data = await apiFetch("/recipes");
 
       const list = Array.isArray(data)
         ? data
@@ -115,17 +97,11 @@ export default function PriceCalculationPage() {
 
       const results = await Promise.all(
         list.map(async (r: any) => {
-          const resCost = await fetch(
-            `http://localhost:3001/costs/recipe/${r.id}`,
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${localStorage.getItem("token")}`,
-              },
-            }
-          );
 
-          const costData = await resCost.json();
+          const costData = await apiFetch(`/costs/recipe/${r.id}`, {
+            method: "POST",
+          });
+
           const cost = costData.costPerPortion;
 
           const priceWithoutTax = cost / (1 - margin);
@@ -226,7 +202,6 @@ export default function PriceCalculationPage() {
             <strong>Precio final:</strong> ${price.finalPrice.toFixed(2)}
           </p>
 
-          {/* 🔥 DESGLOSE */}
           <div className="mt-6 border-t pt-4 space-y-2">
 
             <h3 className="font-semibold text-gray-700">
@@ -265,49 +240,42 @@ export default function PriceCalculationPage() {
 
         </div>
       )}
+
       {priceList.length > 0 && (
-  <div className="mt-10 bg-white p-6 rounded-xl shadow">
+        <div className="mt-10 bg-white p-6 rounded-xl shadow">
 
-    <h2 className="text-xl font-semibold mb-4">
-      Lista de precios sugeridos
-    </h2>
+          <h2 className="text-xl font-semibold mb-4">
+            Lista de precios sugeridos
+          </h2>
 
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="border-b">
-          <th className="text-left">Producto</th>
-          <th>Costo</th>
-          <th>Precio sin impuesto</th>
-          <th>Precio final</th>
-          <th>Precio sugerido</th>
-        </tr>
-      </thead>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left">Producto</th>
+                <th>Costo</th>
+                <th>Precio sin impuesto</th>
+                <th>Precio final</th>
+                <th>Precio sugerido</th>
+              </tr>
+            </thead>
 
-      <tbody>
-        {priceList.map((p, i) => (
-          <tr key={i} className="border-b text-center">
-            <td className="text-left">{p.name}</td>
+            <tbody>
+              {priceList.map((p, i) => (
+                <tr key={i} className="border-b text-center">
+                  <td className="text-left">{p.name}</td>
+                  <td>${p.cost?.toFixed(0)}</td>
+                  <td>${(p.cost / (1 - margin)).toFixed(0)}</td>
+                  <td>${p.finalPrice?.toFixed(0)}</td>
+                  <td className="font-bold text-green-600">
+                    ${p.suggested?.toLocaleString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-            <td>${p.cost?.toFixed(0)}</td>
-
-            <td>
-              ${(p.cost / (1 - margin)).toFixed(0)}
-            </td>
-
-            <td>
-              ${(p.finalPrice)?.toFixed(0)}
-            </td>
-
-            <td className="font-bold text-green-600">
-              ${p.suggested?.toLocaleString()}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-
-  </div>
-)}
+        </div>
+      )}
 
     </DashboardLayout>
   );

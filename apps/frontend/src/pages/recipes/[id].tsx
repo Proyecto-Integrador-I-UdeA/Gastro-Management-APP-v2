@@ -5,7 +5,7 @@ import { useRouter } from "next/router";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import Button from "@/components/Button";
 import { showError, showSuccess } from "@/utils/toast";
-
+import { apiFetch } from "@/lib/api"; // 🔥 IMPORTANTE
 
 export default function RecipeDetail() {
   const router = useRouter();
@@ -22,14 +22,7 @@ export default function RecipeDetail() {
     if (!id) return;
 
     try {
-      const res = await fetch(`http://localhost:3001/recipes/${id}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
-
-
-      const data = await res.json();
+      const data = await apiFetch(`/recipes/${id}`);
 
       setRecipe(data);
       setProcesses(data.processes || []);
@@ -39,22 +32,17 @@ export default function RecipeDetail() {
       setLoading(false);
     }
   };
-  const fetchProducts = async () => {
-  try {
-    const res = await fetch("http://localhost:3001/products", {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-    });
 
-    const data = await res.json();
-    setProducts(data);
-  } catch (error) {
-    console.error("Error cargando productos:", error);
-   } finally {
-   setLoading(false);
- }
-};
+  const fetchProducts = async () => {
+    try {
+      const data = await apiFetch("/products");
+      setProducts(data);
+    } catch (error) {
+      console.error("Error cargando productos:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (router.isReady && id) {
@@ -79,14 +67,11 @@ export default function RecipeDetail() {
   const saveAll = async () => {
     try {
       console.log("🔥 ENVIANDO:", {
-  items: recipe.items
-});
-      await fetch(`http://localhost:3001/recipes/${id}`, {
+        items: recipe.items
+      });
+
+      await apiFetch(`/recipes/${id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
         body: JSON.stringify({
           name: recipe.name,
           portions: recipe.portions,
@@ -109,7 +94,7 @@ export default function RecipeDetail() {
   return (
     <DashboardLayout>
 
-      {/* 🔹 DATOS GENERALES */}
+      {/* DATOS GENERALES */}
       <div className="mb-6 space-y-4">
         <input
           value={recipe.name}
@@ -131,7 +116,7 @@ export default function RecipeDetail() {
         />
       </div>
 
-      {/* 🔹 BOTONES */}
+      {/* BOTONES */}
       <div className="flex gap-4 mb-6">
         <button
           onClick={() => {
@@ -156,7 +141,7 @@ export default function RecipeDetail() {
 
       <div className="p-6 bg-white rounded shadow">
 
-        {/* 🔹 INGREDIENTES EDITABLE */}
+        {/* INGREDIENTES */}
         {viewMode === "ingredients" && editIngredients && (
           <div>
 
@@ -220,7 +205,7 @@ export default function RecipeDetail() {
           </div>
         )}
 
-        {/* 🔹 PROCESOS */}
+        {/* PROCESOS */}
         {viewMode === "preparation" && (
           <div>
 
