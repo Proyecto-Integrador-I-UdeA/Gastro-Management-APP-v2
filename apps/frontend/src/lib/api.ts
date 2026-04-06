@@ -1,4 +1,8 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://gastro-management-app-production-6187.up.railway.app";
+
+console.log("🌍 API_URL FINAL:", API_URL);
 
 const getToken = () => {
   if (typeof window === "undefined") return null;
@@ -41,7 +45,8 @@ export const apiFetch = async (
     try {
       data = JSON.parse(text);
     } catch {
-      throw new Error("Respuesta no es JSON válida");
+      console.error("❌ RESPUESTA RAW DEL BACKEND:", text);
+      throw new Error(text || "Respuesta no válida");
     }
 
     if (!res.ok) {
