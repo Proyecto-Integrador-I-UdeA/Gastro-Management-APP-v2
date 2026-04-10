@@ -71,7 +71,7 @@ export default function ProductEditPage() {
 
         setSuppliers(supplierList);
 
-        setInternalCode(product.internalCode);
+        setInternalCode(product.internalCode || '');
         setName(product.name || '');
         setCategory(product.category || '');
         setPresentation(product.presentation || '');
