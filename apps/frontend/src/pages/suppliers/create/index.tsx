@@ -81,13 +81,13 @@ export default function SupplierCreatePage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-
+      {/*
           <Input
             label="Código interno"
             value={internalCode}
             onChange={(e) => setInternalCode(e.target.value)}
             placeholder="SUP-001"
-          />
+          />*/}
 
 
           <Input

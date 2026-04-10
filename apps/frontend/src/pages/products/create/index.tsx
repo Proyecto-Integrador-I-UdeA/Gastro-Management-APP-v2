@@ -90,7 +90,7 @@ export default function ProductCreatePage() {
 
   const handleSave = async () => {
     if (
-      !internalCode ||
+     // !internalCode ||
       !name ||
       !category ||
       !presentation ||
@@ -217,7 +217,7 @@ export default function ProductCreatePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-            <Input label="Código interno" value={internalCode} onChange={(e) => setInternalCode(e.target.value)} />
+          {/*  <Input label="Código interno" value={internalCode} onChange={(e) => setInternalCode(e.target.value)} />*/}
             <Input label="Nombre" value={name} onChange={(e) => setName(e.target.value)} className="md:col-span-2" />
 
             <Input label="Categoría" value={category} onChange={(e) => setCategory(e.target.value)} />
