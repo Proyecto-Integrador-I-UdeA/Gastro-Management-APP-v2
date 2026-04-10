@@ -4,6 +4,9 @@ import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import supplierRoutes from './routes/suppliers/index';
 import productRoutes from './routes/products/index';
+import warehouseRoutes from './routes/warehouses/index';
+import inventoryRoutes from './routes/inventories/index';
+import inventoryMovementRoutes from './routes/inventory-movements/index';
 import recipeRoutes from './routes/recipes/index';
 import costRoutes from './routes/costs';
 import configRoutes from './routes/config';
@@ -57,6 +60,9 @@ app.use('/auth', authRoutes);
 app.use('/users', userRoutes);
 app.use('/suppliers', supplierRoutes);
 app.use('/products', productRoutes);
+app.use('/warehouses', warehouseRoutes);
+app.use('/inventories', inventoryRoutes);
+app.use('/inventory-movements', inventoryMovementRoutes);
 app.use('/recipes', recipeRoutes);
 app.use('/costs', costRoutes);
 app.use('/config', configRoutes);
@@ -70,22 +76,4 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor backend corriendo en http://localhost:${PORT}`);
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

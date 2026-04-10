@@ -6,7 +6,6 @@ import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import Button from "@/components/Button";
 import { getUserRole } from "@/utils/auth";
-import { UserPlus, List } from "lucide-react";
 import { showError } from "@/utils/toast";
 
 export default function Dashboard() {

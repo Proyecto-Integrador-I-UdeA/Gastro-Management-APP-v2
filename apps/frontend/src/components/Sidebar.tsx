@@ -1,101 +1,103 @@
 "use client";
 
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/router";
 import { useSidebar } from "@/context/SidebarContext";
 import { useEffect, useState } from "react";
-import {
-  ArrowLeft,
-  Folder,
-  UserPlus,
-  List,
-} from "lucide-react";
+import { showError } from "@/utils/toast";
+
+function readPermissionsFromToken(): string[] {
+  if (globalThis.window === undefined) return [];
+  const token = localStorage.getItem("token");
+  if (!token) return [];
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return (payload.permissions || []).map((p: string) => p.trim().toLowerCase());
+  } catch {
+    return [];
+  }
+}
+
+function sidebarImageSrc(safePath: string): string {
+  if (safePath.includes("/transfers/warehouses")) return "/images/sidebar-dashboard.jpg";
+  if (safePath.includes("/suppliers/create")) return "/images/sidebar-proveedores-create.jpg";
+  if (safePath.includes("/suppliers/edit")) return "/images/sidebar-proveedores-edit.jpg";
+  if (safePath.includes("/suppliers")) return "/images/sidebar-proveedores.jpg";
+  if (safePath.includes("/products/create")) return "/images/sidebar-productos-create.jpg";
+  if (safePath.includes("/products/edit")) return "/images/sidebar-productos-edit.jpg";
+  if (safePath.includes("/products")) return "/images/sidebar-productos.jpg";
+  if (safePath.includes("/inventory")) return "/images/sidebar-dashboard.jpg";
+  if (safePath.includes("/transfers")) return "/images/sidebar-dashboard.jpg";
+  if (safePath.includes("/users/create")) return "/images/sidebar-users-create.jpg";
+  if (safePath.includes("/users/edit")) return "/images/sidebar-users-edit.jpg";
+  if (safePath.includes("/users")) return "/images/sidebar-users.jpg";
+  if (safePath.includes("/dashboard")) return "/images/sidebar-dashboard.jpg";
+  return "/images/sidebar-dashboard.jpg";
+}
 
 export default function Sidebar() {
   const router = useRouter();
-  const pathname = usePathname();
-
   const sidebar = useSidebar();
   if (!sidebar) return null;
 
   const { open, setOpen } = sidebar;
 
-  const safePath = pathname || "";
-
-  // 🔥 TIPOS DE VISTA
-  const isDashboard = safePath === "/dashboard";
-
-  const mainModules = [
-    "/products",
-    "/suppliers",
-    "/production",
-    "/costs",
-    "/transfers",
-    "/inventory",
-    "/accounting",
-    "/sales",
-    "/reports",
-  ];
-
-  const isMainModule = mainModules.includes(safePath);
-
-  const getParentModule = () => {
-    if (safePath.startsWith("/products")) return "/products";
-    if (safePath.startsWith("/suppliers")) return "/suppliers";
-    if (safePath.startsWith("/production") || safePath.startsWith("/recipes")) return "/production";
-    if (safePath.startsWith("/costs")) return "/costs";
-    if (safePath.startsWith("/inventory")) return "/inventory";
-    if (safePath.startsWith("/sales")) return "/sales";
-    if (safePath.startsWith("/reports")) return "/reports";
-    return null;
-  };
-
-  const parentModule = getParentModule();
+  /** Evita mismatch SSR/cliente: el primer paint debe coincidir con el HTML del servidor. */
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   const [permissions, setPermissions] = useState<string[]>([]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const token = localStorage.getItem("token");
+    setPermissions(readPermissionsFromToken());
+  }, [router.asPath]);
 
-      if (token) {
-        try {
-          const payload = JSON.parse(atob(token.split(".")[1]));
-          setPermissions(payload.permissions || []);
-        } catch {
-          setPermissions([]);
-        }
-      }
+  const safePath =
+    hydrated && router.isReady ? (router.asPath || "").split("?")[0] : "";
+  const showNav = hydrated && router.isReady;
+
+  const isDashboardOrUsers =
+    safePath === "/dashboard" || safePath.startsWith("/users");
+  const inProductsModule =
+    safePath.startsWith("/products") || safePath.startsWith("/suppliers");
+  const inTransfersModule = safePath.startsWith("/transfers");
+  const inInventoryModule = safePath.startsWith("/inventory");
+
+  const can = (perm: string) =>
+    permissions.includes(perm.trim().toLowerCase());
+
+  const canAny = (perms: string[]) =>
+    perms.some((p) => permissions.includes(p.trim().toLowerCase()));
+
+  const handleNavigate = (path: string, permission?: string) => {
+    if (permission && !can(permission)) {
+      showError("No tienes permiso para acceder a esta sección");
+      return;
     }
-  }, []);
-
-  const can = (permission: string) => {
-    if (typeof window === "undefined") return false;
-
-    const token = localStorage.getItem("token");
-    if (!token) return false;
-
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      return payload.permissions?.includes(permission);
-    } catch {
-      return false;
-    }
-  };
-
-  // 🔥 NAVEGACIÓN LIMPIA
-  const handleNavigate = (path: string) => {
-    router.push(path);
+    void router.push(path);
     setOpen(false);
-
-    // guardar última ruta
-    localStorage.setItem("lastPath", path);
   };
 
-  // 🎨 ESTILO BASE
-  const baseBtn =
-    "flex items-center gap-4 px-6 py-3 text-left transition-all duration-200 hover:bg-[#33566E] hover:pl-8";
+  const handleNavigateAny = (path: string, requiredAny: string[]) => {
+    if (!canAny(requiredAny)) {
+      showError("No tienes permiso para acceder a esta sección");
+      return;
+    }
+    void router.push(path);
+    setOpen(false);
+  };
 
-  const disabledStyle = "opacity-30 cursor-not-allowed";
+  const itemClass = (active: boolean) =>
+    `flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E] ${
+      active ? "bg-[#33566E]/90" : ""
+    }`;
+
+  const transfersSubActive =
+    safePath === "/transfers" ||
+    safePath.startsWith("/transfers/create") ||
+    safePath.startsWith("/transfers/edit");
+  const warehousesSubActive = safePath.startsWith("/transfers/warehouses");
 
   return (
     <>
@@ -114,109 +116,151 @@ export default function Sidebar() {
           lg:translate-x-0 lg:flex
         `}
       >
-        <div className="h-24 flex items-center justify-center border-b border-white/10">
-          <span className="text-lg font-semibold">Navigation Board</span>
-        </div>
+        <div className="h-24 flex items-center justify-center border-b border-white/10" />
 
         <nav className="flex flex-col mt-4">
-
-          {/* 🔵 DASHBOARD */}
-          {isDashboard && (
-            <>
-              {(() => {
-                const allowed = can("users.create");
-                return (
-                  <button
-                    disabled={!allowed}
-                    onClick={() => allowed && handleNavigate("/users/create")}
-                    className={`${baseBtn} ${!allowed ? disabledStyle : ""}`}
-                  >
-                    <UserPlus size={20} />
-                    <span className="text-lg">Crear Usuario</span>
-                  </button>
-                );
-              })()}
-
-              {(() => {
-                const allowed = can("users.read");
-                return (
-                  <button
-                    disabled={!allowed}
-                    onClick={() => allowed && handleNavigate("/users")}
-                    className={`${baseBtn} ${!allowed ? disabledStyle : ""}`}
-                  >
-                    <List size={20} />
-                    <span className="text-lg">Ver Usuarios</span>
-                  </button>
-                );
-              })()}
-            </>
-          )}
-
-          {/* 🟡 MÓDULO PRINCIPAL */}
-          {isMainModule && !isDashboard && (
-            <button
-              onClick={() => handleNavigate("/dashboard")}
-              className={baseBtn}
-            >
-              <ArrowLeft size={20} />
-              <span className="text-lg">Dashboard</span>
-            </button>
-          )}
-
-          {/* 🟢 SUBMÓDULOS */}
-          {!isDashboard && !isMainModule && (
+          {!showNav ? (
+            <div className="min-h-[180px] px-6" aria-hidden />
+          ) : isDashboardOrUsers ? (
             <>
               <button
-                onClick={() => handleNavigate("/dashboard")}
-                className={baseBtn}
+                type="button"
+                onClick={() => handleNavigate("/users/create", "users.create")}
+                className="flex items-center gap-4 px-6 py-4 hover:bg-[#33566E]"
               >
-                <ArrowLeft size={20} />
-                <span className="text-lg">Dashboard</span>
+                👤 <span className="text-lg">Crear Usuario</span>
               </button>
-
-              {parentModule && (
+              <button
+                type="button"
+                onClick={() => handleNavigate("/users", "users.read")}
+                className="flex items-center gap-4 px-6 py-4 hover:bg-[#33566E]"
+              >
+                📋 <span className="text-lg">Ver Usuarios</span>
+              </button>
+            </>
+          ) : inTransfersModule ? (
+            <>
+              <button
+                type="button"
+                className={itemClass(transfersSubActive)}
+                onClick={() => handleNavigate("/transfers", "transfers.read")}
+              >
+                <span className="text-xl">↔️</span>
+                <span className="text-lg">Traslados</span>
+              </button>
+              <button
+                type="button"
+                className={itemClass(warehousesSubActive)}
+                onClick={() =>
+                  handleNavigateAny("/transfers/warehouses", [
+                    "transfers.read",
+                    "warehouses.read",
+                  ])
+                }
+              >
+                <span className="text-xl">🏭</span>
+                <span className="text-lg">Bodegas</span>
+              </button>
+              {can("inventory.read") && (
                 <button
-                  onClick={() => handleNavigate(parentModule)}
-                  className={baseBtn}
+                  type="button"
+                  className="flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E] text-white/90"
+                  onClick={() => handleNavigate("/inventory", "inventory.read")}
                 >
-                  <Folder size={20} />
-                  <span className="text-lg">Volver al módulo</span>
+                  <span className="text-xl">📊</span>
+                  <span className="text-lg">Inventario</span>
                 </button>
               )}
+              <button
+                type="button"
+                className="flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E] text-white/80"
+                onClick={() => handleNavigate("/dashboard")}
+              >
+                📈 <span className="text-lg">Dashboard</span>
+              </button>
             </>
+          ) : inProductsModule ? (
+            <>
+              {can("products.read") && (
+                <button
+                  type="button"
+                  className={itemClass(safePath.startsWith("/products"))}
+                  onClick={() => handleNavigate("/products", "products.read")}
+                >
+                  <span className="text-xl">📦</span>
+                  <span className="text-lg">Productos</span>
+                </button>
+              )}
+              {can("suppliers.read") && (
+                <button
+                  type="button"
+                  className={itemClass(safePath.startsWith("/suppliers"))}
+                  onClick={() => handleNavigate("/suppliers", "suppliers.read")}
+                >
+                  <span className="text-xl">🚚</span>
+                  <span className="text-lg">Proveedores</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E] text-white/80"
+                onClick={() => handleNavigate("/dashboard")}
+              >
+                📈 <span className="text-lg">Dashboard</span>
+              </button>
+            </>
+          ) : inInventoryModule ? (
+            <>
+              <button
+                type="button"
+                className={itemClass(safePath === "/inventory")}
+                onClick={() => handleNavigate("/inventory", "inventory.read")}
+              >
+                <span className="text-xl">📊</span>
+                <span className="text-lg">Existencias</span>
+              </button>
+              {can("transfers.read") && (
+                <button
+                  type="button"
+                  className="flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E] text-white/90"
+                  onClick={() => handleNavigate("/transfers", "transfers.read")}
+                >
+                  <span className="text-xl">↔️</span>
+                  <span className="text-lg">Traslados</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E] text-white/80"
+                onClick={() => handleNavigate("/dashboard")}
+              >
+                📈 <span className="text-lg">Dashboard</span>
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E]"
+              onClick={() => handleNavigate("/dashboard")}
+            >
+              📈 <span className="text-lg">Dashboard</span>
+            </button>
           )}
         </nav>
 
-        {/* IMAGEN DINÁMICA */}
         <div className="mt-auto p-4">
-          <img
-            src={
-              safePath.includes("/suppliers/create")
-                ? "/images/sidebar-proveedores-create.jpg"
-                : safePath.includes("/suppliers/edit")
-                ? "/images/sidebar-proveedores-edit.jpg"
-                : safePath.includes("/suppliers")
-                ? "/images/sidebar-proveedores.jpg"
-                : safePath.includes("/products/create")
-                ? "/images/sidebar-productos-create.jpg"
-                : safePath.includes("/products/edit")
-                ? "/images/sidebar-productos-edit.jpg"
-                : safePath.includes("/products")
-                ? "/images/sidebar-productos.jpg"
-                : safePath.includes("/users/create")
-                ? "/images/sidebar-users-create.jpg"
-                : safePath.includes("/users/edit")
-                ? "/images/sidebar-users-edit.jpg"
-                : safePath.includes("/users")
-                ? "/images/sidebar-users.jpg"
-                : safePath.includes("/dashboard")
-                ? "/images/sidebar-dashboard.jpg"
-                : "/images/sidebar-default.jpg"
-            }
-            alt="Gestión"
-            className="w-full h-60 object-cover shadow-md border border-white/10 rounded-lg"
-          />
+          {showNav ? (
+            <img
+              src={sidebarImageSrc(safePath)}
+              alt="Gestión"
+              className="w-full h-60 object-cover shadow-md border border-white/10 rounded-lg"
+            />
+          ) : (
+            <div
+              className="w-full h-60 rounded-lg border border-white/10 bg-white/5"
+              aria-hidden
+            />
+          )}
         </div>
       </aside>
     </>

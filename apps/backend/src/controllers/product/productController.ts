@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
-import { PrismaClient, Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
+import prisma from '../../lib/prisma';
 import { createProductSchema, updateProductSchema } from '../../schemas/productSchema';
-
-const prisma = new PrismaClient();
 
 export const listProducts = async (req: Request, res: Response) => {
   try {
@@ -43,7 +42,7 @@ export const createProduct = async (req: Request, res: Response) => {
   if (!validation.success) {
     return res.status(400).json({
       error: 'Datos inválidos',
-       details: validation.error.issues,
+      details: validation.error.issues,
     });
   }
 
@@ -80,12 +79,10 @@ export const createProduct = async (req: Request, res: Response) => {
         unitOfMeasure: data.unitOfMeasure,
         inputUnit: data.inputUnit,
         inputUnitQuantity: data.inputUnitQuantity,
-        expirationDate: data.expirationDate ?? null,
         minStock: data.minStock,
         maxStock: data.maxStock,
-        currentStock: data.currentStock,
-        unitCost: new Prisma.Decimal(data.unitCost),
         supplierId: data.supplierId,
+        active: data.active ?? true,
       },
       include: { supplier: true },
     });
@@ -97,9 +94,8 @@ export const createProduct = async (req: Request, res: Response) => {
     if (err.code === 'P2003') {
       return res.status(400).json({ error: 'Invalid supplierId' });
     }
-
     if (err.code === 'P2002') {
-      return res.status(400).json({ error: 'Código interno duplicado' });
+      return res.status(400).json({ error: 'Código interno ya existe' });
     }
 
     console.error('Error al crear producto:', error);
@@ -132,11 +128,8 @@ export const updateProduct = async (req: Request, res: Response) => {
   if (data.unitOfMeasure !== undefined) updateData.unitOfMeasure = data.unitOfMeasure;
   if (data.inputUnit !== undefined) updateData.inputUnit = data.inputUnit;
   if (data.inputUnitQuantity !== undefined) updateData.inputUnitQuantity = data.inputUnitQuantity;
-  if (data.expirationDate !== undefined) updateData.expirationDate = data.expirationDate;
   if (data.minStock !== undefined) updateData.minStock = data.minStock;
   if (data.maxStock !== undefined) updateData.maxStock = data.maxStock;
-  if (data.currentStock !== undefined) updateData.currentStock = data.currentStock;
-  if (data.unitCost !== undefined) updateData.unitCost = new Prisma.Decimal(data.unitCost);
   if (data.supplierId !== undefined) updateData.supplier = { connect: { id: data.supplierId } };
   if (data.active !== undefined) updateData.active = data.active;
 
@@ -157,6 +150,9 @@ export const updateProduct = async (req: Request, res: Response) => {
 
     if (err.code === 'P2003') {
       return res.status(400).json({ error: 'Invalid supplierId' });
+    }
+    if (err.code === 'P2002') {
+      return res.status(400).json({ error: 'Código interno ya existe' });
     }
 
     console.error('Error al actualizar producto:', error);

@@ -1,7 +1,6 @@
 import { apiFetch } from '@/utils/apiFetch';
 import type { Product } from '@/types/product';
 import { normalizeProductFromApi } from '@/lib/normalizeProduct';
-import type { ProductBaseUnit } from '@/lib/productUnitConversion';
 
 export type ProductWritePayload = {
   internalCode: string;
@@ -11,14 +10,11 @@ export type ProductWritePayload = {
   isSupply: boolean;
   isFinishedProduct: boolean;
   presentation: string;
-  unitOfMeasure: ProductBaseUnit;
+  unitOfMeasure: string;
   inputUnit: string;
   inputUnitQuantity: number;
-  expirationDate: string | null;
   minStock: number;
   maxStock: number;
-  currentStock: number;
-  unitCost: number;
   supplierId: number;
 };
 
@@ -36,10 +32,7 @@ export async function fetchProductById(id: number): Promise<Product> {
 export async function createProductRequest(payload: ProductWritePayload): Promise<Product> {
   const data = await apiFetch<unknown>('/products', {
     method: 'POST',
-    json: {
-      ...payload,
-      expirationDate: payload.expirationDate || null,
-    },
+    json: payload,
   });
   return normalizeProductFromApi(data);
 }
@@ -49,9 +42,6 @@ export async function updateProductRequest(
   payload: Partial<ProductWritePayload>
 ): Promise<Product> {
   const body: Record<string, unknown> = { ...payload };
-  if (payload.expirationDate !== undefined) {
-    body.expirationDate = payload.expirationDate || null;
-  }
   const data = await apiFetch<unknown>(`/products/${id}`, {
     method: 'PUT',
     json: body,

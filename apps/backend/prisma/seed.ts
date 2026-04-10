@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+
 
 
 const prisma = new PrismaClient();
@@ -43,7 +43,15 @@ async function main() {
 
     // INVENTARIO / LOGÍSTICA
     { name: 'inventory.read', description: 'Ver inventario' },
+    { name: 'inventory.create', description: 'Registrar compras, mermas y consumos' },
     { name: 'transfers.read', description: 'Ver traslados' },
+    { name: 'transfers.create', description: 'Registrar traslados entre bodegas' },
+    { name: 'transfers.update', description: 'Editar traslados' },
+    { name: 'transfers.delete', description: 'Eliminar traslados (revierte stock)' },
+    { name: 'warehouses.read', description: 'Ver bodegas' },
+    { name: 'warehouses.create', description: 'Crear bodegas' },
+    { name: 'warehouses.update', description: 'Editar bodegas' },
+    
 
     // PERFIL
     { name: 'profile.update', description: 'Cambiar contraseña' },
@@ -72,9 +80,16 @@ async function main() {
       // RECETAS
       'recipes.read', 'recipes.create', 'recipes.update',
 
-      // INVENTARIO
+      // INVENTARIO / BODEGAS
       'inventory.read',
+      'inventory.create',
       'transfers.read',
+      'transfers.create',
+      'transfers.update',
+      'transfers.delete',
+      'warehouses.read',
+      'warehouses.create',
+      'warehouses.update',
       // REPORTES
       'reports.read',
 
@@ -92,7 +107,14 @@ async function main() {
       'products.read', 'products.create', 'products.update', 'products.delete',
       'suppliers.read', 'suppliers.create', 'suppliers.update', 'suppliers.delete',
       'inventory.read',
+      'inventory.create',
       'transfers.read',
+      'transfers.create',
+      'transfers.update',
+      'transfers.delete',
+      'warehouses.read',
+      'warehouses.create',
+      'warehouses.update',
       'profile.update',
     ],
 
@@ -132,28 +154,37 @@ async function main() {
         });
       }
     }
-  }
-
-// 🔥 CREAR USUARIO SUPERUSUARIO
-const passwordHash = await bcrypt.hash("12345678", 10);
-
-// buscar rol "super"
-const superRole = await prisma.role.findUnique({
-  where: { name: "super" }
-});
-
-if (!superRole) {
-  throw new Error("❌ Rol 'super' no encontrado");
 }
 
-await prisma.user.upsert({
-  where: { email: "admin@gastro.com" },
-  update: {},
+await prisma.warehouse.updateMany({ data: { isMain: false } });
+
+await prisma.warehouse.upsert({
+  where: { name: 'Bodega Principal' },
+  update: {
+    description: 'Almacén general',
+    active: true,
+    isMain: true,
+  },
   create: {
-    email: "admin@gastro.com",
-    passwordHash,
-    fullName: "Super Admin",
-    roleId: superRole.id,
+    name: 'Bodega Principal',
+    description: 'Almacén general',
+    active: true,
+    isMain: true,
+  },
+});
+
+await prisma.warehouse.upsert({
+  where: { name: 'Cocina' },
+  update: {
+    description: 'Insumos en cocina',
+    active: true,
+    isMain: false,
+  },
+  create: {
+    name: 'Cocina',
+    description: 'Insumos en cocina',
+    active: true,
+    isMain: false,
   },
 });
   console.log('Seed completado correctamente 🚀');

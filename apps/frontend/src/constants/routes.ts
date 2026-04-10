@@ -19,4 +19,17 @@ export const ROUTES = {
     edit: (id: string | number) =>
       `/suppliers/edit?id=${encodeURIComponent(String(id))}`,
   },
+  inventory: {
+    list: '/inventory',
+  },
+  transfers: {
+    list: '/transfers',
+    create: '/transfers/create',
+    edit: (id: string | number) =>
+      `/transfers/edit?id=${encodeURIComponent(String(id))}`,
+    warehouses: '/transfers/warehouses',
+    warehousesCreate: '/transfers/warehouses/create',
+    warehouseEdit: (id: string | number) =>
+      `/transfers/warehouses/edit?id=${encodeURIComponent(String(id))}`,
+  },
 } as const;

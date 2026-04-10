@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { MovementType, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -152,8 +152,11 @@ export const createRecipe = async (req: Request, res: Response) => {
         throw new Error(`Producto inválido: ${item.productId}`);
       }
 
-      const unitCost = Number(product.unitCost);
-      const totalCost = unitCost * item.quantity;
+      const unitCost = Number(item.unitCost ?? 0);
+      const totalCost =
+        item.totalCost != null
+          ? Number(item.totalCost)
+          : unitCost * Number(item.quantity);
 
       return {
         productId: item.productId,
@@ -174,12 +177,15 @@ export const createRecipe = async (req: Request, res: Response) => {
           create: recipeItems
         },
         processes: {
-          create: (processes || []).map((p: any) => ({
+          create: (processes || []).map((p: any, index: number) => ({
             name: p.name,
+            processType: p.processType || 'standard',
             duration: Number(p.duration),
-            operators: Number(p.operators)
+            operators: Number(p.operators),
+            stepDescription: p.stepDescription ?? null,
+            stepOrder: p.order != null ? Number(p.order) : index + 1,
           }))
-        }
+        },
       },
       include: {
         items: true,
@@ -225,7 +231,7 @@ export const updateRecipe = async (req: Request, res: Response) => {
             operators: Number(p.operators),
             stepDescription: p.stepDescription,
             processType: p.processType || 'standard',
-            order: p.order ?? index + 1
+            stepOrder: p.order != null ? Number(p.order) : index + 1,
           }
         });
       }
@@ -246,13 +252,39 @@ export const updateRecipe = async (req: Request, res: Response) => {
 
       const productMap = new Map(products.map(p => [p.id, p]));
 
+      const purchaseMovements = await prisma.inventoryMovement.findMany({
+        where: {
+          productId: { in: productIds },
+          type: MovementType.PURCHASE,
+          unitCost: { not: null },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const latestPurchaseUnitCost = new Map<number, number>();
+      for (const m of purchaseMovements) {
+        if (!latestPurchaseUnitCost.has(m.productId)) {
+          latestPurchaseUnitCost.set(m.productId, Number(m.unitCost));
+        }
+      }
+
       for (const item of items) {
 
         if (!item.productId) continue;
 
         const product = productMap.get(Number(item.productId));
 
-        const unitCost = Number(product?.unitCost || 0);
+        const hasExplicitUnitCost =
+          item.unitCost !== undefined &&
+          item.unitCost !== null &&
+          item.unitCost !== '';
+        const unitCost = hasExplicitUnitCost
+          ? Number(item.unitCost)
+          : Number(
+              (product != null
+                ? latestPurchaseUnitCost.get(product.id)
+                : undefined) ?? 0
+            );
         const quantity = Number(item.quantity || 0);
         const totalCost = unitCost * quantity;
 
