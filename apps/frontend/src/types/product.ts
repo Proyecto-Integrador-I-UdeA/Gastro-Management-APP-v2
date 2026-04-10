@@ -8,7 +8,7 @@ export type ProductSupplier = Supplier;
 
 export interface Product {
   id: number;
-  internalCode: string;
+  internalCode?: string;
   name: string;
   category: string;
   isIngredient: boolean;
