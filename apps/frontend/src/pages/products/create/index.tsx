@@ -27,7 +27,6 @@ export default function ProductCreatePage() {
   const [supplierError, setSupplierError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const [internalCode, setInternalCode] = useState('');
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [presentation, setPresentation] = useState('');
@@ -82,7 +81,6 @@ export default function ProductCreatePage() {
 
   const handleSave = async () => {
     if (
-     // !internalCode ||
       !name ||
       !category ||
       !presentation ||
@@ -110,7 +108,6 @@ export default function ProductCreatePage() {
 
     try {
       await createProductRequest({
-        internalCode,
         name,
         category,
         isIngredient,
@@ -140,12 +137,18 @@ export default function ProductCreatePage() {
 
   return (
     <DashboardLayout>
-      <h1 className="text-2xl font-bold text-[#001F3F] mb-6">Nuevo producto</h1>
+      <h1 className="text-2xl font-bold text-[#001F3F] mb-6">
+        Nuevo producto
+      </h1>
 
-      {loadingSuppliers && <div className="text-center py-10">Cargando proveedores...</div>}
+      {loadingSuppliers && (
+        <div className="text-center py-10">Cargando proveedores...</div>
+      )}
 
       {supplierError && (
-        <div className="bg-red-100 text-red-700 p-4 rounded mb-4">{supplierError}</div>
+        <div className="bg-red-100 text-red-700 p-4 rounded mb-4">
+          {supplierError}
+        </div>
       )}
 
       {!loadingSuppliers && suppliers.length === 0 && (
@@ -164,16 +167,25 @@ export default function ProductCreatePage() {
       {!loadingSuppliers && suppliers.length > 0 && (
         <div className="bg-white p-6 rounded-xl shadow-md max-w-4xl">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-<<<<<<< HEAD
 
-          {/*  <Input label="Código interno" value={internalCode} onChange={(e) => setInternalCode(e.target.value)} />*/}
-=======
-            <Input label="Código interno" value={internalCode} onChange={(e) => setInternalCode(e.target.value)} />
->>>>>>> 61b2c1b00457346cdb3c78fc47c62c36d1ed0c92
-            <Input label="Nombre" value={name} onChange={(e) => setName(e.target.value)} className="md:col-span-2" />
+            <Input
+              label="Nombre"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="md:col-span-2"
+            />
 
-            <Input label="Categoría" value={category} onChange={(e) => setCategory(e.target.value)} />
-            <Input label="Presentación" value={presentation} onChange={(e) => setPresentation(e.target.value)} />
+            <Input
+              label="Categoría"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            />
+
+            <Input
+              label="Presentación"
+              value={presentation}
+              onChange={(e) => setPresentation(e.target.value)}
+            />
 
             <ProductUnitFields
               baseUnit={baseUnit}
@@ -184,8 +196,19 @@ export default function ProductCreatePage() {
               onInputUnitQuantityChange={setInputUnitQuantity}
             />
 
-            <Input label="Stock mínimo" type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} />
-            <Input label="Stock máximo" type="number" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} />
+            <Input
+              label="Stock mínimo"
+              type="number"
+              value={minStock}
+              onChange={(e) => setMinStock(e.target.value)}
+            />
+
+            <Input
+              label="Stock máximo"
+              type="number"
+              value={maxStock}
+              onChange={(e) => setMaxStock(e.target.value)}
+            />
 
             <div className="md:col-span-2">
               <label className="block text-sm mb-1">Proveedor</label>
@@ -206,20 +229,36 @@ export default function ProductCreatePage() {
 
           <div className="mt-4 flex gap-4 flex-wrap">
             <label>
-              <input type="checkbox" checked={isIngredient} onChange={(e) => setIsIngredient(e.target.checked)} />{' '}
+              <input
+                type="checkbox"
+                checked={isIngredient}
+                onChange={(e) => setIsIngredient(e.target.checked)}
+              />{' '}
               Ingrediente
             </label>
             <label>
-              <input type="checkbox" checked={isSupply} onChange={(e) => setIsSupply(e.target.checked)} /> Insumo
+              <input
+                type="checkbox"
+                checked={isSupply}
+                onChange={(e) => setIsSupply(e.target.checked)}
+              />{' '}
+              Insumo
             </label>
             <label>
-              <input type="checkbox" checked={isFinishedProduct} onChange={(e) => setIsFinishedProduct(e.target.checked)} />{' '}
+              <input
+                type="checkbox"
+                checked={isFinishedProduct}
+                onChange={(e) => setIsFinishedProduct(e.target.checked)}
+              />{' '}
               Producto terminado
             </label>
           </div>
 
           <div className="flex justify-end gap-4 mt-6">
-            <Button variant="secondary" onClick={() => router.push(ROUTES.products.list)}>
+            <Button
+              variant="secondary"
+              onClick={() => router.push(ROUTES.products.list)}
+            >
               Cancelar
             </Button>
             <Button onClick={handleSave} disabled={submitting}>
