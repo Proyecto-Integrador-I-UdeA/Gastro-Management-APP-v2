@@ -1,9 +1,10 @@
 // src/utils/api.ts
 import axios from 'axios';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
-// 🔥 usamos variable de entorno
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+if (!API_BASE_URL) {
+  throw new Error('❌ NEXT_PUBLIC_API_URL no está definida');
+}
 
 const api = axios.create({
   baseURL: API_BASE_URL,
