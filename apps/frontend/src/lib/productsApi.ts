@@ -3,7 +3,7 @@ import type { Product } from '@/types/product';
 import { normalizeProductFromApi } from '@/lib/normalizeProduct';
 
 export type ProductWritePayload = {
-  internalCode: string;
+  internalCode?: string;
   name: string;
   category: string;
   isIngredient: boolean;
