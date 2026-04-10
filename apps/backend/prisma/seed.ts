@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+
 
 const prisma = new PrismaClient();
 
@@ -132,6 +134,28 @@ async function main() {
     }
   }
 
+// 🔥 CREAR USUARIO SUPERUSUARIO
+const passwordHash = await bcrypt.hash("12345678", 10);
+
+// buscar rol "super"
+const superRole = await prisma.role.findUnique({
+  where: { name: "super" }
+});
+
+if (!superRole) {
+  throw new Error("❌ Rol 'super' no encontrado");
+}
+
+await prisma.user.upsert({
+  where: { email: "admin@gastro.com" },
+  update: {},
+  create: {
+    email: "admin@gastro.com",
+    passwordHash,
+    fullName: "Super Admin",
+    roleId: superRole.id,
+  },
+});
   console.log('Seed completado correctamente 🚀');
 }
 
