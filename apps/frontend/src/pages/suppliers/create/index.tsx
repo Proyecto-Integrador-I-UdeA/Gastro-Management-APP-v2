@@ -19,7 +19,6 @@ export default function SupplierCreatePage() {
 
 
   const [submitting, setSubmitting] = useState(false);
-  const [internalCode, setInternalCode] = useState('');
   const [name, setName] = useState('');
   const [taxId, setTaxId] = useState('');
   const [phone, setPhone] = useState('');
@@ -28,7 +27,7 @@ export default function SupplierCreatePage() {
 
 
   const handleSave = async () => {
-    if (!internalCode || !name || !taxId || !phone || !address) {
+    if ( !name || !taxId || !phone || !address) {
       showError('Completa código interno, nombre, NIT/RUT, teléfono y dirección.');
       return;
     }
@@ -39,12 +38,12 @@ export default function SupplierCreatePage() {
 
     try {
       await createSupplierRequest({
-        internalCode,
         name,
         taxId,
         phone,
         address,
         contactPerson: contactPerson.trim(),
+        internalCode: ''
       });
 
 
