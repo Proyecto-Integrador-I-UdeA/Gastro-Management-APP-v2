@@ -2,14 +2,14 @@ import { Request, Response } from 'express';
 import prisma from '../../lib/prisma';
 import { createWarehouseSchema, updateWarehouseSchema } from '../../schemas/warehouseSchema';
 
-export const listWarehouses = async (req: Request, res: Response) => {
+export const listWarehouse = async (req: Request, res: Response) => {
   try {
     const activeOnly = req.query.active === 'true';
-    const warehouses = await prisma.warehouse.findMany({
+    const warehouse = await prisma.warehouse.findMany({
       where: activeOnly ? { active: true } : undefined,
       orderBy: { name: 'asc' },
     });
-    res.json(warehouses);
+    res.json(warehouse);
   } catch (error) {
     console.error('Error al listar bodegas:', error);
     res.status(500).json({ error: 'Error interno al listar bodegas' });

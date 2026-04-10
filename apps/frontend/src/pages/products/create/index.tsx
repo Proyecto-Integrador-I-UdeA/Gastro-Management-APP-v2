@@ -17,6 +17,7 @@ import {
   type ProductInputUnit,
   coerceInputUnitForBase,
 } from '@/lib/productUnits';
+import { showError } from '@/utils/toast';
 
 export default function ProductCreatePage() {
   useAuthGuard('products.create');
@@ -129,7 +130,7 @@ export default function ProductCreatePage() {
         return;
       }
 
-      alert(getApiErrorMessage(e, 'No se pudo crear el producto'));
+      showError(getApiErrorMessage(e, 'No se pudo crear el producto'));
     } finally {
       setSubmitting(false);
     }

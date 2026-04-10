@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
-import type { Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma';
 import { createProductSchema, updateProductSchema } from '../../schemas/productSchema';
+import { Prisma } from '@prisma/client';
+
 
 export const listProducts = async (req: Request, res: Response) => {
   try {
@@ -16,6 +17,7 @@ export const listProducts = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Error interno al listar productos' });
   }
 };
+
 
 export const getProductById = async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
@@ -36,6 +38,7 @@ export const getProductById = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Error interno' });
   }
 };
+
 
 export const createProduct = async (req: Request, res: Response) => {
   const validation = createProductSchema.safeParse(req.body);
@@ -82,6 +85,8 @@ export const createProduct = async (req: Request, res: Response) => {
         minStock: data.minStock,
         maxStock: data.maxStock,
         supplierId: data.supplierId,
+        currentStock: 0,
+        unitCost: 0,
         active: data.active ?? true,
       },
       include: { supplier: true },
@@ -89,19 +94,20 @@ export const createProduct = async (req: Request, res: Response) => {
 
     res.status(201).json(product);
   } catch (error: unknown) {
-    const err = error as { code?: string };
-
-    if (err.code === 'P2003') {
-      return res.status(400).json({ error: 'Invalid supplierId' });
-    }
-    if (err.code === 'P2002') {
-      return res.status(400).json({ error: 'Código interno ya existe' });
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2003') {
+        return res.status(400).json({ error: 'Invalid supplierId' });
+      }
+      if (error.code === 'P2002') {
+        return res.status(400).json({ error: 'Código interno ya existe' });
+      }
     }
 
     console.error('Error al crear producto:', error);
     res.status(500).json({ error: 'Error interno al crear producto' });
   }
 };
+
 
 export const updateProduct = async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
@@ -118,14 +124,17 @@ export const updateProduct = async (req: Request, res: Response) => {
   }
 
   const data = validation.data;
-  const updateData: Prisma.ProductUpdateInput = {};
+  const updateData = {} as Prisma.ProductUpdateInput;
+
   if (data.name !== undefined) updateData.name = data.name;
   if (data.category !== undefined) updateData.category = data.category;
   if (data.isIngredient !== undefined) updateData.isIngredient = data.isIngredient;
   if (data.isSupply !== undefined) updateData.isSupply = data.isSupply;
   if (data.isFinishedProduct !== undefined) updateData.isFinishedProduct = data.isFinishedProduct;
   if (data.presentation !== undefined) updateData.presentation = data.presentation;
-  if (data.unitOfMeasure !== undefined) updateData.unitOfMeasure = data.unitOfMeasure;
+  if (data.unitOfMeasure !== undefined) {
+    updateData.unitOfMeasure = data.unitOfMeasure;
+  }
   if (data.inputUnit !== undefined) updateData.inputUnit = data.inputUnit;
   if (data.inputUnitQuantity !== undefined) updateData.inputUnitQuantity = data.inputUnitQuantity;
   if (data.minStock !== undefined) updateData.minStock = data.minStock;
@@ -142,23 +151,24 @@ export const updateProduct = async (req: Request, res: Response) => {
 
     res.json(product);
   } catch (error: unknown) {
-    const err = error as { code?: string };
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2025') {
+        return res.status(404).json({ error: 'Product not found' });
+      }
 
-    if (err.code === 'P2025') {
-      return res.status(404).json({ error: 'Product not found' });
-    }
-
-    if (err.code === 'P2003') {
-      return res.status(400).json({ error: 'Invalid supplierId' });
-    }
-    if (err.code === 'P2002') {
-      return res.status(400).json({ error: 'Código interno ya existe' });
+      if (error.code === 'P2003') {
+        return res.status(400).json({ error: 'Invalid supplierId' });
+      }
+      if (error.code === 'P2002') {
+        return res.status(400).json({ error: 'Código interno ya existe' });
+      }
     }
 
     console.error('Error al actualizar producto:', error);
     res.status(500).json({ error: 'Error interno al actualizar producto' });
   }
 };
+
 
 export const deleteProduct = async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
@@ -170,10 +180,10 @@ export const deleteProduct = async (req: Request, res: Response) => {
     await prisma.product.delete({ where: { id } });
     res.status(204).send();
   } catch (error: unknown) {
-    const err = error as { code?: string };
-
-    if (err.code === 'P2025') {
-      return res.status(404).json({ error: 'Product not found' });
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2025') {
+        return res.status(404).json({ error: 'Product not found' });
+      }
     }
 
     console.error('Error al eliminar producto:', error);

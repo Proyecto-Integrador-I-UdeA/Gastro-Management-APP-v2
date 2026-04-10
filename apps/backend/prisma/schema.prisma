@@ -14,6 +14,13 @@ enum MovementType {
   WASTE
   CONSUMPTION
 }
+enum ProductBaseUnit {
+  g
+  kg
+  ml
+  l
+  unit
+}
 
 model Supplier {
   id              Int       @id @default(autoincrement())
@@ -53,7 +60,8 @@ model Product {
   inventories       Inventory[]
   movements         InventoryMovement[]
   recipeItems       RecipeItem[]
-
+  currentStock Float @default(0)
+  unitCost Float @default(0)
   @@map("products")
 }
 
@@ -239,3 +247,9 @@ model OtherCosts {
 
   @@map("other_costs")
 }
+
+
+
+
+
+

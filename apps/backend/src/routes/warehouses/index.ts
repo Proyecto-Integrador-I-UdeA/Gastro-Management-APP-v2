@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate, authorize, authorizeAny } from '../../middlewares/auth';
 import {
-  listWarehouses,
+  listWarehouse,
   getWarehouseById,
   createWarehouse,
   updateWarehouse,
@@ -13,22 +13,22 @@ const router = Router();
 router.get(
   '/',
   authenticate,
-  authorizeAny(['warehouses.read', 'transfers.read']),
-  listWarehouses
+  authorizeAny(['warehouse.read', 'transfers.read']),
+  listWarehouse
 );
 router.get(
   '/:id',
   authenticate,
-  authorizeAny(['warehouses.read', 'transfers.read']),
+  authorizeAny(['warehouse.read', 'transfers.read']),
   getWarehouseById
 );
 // Alta: quien gestiona bodegas o quien registra traslados puede crear ubicaciones al vuelo.
 router.post(
   '/',
   authenticate,
-  authorizeAny(['warehouses.create', 'transfers.create']),
+  authorizeAny(['warehouse.create', 'transfers.create']),
   createWarehouse
 );
-router.put('/:id', authenticate, authorize(['warehouses.update']), updateWarehouse);
+router.put('/:id', authenticate, authorize(['warehouse.update']), updateWarehouse);
 
 export default router;
