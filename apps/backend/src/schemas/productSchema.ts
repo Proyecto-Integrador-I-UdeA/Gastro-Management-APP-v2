@@ -13,7 +13,7 @@ export const createProductSchema = z.object({
   minStock: z.number().min(0),
   maxStock: z.number().min(0),
   supplierId: z.number().int().positive(),
-  unitCost: z.number().min(0),
+  unitCost: z.number().min(0).optional().default(0),
   active: z.boolean().optional().default(true),
 });
 

@@ -56,8 +56,8 @@ model Product {
   supplierId        Int
   supplier          Supplier            @relation(fields: [supplierId], references: [id])
   recipeItems       RecipeItem[]
-  currentStock Float @default(0)
   unitCost Float @default(0)
+
   @@map("products")
 }
 

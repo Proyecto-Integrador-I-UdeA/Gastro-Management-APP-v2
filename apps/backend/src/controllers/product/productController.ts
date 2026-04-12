@@ -83,7 +83,6 @@ export const createProduct = async (req: Request, res: Response) => {
         minStock: data.minStock,
         maxStock: data.maxStock,
         supplierId: data.supplierId,
-        currentStock: 0,
         unitCost: data.unitCost ?? 0,
         active: data.active ?? true,
       },
@@ -115,7 +114,7 @@ const buildUpdateData = (data: any): any => {
   if (data.isSupply !== undefined) updateData.isSupply = data.isSupply;
   if (data.isFinishedProduct !== undefined) updateData.isFinishedProduct = data.isFinishedProduct;
   if (data.presentation !== undefined) updateData.presentation = data.presentation;
-  if (data.unitCost !== undefined) { updateData.unitCost = Number(data.unitCost);} 
+  if (data.unitCost !== undefined) updateData.unitCost = Number(data.unitCost);
   if (data.unitOfMeasure !== undefined) updateData.unitOfMeasure = data.unitOfMeasure;
   if (data.inputUnit !== undefined) updateData.inputUnit = data.inputUnit;
   if (data.inputUnitQuantity !== undefined) updateData.inputUnitQuantity = data.inputUnitQuantity;
