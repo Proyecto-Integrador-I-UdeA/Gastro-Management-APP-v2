@@ -78,7 +78,7 @@ async function main() {
       'suppliers.read', 'suppliers.create', 'suppliers.update', 'suppliers.delete',
 
       // RECETAS
-      'recipes.read', 'recipes.create', 'recipes.update',
+      'recipes.read',
 
       // INVENTARIO / BODEGAS
       'inventory.read',

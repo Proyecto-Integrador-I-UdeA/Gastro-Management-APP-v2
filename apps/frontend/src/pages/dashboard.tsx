@@ -169,10 +169,10 @@ export default function Dashboard() {
 
               {/* CONTABILIDAD */}
               {(() => {
-                const allowed = can("recipes.read");
+                const allowed = can("accounting.read");
                 return (
                   <div
-                    onClick={() => allowed && handleNavigate("/menu")}
+                    onClick={() => allowed && handleNavigate("/accounting")}
                     className={`${baseCard} ${allowed ? activeCard : disabledCard}`}
                   >
                     <h2>CONTABILIDAD</h2>
