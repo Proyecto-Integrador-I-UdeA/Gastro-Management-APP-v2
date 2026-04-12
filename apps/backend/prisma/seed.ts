@@ -33,9 +33,12 @@ async function main() {
     { name: 'recipes.create', description: 'Crear recetas' },
     { name: 'recipes.update', description: 'Editar recetas' },
 
-    // COSTOS / CONTABLE
+    // COSTOS 
     { name: 'costs.read', description: 'Ver costos' },
     { name: 'costs.update', description: 'Editar costos' },
+    // CONTABILIDAD
+{ name: 'accounting.read', description: 'Ver contabilidad' },
+{ name: 'accounting.update', description: 'Editar contabilidad' },
 
     // VENTAS / REPORTES
     { name: 'sales.read', description: 'Ver ventas' },
