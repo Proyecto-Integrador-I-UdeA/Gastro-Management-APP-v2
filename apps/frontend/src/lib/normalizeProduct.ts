@@ -11,6 +11,7 @@ export function normalizeProductFromApi(raw: unknown): Product {
   if (!r) {
     throw new Error('Invalid product payload');
   }
+
   const exp = r.expirationDate;
   let expirationDate: string | null = null;
   if (exp != null && exp !== '') {
@@ -20,6 +21,12 @@ export function normalizeProductFromApi(raw: unknown): Product {
   const rawInputUnit = r.inputUnit;
   const inputUnit = isProductInputUnit(rawInputUnit) ? rawInputUnit : 'g';
   const inputUnitQuantity = Number(r.inputUnitQuantity ?? 1);
+
+  // 🔥 FIX CLAVE
+  const unitCost =
+    r.unitCost !== undefined && r.unitCost !== null
+      ? Number(r.unitCost)
+      : 0;
 
   return {
     id: Number(r.id),
@@ -32,13 +39,20 @@ export function normalizeProductFromApi(raw: unknown): Product {
     presentation: String(r.presentation ?? ''),
     unitOfMeasure: String(r.unitOfMeasure ?? ''),
     inputUnit,
-    inputUnitQuantity: Number.isFinite(inputUnitQuantity) && inputUnitQuantity > 0 ? inputUnitQuantity : 1,
+    inputUnitQuantity:
+      Number.isFinite(inputUnitQuantity) && inputUnitQuantity > 0
+        ? inputUnitQuantity
+        : 1,
     expirationDate,
     minStock: Number(r.minStock ?? 0),
     maxStock: Number(r.maxStock ?? 0),
     currentStock: Number(r.currentStock ?? 0),
     supplierId: Number(r.supplierId ?? 0),
     active: r.active === undefined ? true : Boolean(r.active),
+
+    // 🔥 ESTE ERA EL FALTANTE
+    unitCost,
+
     supplier: normalizeSupplierFromApi(r.supplier),
   };
 }

@@ -3,7 +3,6 @@ import prisma from '../../lib/prisma';
 import { createProductSchema, updateProductSchema } from '../../schemas/productSchema';
 import { Prisma } from '@prisma/client';
 
-
 export const listProducts = async (req: Request, res: Response) => {
   try {
     const includeSupplier = req.query.include === 'supplier';
@@ -18,7 +17,6 @@ export const listProducts = async (req: Request, res: Response) => {
   }
 };
 
-
 export const getProductById = async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
   if (Number.isNaN(id)) {
@@ -29,6 +27,7 @@ export const getProductById = async (req: Request, res: Response) => {
       where: { id },
       include: { supplier: true },
     });
+    console.log("📦 PRODUCTO DESDE DB:", product);
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
     }
@@ -38,8 +37,7 @@ export const getProductById = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Error interno' });
   }
 };
-
-
+console.log("ANTES DEL REQUEST");
 export const createProduct = async (req: Request, res: Response) => {
   const validation = createProductSchema.safeParse(req.body);
   if (!validation.success) {
@@ -52,7 +50,6 @@ export const createProduct = async (req: Request, res: Response) => {
   const data = validation.data;
 
   try {
-    // 🔥 GENERAR CÓDIGO AUTOMÁTICO
     const lastProduct = await prisma.product.findFirst({
       orderBy: { id: 'desc' },
     });
@@ -66,6 +63,7 @@ export const createProduct = async (req: Request, res: Response) => {
       if (!isNaN(lastNumber)) {
         nextNumber = lastNumber + 1;
       }
+     console.log("DESPUÉS DEL REQUEST"); 
     }
 
     const newCode = `P-${String(nextNumber).padStart(3, '0')}`;
@@ -86,7 +84,7 @@ export const createProduct = async (req: Request, res: Response) => {
         maxStock: data.maxStock,
         supplierId: data.supplierId,
         currentStock: 0,
-        unitCost: 0,
+        unitCost: data.unitCost ?? 0,
         active: data.active ?? true,
       },
       include: { supplier: true },
@@ -108,8 +106,29 @@ export const createProduct = async (req: Request, res: Response) => {
   }
 };
 
+const buildUpdateData = (data: any): any => {
+  const updateData: any = {};
+
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.category !== undefined) updateData.category = data.category;
+  if (data.isIngredient !== undefined) updateData.isIngredient = data.isIngredient;
+  if (data.isSupply !== undefined) updateData.isSupply = data.isSupply;
+  if (data.isFinishedProduct !== undefined) updateData.isFinishedProduct = data.isFinishedProduct;
+  if (data.presentation !== undefined) updateData.presentation = data.presentation;
+  if (data.unitCost !== undefined) { updateData.unitCost = Number(data.unitCost);} 
+  if (data.unitOfMeasure !== undefined) updateData.unitOfMeasure = data.unitOfMeasure;
+  if (data.inputUnit !== undefined) updateData.inputUnit = data.inputUnit;
+  if (data.inputUnitQuantity !== undefined) updateData.inputUnitQuantity = data.inputUnitQuantity;
+  if (data.minStock !== undefined) updateData.minStock = data.minStock;
+  if (data.maxStock !== undefined) updateData.maxStock = data.maxStock;
+  if (data.supplierId !== undefined) updateData.supplier = { connect: { id: data.supplierId } };
+  if (data.active !== undefined) updateData.active = data.active;
+
+  return updateData;
+};
 
 export const updateProduct = async (req: Request, res: Response) => {
+  console.log("📥 BODY BACKEND:", req.body);
   const id = parseInt(req.params.id, 10);
   if (Number.isNaN(id)) {
     return res.status(400).json({ error: 'Invalid id' });
@@ -124,23 +143,7 @@ export const updateProduct = async (req: Request, res: Response) => {
   }
 
   const data = validation.data;
-  const updateData = {} as Prisma.ProductUpdateInput;
-
-  if (data.name !== undefined) updateData.name = data.name;
-  if (data.category !== undefined) updateData.category = data.category;
-  if (data.isIngredient !== undefined) updateData.isIngredient = data.isIngredient;
-  if (data.isSupply !== undefined) updateData.isSupply = data.isSupply;
-  if (data.isFinishedProduct !== undefined) updateData.isFinishedProduct = data.isFinishedProduct;
-  if (data.presentation !== undefined) updateData.presentation = data.presentation;
-  if (data.unitOfMeasure !== undefined) {
-    updateData.unitOfMeasure = data.unitOfMeasure;
-  }
-  if (data.inputUnit !== undefined) updateData.inputUnit = data.inputUnit;
-  if (data.inputUnitQuantity !== undefined) updateData.inputUnitQuantity = data.inputUnitQuantity;
-  if (data.minStock !== undefined) updateData.minStock = data.minStock;
-  if (data.maxStock !== undefined) updateData.maxStock = data.maxStock;
-  if (data.supplierId !== undefined) updateData.supplier = { connect: { id: data.supplierId } };
-  if (data.active !== undefined) updateData.active = data.active;
+  const updateData = buildUpdateData(data);
 
   try {
     const product = await prisma.product.update({
@@ -168,7 +171,6 @@ export const updateProduct = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Error interno al actualizar producto' });
   }
 };
-
 
 export const deleteProduct = async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);

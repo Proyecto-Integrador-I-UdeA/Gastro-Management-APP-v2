@@ -40,6 +40,7 @@ export default function ProductCreatePage() {
   const [minStock, setMinStock] = useState('');
   const [maxStock, setMaxStock] = useState('');
   const [supplierId, setSupplierId] = useState('');
+  const [unitCost, setUnitCost] = useState(0);
 
   useEffect(() => {
     setInputUnit((prev) => coerceInputUnitForBase(baseUnit, prev));
@@ -121,6 +122,7 @@ export default function ProductCreatePage() {
         minStock: parseFloat(minStock),
         maxStock: parseFloat(maxStock),
         supplierId: sid,
+        unitCost,
       });
 
       router.push(ROUTES.products.list);
@@ -210,6 +212,15 @@ export default function ProductCreatePage() {
               value={maxStock}
               onChange={(e) => setMaxStock(e.target.value)}
             />
+            <div>
+            <label>Costo por unidad</label>
+            <input
+            type="number"
+            value={unitCost}
+            onChange={(e) => setUnitCost(Number(e.target.value))}
+            placeholder="Ej: 500"
+            />
+           </div>
 
             <div className="md:col-span-2">
               <label className="block text-sm mb-1">Proveedor</label>

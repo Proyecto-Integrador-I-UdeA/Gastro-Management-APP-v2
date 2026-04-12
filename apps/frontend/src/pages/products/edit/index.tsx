@@ -25,8 +25,6 @@ export default function ProductEditPage() {
   const router = useRouter();
   const { id } = router.query;
 
-  const productId = id ? parseInt(id as string, 10) : NaN;
-
   const [suppliers, setSuppliers] = useState<ProductSupplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +43,7 @@ export default function ProductEditPage() {
   const [minStock, setMinStock] = useState('');
   const [maxStock, setMaxStock] = useState('');
   const [supplierId, setSupplierId] = useState('');
+  const [unitCost, setUnitCost] = useState(0);
 
   useEffect(() => {
     setInputUnit((prev) => coerceInputUnitForBase(baseUnit, prev));
@@ -53,7 +52,15 @@ export default function ProductEditPage() {
   useEffect(() => {
     if (!router.isReady) return;
 
-    if (!Number.isFinite(productId) || productId < 1) {
+    if (!id || typeof id !== 'string') {
+      setLoading(false);
+      setError('ID de producto no válido');
+      return;
+    }
+
+    const productId = parseInt(id, 10);
+
+    if (isNaN(productId)) {
       setLoading(false);
       setError('ID de producto no válido');
       return;
@@ -78,14 +85,16 @@ export default function ProductEditPage() {
         setIsIngredient(product.isIngredient);
         setIsSupply(product.isSupply);
         setIsFinishedProduct(product.isFinishedProduct);
+        setUnitCost(product.unitCost || 0);
 
         const base = parseBaseUnitFromStored(product.unitOfMeasure || 'g');
         setBaseUnit(base);
+
         const rawIu = product.inputUnit;
         const iu = isProductInputUnit(rawIu) ? rawIu : 'g';
         setInputUnit(coerceInputUnitForBase(base, iu));
-        setInputUnitQuantity(String(product.inputUnitQuantity ?? 1));
 
+        setInputUnitQuantity(String(product.inputUnitQuantity ?? 1));
         setMinStock(String(product.minStock ?? 0));
         setMaxStock(String(product.maxStock ?? 0));
         setSupplierId(String(product.supplierId));
@@ -102,9 +111,25 @@ export default function ProductEditPage() {
     };
 
     void loadData();
-  }, [productId, router.isReady, router]);
+  }, [id, router.isReady, router]);
 
-  const handleUpdate = async () => {
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!id || typeof id !== 'string') {
+      console.error("❌ ID no disponible:", id);
+      return;
+    }
+
+    const productId = parseInt(id, 10);
+
+    if (isNaN(productId)) {
+      console.error("❌ ID inválido:", productId);
+      return;
+    }
+
+    console.log("PAYLOAD:", { unitCost });
+
     const sid = Number(supplierId);
 
     if (!Number.isFinite(sid)) {
@@ -135,6 +160,7 @@ export default function ProductEditPage() {
         minStock: parseFloat(minStock),
         maxStock: parseFloat(maxStock),
         supplierId: sid,
+        unitCost,
       });
 
       router.push(ROUTES.products.list);
@@ -159,12 +185,10 @@ export default function ProductEditPage() {
       {error && <div className="bg-red-100 text-red-700 p-4 rounded mb-4">{error}</div>}
 
       {!loading && !error && (
-        <div className="bg-white p-6 rounded-xl shadow-md max-w-4xl">
+        <form onSubmit={handleUpdate} className="bg-white p-6 rounded-xl shadow-md max-w-4xl">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input label="Código interno" value={internalCode} disabled />
-
             <Input label="Nombre" value={name} onChange={(e) => setName(e.target.value)} className="md:col-span-2" />
-
             <Input label="Categoría" value={category} onChange={(e) => setCategory(e.target.value)} />
             <Input label="Presentación" value={presentation} onChange={(e) => setPresentation(e.target.value)} />
 
@@ -179,6 +203,13 @@ export default function ProductEditPage() {
 
             <Input label="Stock mínimo" type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} />
             <Input label="Stock máximo" type="number" value={maxStock} onChange={(e) => setMaxStock(e.target.value)} />
+
+            <Input
+              label="Costo por unidad"
+              type="number"
+              value={unitCost}
+              onChange={(e) => setUnitCost(Number(e.target.value))}
+            />
 
             <div className="md:col-span-2">
               <label className="block text-sm mb-1">Proveedor</label>
@@ -198,15 +229,13 @@ export default function ProductEditPage() {
 
           <div className="mt-4 flex gap-4 flex-wrap">
             <label>
-              <input type="checkbox" checked={isIngredient} onChange={(e) => setIsIngredient(e.target.checked)} />{' '}
-              Ingrediente
+              <input type="checkbox" checked={isIngredient} onChange={(e) => setIsIngredient(e.target.checked)} /> Ingrediente
             </label>
             <label>
               <input type="checkbox" checked={isSupply} onChange={(e) => setIsSupply(e.target.checked)} /> Insumo
             </label>
             <label>
-              <input type="checkbox" checked={isFinishedProduct} onChange={(e) => setIsFinishedProduct(e.target.checked)} />{' '}
-              Producto terminado
+              <input type="checkbox" checked={isFinishedProduct} onChange={(e) => setIsFinishedProduct(e.target.checked)} /> Producto terminado
             </label>
           </div>
 
@@ -214,11 +243,12 @@ export default function ProductEditPage() {
             <Button variant="secondary" onClick={() => router.push(ROUTES.products.list)}>
               Cancelar
             </Button>
-            <Button onClick={handleUpdate} disabled={submitting}>
+
+            <Button type="submit" disabled={submitting}>
               {submitting ? 'Guardando…' : 'Guardar cambios'}
             </Button>
           </div>
-        </div>
+        </form>
       )}
     </DashboardLayout>
   );

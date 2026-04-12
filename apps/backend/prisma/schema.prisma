@@ -31,8 +31,6 @@ model Supplier {
   address         String
   contactPerson   String
   active          Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
   products        Product[]
 
   @@map("suppliers")
@@ -50,15 +48,13 @@ model Product {
   unitOfMeasure     String              @db.Text
   inputUnit         String              @default("g") @db.Text
   inputUnitQuantity Float               @default(1)
+  inventories        Inventory[]
+  inventoryMovements InventoryMovement[]
   minStock          Float
   maxStock          Float
   active            Boolean             @default(true)
   supplierId        Int
   supplier          Supplier            @relation(fields: [supplierId], references: [id])
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  inventories       Inventory[]
-  movements         InventoryMovement[]
   recipeItems       RecipeItem[]
   currentStock Float @default(0)
   unitCost Float @default(0)

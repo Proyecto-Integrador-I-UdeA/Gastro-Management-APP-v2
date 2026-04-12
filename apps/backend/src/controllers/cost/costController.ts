@@ -30,22 +30,26 @@ export const calculateRecipeCost = async (req: Request, res: Response) => {
 
     // 🔥 DEBUG CLAVE
     console.log("🧾 ITEMS RECIBIDOS:", recipe.items);
+   // 🔹 2. Costo de ingredientes
+const ingredientsCost = recipe.items.reduce((sum: number, item: any) => {
+  const quantity = Number(item.quantity ?? 0);
 
-    // 🔹 2. Costo de ingredientes (RecipeItem.unitCost/totalCost; Product ya no tiene unitCost)
-    const ingredientsCost = recipe.items.reduce((sum: number, item: any) => {
-      const quantity = Number(item.quantity ?? 0);
-      const unitCost = Number(item.unitCost ?? 0);
-      const itemCost = Number(item.totalCost ?? quantity * unitCost);
+  const productUnitCost = Number(item.product?.unitCost ?? 0);
+  const baseQty = Number(item.product?.inputUnitQuantity ?? 1);
 
-      console.log("➡️ ITEM:", {
-        productId: item.productId,
-        quantity,
-        unitCost,
-        itemCost,
-      });
+  // ✅ FIX REAL AQUÍ
+  const itemCost = (quantity / baseQty) * productUnitCost;
 
-      return sum + itemCost;
-    }, 0);
+  console.log("🧮 CALCULO:", {
+    name: item.product?.name,
+    quantity,
+    baseQty,
+    productUnitCost,
+    itemCost,
+  });
+
+  return sum + itemCost;
+}, 0);
 
     // 🔥 3. COSTOS INDIRECTOS
     const latestCosts = await prisma.otherCosts.findFirst({

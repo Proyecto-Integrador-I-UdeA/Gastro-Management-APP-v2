@@ -15,6 +15,7 @@ export interface Product {
   isSupply: boolean;
   isFinishedProduct: boolean;
   presentation: string;
+  unitCost: number; 
   /** Unidad base en Kardex: g, ml o und */
   unitOfMeasure: string;
   inputUnit: string;

@@ -16,16 +16,23 @@ export type ProductWritePayload = {
   minStock: number;
   maxStock: number;
   supplierId: number;
+  unitCost: number;
 };
 
 export async function fetchProductsWithSuppliers(): Promise<Product[]> {
   const data = await apiFetch<unknown[]>('/products?include=supplier');
+
   if (!Array.isArray(data)) return [];
+
   return data.map((row) => normalizeProductFromApi(row));
 }
 
 export async function fetchProductById(id: number): Promise<Product> {
   const data = await apiFetch<unknown>(`/products/${id}`);
+
+  // 🔥 DEBUG TEMPORAL (puedes quitar luego)
+  console.log("📦 RAW PRODUCT FROM API:", data);
+
   return normalizeProductFromApi(data);
 }
 
@@ -34,6 +41,7 @@ export async function createProductRequest(payload: ProductWritePayload): Promis
     method: 'POST',
     json: payload,
   });
+
   return normalizeProductFromApi(data);
 }
 
@@ -42,10 +50,17 @@ export async function updateProductRequest(
   payload: Partial<ProductWritePayload>
 ): Promise<Product> {
   const body: Record<string, unknown> = { ...payload };
+
+  // 🔥 DEBUG CLAVE
+  console.log("🚀 UPDATE BODY:", body);
+
   const data = await apiFetch<unknown>(`/products/${id}`, {
     method: 'PUT',
     json: body,
   });
+
+  console.log("✅ RESPONSE UPDATE:", data);
+
   return normalizeProductFromApi(data);
 }
 
