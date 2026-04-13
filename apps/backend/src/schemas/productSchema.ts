@@ -15,6 +15,9 @@ export const createProductSchema = z.object({
   supplierId: z.number().int().positive(),
   unitCost: z.number().min(0).optional().default(0),
   active: z.boolean().optional().default(true),
+}).refine((d) => d.minStock <= d.maxStock, {
+  message: 'El stock mínimo no puede ser mayor que el stock máximo.',
+  path: ['maxStock'],
 });
 
 export const updateProductSchema = z.object({
@@ -32,4 +35,16 @@ export const updateProductSchema = z.object({
   supplierId: z.number().int().positive().optional(),
   unitCost: z.number().min(0).optional(),
   active: z.boolean().optional(),
+}).superRefine((data, ctx) => {
+  if (
+    data.minStock !== undefined &&
+    data.maxStock !== undefined &&
+    data.minStock > data.maxStock
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'El stock mínimo no puede ser mayor que el stock máximo.',
+      path: ['maxStock'],
+    });
+  }
 });

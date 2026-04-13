@@ -10,6 +10,7 @@ import { ROUTES } from '@/constants/routes';
 import { fetchProductById, updateProductRequest } from '@/lib/productsApi';
 import { fetchSuppliers, fetchSupplierById } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
+import { showError } from '@/utils/toast';
 import type { ProductSupplier } from '@/types/product';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
 import {
@@ -143,6 +144,17 @@ export default function ProductEditPage() {
       return;
     }
 
+    const minN = parseFloat(minStock.replace(',', '.'));
+    const maxN = parseFloat(maxStock.replace(',', '.'));
+    if (!Number.isFinite(minN) || !Number.isFinite(maxN)) {
+      alert('Stock mínimo y máximo deben ser números válidos');
+      return;
+    }
+    if (minN > maxN) {
+      showError('El stock mínimo no puede ser mayor que el stock máximo.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -157,8 +169,8 @@ export default function ProductEditPage() {
         unitOfMeasure: baseUnit,
         inputUnit,
         inputUnitQuantity: iuq,
-        minStock: parseFloat(minStock),
-        maxStock: parseFloat(maxStock),
+        minStock: minN,
+        maxStock: maxN,
         supplierId: sid,
         unitCost,
       });

@@ -106,6 +106,17 @@ export default function ProductCreatePage() {
       return;
     }
 
+    const minN = parseFloat(minStock.replace(',', '.'));
+    const maxN = parseFloat(maxStock.replace(',', '.'));
+    if (!Number.isFinite(minN) || !Number.isFinite(maxN)) {
+      alert('Stock mínimo y máximo deben ser números válidos');
+      return;
+    }
+    if (minN > maxN) {
+      showError('El stock mínimo no puede ser mayor que el stock máximo.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -119,8 +130,8 @@ export default function ProductCreatePage() {
         unitOfMeasure: baseUnit,
         inputUnit,
         inputUnitQuantity: iuq,
-        minStock: parseFloat(minStock),
-        maxStock: parseFloat(maxStock),
+        minStock: minN,
+        maxStock: maxN,
         supplierId: sid,
         unitCost,
       });

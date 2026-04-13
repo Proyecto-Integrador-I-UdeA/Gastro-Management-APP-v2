@@ -145,6 +145,21 @@ export const updateProduct = async (req: Request, res: Response) => {
   const updateData = buildUpdateData(data);
 
   try {
+    const existing = await prisma.product.findUnique({
+      where: { id },
+      select: { minStock: true, maxStock: true },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    const nextMin = data.minStock !== undefined ? data.minStock : existing.minStock;
+    const nextMax = data.maxStock !== undefined ? data.maxStock : existing.maxStock;
+    if (nextMin > nextMax) {
+      return res.status(400).json({
+        error: 'El stock mínimo no puede ser mayor que el stock máximo.',
+      });
+    }
+
     const product = await prisma.product.update({
       where: { id },
       data: updateData,
