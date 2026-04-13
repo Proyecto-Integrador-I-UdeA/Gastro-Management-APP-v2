@@ -11,7 +11,6 @@ export default function RecipeDetail() {
   const router = useRouter();
   const { id } = router.query;
 
-  // 🔥 normalizar id
   const recipeId = Array.isArray(id) ? id[0] : id;
 
   const [recipe, setRecipe] = useState<any>(null);
@@ -25,10 +24,7 @@ export default function RecipeDetail() {
     if (!recipeId) return;
 
     try {
-      console.log("📌 ID receta:", recipeId);
-
       const data = await apiFetch(`/recipes/${recipeId}`);
-
       setRecipe(data);
       setProcesses(data.processes || []);
     } catch (error) {
@@ -53,7 +49,6 @@ export default function RecipeDetail() {
         await Promise.all([fetchRecipe(), fetchProducts()]);
         setLoading(false);
       };
-
       loadData();
     }
   }, [router.isReady, recipeId]);
@@ -157,50 +152,76 @@ export default function RecipeDetail() {
               + Agregar ingrediente
             </button>
 
-            {recipe.items.map((item: any, index: number) => (
-              <div key={index} className="flex gap-2 mb-2">
+            {recipe.items.map((item: any, index: number) => {
+              const selectedProduct = products.find(
+                (p) => p.id === Number(item.productId)
+              );
 
-                <select
-                  className="border p-2 rounded w-1/2"
-                  value={item.productId || ""}
-                  onChange={(e) => {
-                    const updated = [...recipe.items];
-                    updated[index].productId = Number(e.target.value);
-                    setRecipe({ ...recipe, items: updated });
-                  }}
-                >
-                  <option value="">Seleccionar producto</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+              const unitLabels: Record<string, string> = {
+                g: "gramos (g)",
+                kg: "kilogramos (kg)",
+                ml: "mililitros (ml)",
+                l: "litros (l)",
+              };
 
-                <input
-                  type="number"
-                  min="0"
-                  className="border p-2 rounded w-1/4"
-                  value={item.quantity}
-                  onChange={(e) => {
-                    const updated = [...recipe.items];
-                    updated[index].quantity = Number(e.target.value);
-                    setRecipe({ ...recipe, items: updated });
-                  }}
-                />
+              return (
+                <div key={index} className="mb-2">
 
-                <button
-                  onClick={() => {
-                    const updated = recipe.items.filter((_, i) => i !== index);
-                    setRecipe({ ...recipe, items: updated });
-                  }}
-                  className="bg-red-500 text-white px-2 rounded"
-                >
-                  X
-                </button>
+                  <div className="flex gap-2">
 
-              </div>
-            ))}
+                    <select
+                      className="border p-2 rounded w-1/2"
+                      value={item.productId || ""}
+                      onChange={(e) => {
+                        const updated = [...recipe.items];
+                        updated[index].productId = Number(e.target.value);
+                        setRecipe({ ...recipe, items: updated });
+                      }}
+                    >
+                      <option value="">Seleccionar producto</option>
+                      {products.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    <input
+                      type="number"
+                      min="0"
+                      className="border p-2 rounded w-1/4"
+                      value={item.quantity}
+                      onChange={(e) => {
+                        const updated = [...recipe.items];
+                        updated[index].quantity = Number(e.target.value);
+                        setRecipe({ ...recipe, items: updated });
+                      }}
+                    />
+
+                    <button
+                      onClick={() => {
+                        const updated = recipe.items.filter((_, i) => i !== index);
+                        setRecipe({ ...recipe, items: updated });
+                      }}
+                      className="bg-red-500 text-white px-2 rounded"
+                    >
+                      X
+                    </button>
+
+                  </div>
+
+                  {/* 🔥 MENSAJE DINÁMICO */}
+                  {selectedProduct && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Ingrese la cantidad en{" "}
+                      {unitLabels[selectedProduct.unitOfMeasure] ||
+                        selectedProduct.unitOfMeasure}
+                    </p>
+                  )}
+
+                </div>
+              );
+            })}
           </div>
         )}
 

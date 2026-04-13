@@ -115,32 +115,58 @@ export default function CreateRecipePage() {
 
           {items.map((item, index) => (
             <div key={index} className="flex gap-2 mb-2">
+     
+             {/* 🔹 SELECT PRODUCTO */}
+<select
+  value={item.productId || ""}
+  onChange={(e) =>
+    handleItemChange(index, "productId", Number(e.target.value))
+  }
+  className="border p-2 rounded w-1/2"
+>
+  <option value="">Seleccionar</option>
+  {products.map((p) => (
+    <option key={p.id} value={p.id}>
+      {p.name}
+    </option>
+  ))}
+</select>
 
-              <select
-                className="border p-2 rounded w-1/2"
-                value={item.productId || ""}
-                onChange={(e) =>
-                  handleItemChange(index, "productId", Number(e.target.value))
-                }
-              >
-                <option value="">Seleccionar</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+{/* 🔹 INPUT CANTIDAD */}
+<input
+  type="number"
+  placeholder="Cantidad"
+  className="border p-2 rounded w-1/2"
+  value={item.quantity}
+  onChange={(e) =>
+    handleItemChange(index, "quantity", Number(e.target.value))
+  }
+/>
 
-              <input
-                type="number"
-                placeholder="Cantidad"
-                className="border p-2 rounded w-1/2"
-                value={item.quantity}
-                onChange={(e) =>
-                  handleItemChange(index, "quantity", Number(e.target.value))
-                }
-              />
+{/* 🔥 MENSAJE DINÁMICO SEGÚN UNIDAD */}
+{(() => {
+  const selectedProduct = products.find(
+    (p) => p.id === Number(item.productId)
+  );
 
+  if (!selectedProduct) return null;
+
+  const unitLabels: Record<string, string> = {
+    g: "gramos (g)",
+    kg: "kilogramos (kg)",
+    ml: "mililitros (ml)",
+    l: "litros (l)",
+  };
+
+  return (
+    <p className="text-xs text-gray-500 mt-1">
+      Ingrese la cantidad en{" "}
+      {unitLabels[selectedProduct.unitOfMeasure] ||
+        selectedProduct.unitOfMeasure}
+    </p>
+  );
+})()} 
+                         
             </div>
           ))}
         </div>
