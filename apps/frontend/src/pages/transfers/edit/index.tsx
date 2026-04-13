@@ -53,7 +53,9 @@ export default function EditTransferPage() {
         setQuantity(String(m.quantity));
         setNotes(m.notes ?? '');
         setExpirationDate(
-          m.expirationDate ? String(m.expirationDate).slice(0, 10) : ''
+          m.type === 'PURCHASE' && m.expirationDate
+            ? String(m.expirationDate).slice(0, 10)
+            : ''
         );
         setProduct(m.product ?? null);
         setMovementUnitCost(
@@ -85,8 +87,6 @@ export default function EditTransferPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const exp = expirationDate.trim() || null;
-
     if (movementType === 'TRANSFER') {
       const qty = parseFloat(quantity);
       if (Number.isNaN(qty) || qty <= 0) {
@@ -98,7 +98,6 @@ export default function EditTransferPage() {
         await patchTransferRequest(movementId, {
           quantity: qty,
           notes: notes.trim() || null,
-          expirationDate: exp,
         });
         showSuccess('Movimiento actualizado');
         void router.push(ROUTES.transfers.list);
@@ -118,7 +117,6 @@ export default function EditTransferPage() {
     try {
       await patchTransferRequest(movementId, {
         notes: notes.trim() || null,
-        expirationDate: exp,
       });
       showSuccess('Movimiento actualizado');
       void router.push(ROUTES.transfers.list);
@@ -153,12 +151,20 @@ export default function EditTransferPage() {
             )}
             {movementType === 'PURCHASE' && (
               <p className="text-xs text-gray-500">
-                La cantidad de la entrada no se modifica aquí. Puedes actualizar notas y vencimiento.
+                La cantidad de la entrada no se modifica aquí. Puedes actualizar las notas. La fecha de
+                vencimiento quedó fijada al crear el movimiento.
               </p>
             )}
 
             {product && (
               <>
+                <Input
+                  label="Proveedor (catálogo)"
+                  value={product.supplier?.name?.trim() || '—'}
+                  readOnly
+                  disabled
+                  className="bg-gray-100 cursor-not-allowed"
+                />
                 <Input
                   label="Unidad de ingreso (catálogo)"
                   value={formatProductInputUnitLabel(product.inputUnit ?? 'g')}
@@ -206,17 +212,25 @@ export default function EditTransferPage() {
               />
             )}
 
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-700">
-                Fecha de vencimiento (opcional)
-              </label>
-              <input
-                type="date"
-                className="border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#001F3F]"
-                value={expirationDate}
-                onChange={(e) => setExpirationDate(e.target.value)}
-              />
-            </div>
+            {movementType === 'PURCHASE' && (
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700">Fecha de vencimiento</label>
+                <p className="text-xs text-gray-500 mb-1">
+                  Registrada al crear el movimiento; no se puede cambiar desde aquí.
+                </p>
+                {expirationDate ? (
+                  <input
+                    type="date"
+                    readOnly
+                    className="border border-gray-300 rounded-md px-3 py-2 text-gray-700 bg-gray-100 cursor-not-allowed"
+                    value={expirationDate}
+                    title="Solo lectura"
+                  />
+                ) : (
+                  <p className="text-sm text-gray-600 py-2">Sin fecha de vencimiento registrada.</p>
+                )}
+              </div>
+            )}
 
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-gray-700">Notas</label>

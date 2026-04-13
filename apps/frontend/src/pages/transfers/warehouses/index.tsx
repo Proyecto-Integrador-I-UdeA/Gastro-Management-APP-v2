@@ -12,7 +12,7 @@ import {
 } from '@/lib/warehousesApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
-import { getUserPermissions } from '@/utils/permissions';
+import { getUserPermissions, userCanMutateWarehouse } from '@/utils/permissions';
 import type { WarehouseSummary } from '@/types/transfer';
 
 export default function TransferWarehousesPage() {
@@ -55,7 +55,7 @@ export default function TransferWarehousesPage() {
 
   const canCreate =
     can('warehouses.create') || can('transfers.create');
-  const canUpdate = can('warehouses.update');
+  const canUpdate = userCanMutateWarehouse();
 
   const toggleActive = async (w: WarehouseSummary) => {
     if (!canUpdate) return;

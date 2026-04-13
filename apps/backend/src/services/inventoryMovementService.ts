@@ -309,7 +309,7 @@ async function applyTransferStockOnly(
 }
 
 /**
- * Edita traslado (cantidad revierte stock) o entrada por compra (solo notas / vencimiento).
+ * Edita traslado (cantidad revierte stock) o entrada por compra (solo notas; vencimiento no se modifica).
  */
 export async function updateTransferMovementInTransaction(
   tx: Prisma.TransactionClient,
@@ -317,7 +317,6 @@ export async function updateTransferMovementInTransaction(
   updates: {
     quantity?: number;
     notes?: string | null;
-    expirationDate?: Date | null;
   }
 ) {
   const mov = await tx.inventoryMovement.findUnique({ where: { id: movementId } });
@@ -332,9 +331,8 @@ export async function updateTransferMovementInTransaction(
         400
       );
     }
-    const data: { notes?: string | null; expirationDate?: Date | null } = {};
+    const data: { notes?: string | null } = {};
     if (updates.notes !== undefined) data.notes = updates.notes;
-    if (updates.expirationDate !== undefined) data.expirationDate = updates.expirationDate;
     if (Object.keys(data).length === 0) {
       return mov;
     }
@@ -355,9 +353,8 @@ export async function updateTransferMovementInTransaction(
   }
 
   if (updates.quantity === undefined) {
-    const data: { notes?: string | null; expirationDate?: Date | null } = {};
+    const data: { notes?: string | null } = {};
     if (updates.notes !== undefined) data.notes = updates.notes;
-    if (updates.expirationDate !== undefined) data.expirationDate = updates.expirationDate;
     if (Object.keys(data).length === 0) {
       return mov;
     }
@@ -378,7 +375,6 @@ export async function updateTransferMovementInTransaction(
 
   const data: Prisma.InventoryMovementUpdateInput = { quantity: q2 };
   if (updates.notes !== undefined) data.notes = updates.notes;
-  if (updates.expirationDate !== undefined) data.expirationDate = updates.expirationDate;
 
   return tx.inventoryMovement.update({
     where: { id: movementId },

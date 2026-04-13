@@ -12,7 +12,7 @@ import { fetchWarehouses } from '@/lib/warehousesApi';
 import { createInventoryMovementRequest } from '@/lib/inventoryMovementsApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
-import { showSuccess } from '@/utils/toast';
+import { showError, showSuccess } from '@/utils/toast';
 import type { Product } from '@/types/product';
 import type { WarehouseSummary } from '@/types/transfer';
 import { formatProductInputUnitLabel } from '@/lib/productUnits';
@@ -76,7 +76,7 @@ export default function CreateTransferPage() {
   );
 
   const principalWarehouse = useMemo(
-    () => warehouses.find((w) => w.isMain === true),
+    () => warehouses.find((w) => Boolean(w.isMain)),
     [warehouses]
   );
 
@@ -89,18 +89,33 @@ export default function CreateTransferPage() {
     e.preventDefault();
     setFormError(null);
 
-    const pid = parseInt(productId, 10);
-    const qty = parseFloat(quantity);
+    let pid: number;
+    let qty: number;
+    try {
+      pid = parseInt(productId, 10);
+      qty = parseFloat(String(quantity ?? '').replace(',', '.'));
+    } catch {
+      setFormError('Error al leer cantidad o producto.');
+      showError('Error al leer cantidad o producto.');
+      return;
+    }
 
     let dst: number;
     if (mode === 'purchase') {
       if (!principalWarehouse) {
-        setFormError(
-          'No hay bodega principal. Marca una en Bodegas (editar bodega → «Bodega principal») antes de registrar compras.'
-        );
+        const msg =
+          'No hay bodega principal. Marca una en Bodegas (editar bodega → «Bodega principal») antes de registrar compras.';
+        setFormError(msg);
+        showError(msg);
         return;
       }
-      dst = principalWarehouse.id;
+      dst = Number(principalWarehouse.id);
+      if (!Number.isFinite(dst) || dst < 1) {
+        const msg = 'La bodega principal no tiene un identificador válido. Recarga la página o revisa las bodegas.';
+        setFormError(msg);
+        showError(msg);
+        return;
+      }
     } else {
       dst = parseInt(destinationWarehouseId, 10);
       if (!destinationWarehouseId) {
@@ -150,7 +165,6 @@ export default function CreateTransferPage() {
           sourceWarehouseId: src,
           destinationWarehouseId: dst,
           notes: notes.trim() || null,
-          expirationDate: expirationDate.trim() || null,
         });
         showSuccess('Traslado registrado correctamente');
         router.push(ROUTES.transfers.list);
@@ -166,11 +180,17 @@ export default function CreateTransferPage() {
       return;
     }
 
-    const cost = parseFloat(unitCost.replace(',', '.'));
-    if (unitCost.trim() === '' || Number.isNaN(cost) || cost < 0) {
-      setFormError('Indica un costo unitario válido (≥ 0)');
+    const costStr = String(unitCost ?? '').trim().replace(',', '.');
+    const cost = parseFloat(costStr);
+    if (costStr === '' || Number.isNaN(cost) || cost < 0) {
+      const msg = 'Indica un costo unitario válido (≥ 0).';
+      setFormError(msg);
+      showError(msg);
       return;
     }
+
+    const expRaw = String(expirationDate ?? '').trim();
+    const expirationPayload = expRaw === '' ? null : expRaw;
 
     setSubmitting(true);
     try {
@@ -179,20 +199,21 @@ export default function CreateTransferPage() {
         productId: pid,
         quantity: qty,
         unitCost: cost,
+        sourceWarehouseId: null,
         destinationWarehouseId: dst,
         notes: notes.trim() || null,
-        expirationDate: expirationDate.trim() || null,
+        expirationDate: expirationPayload,
       });
       showSuccess('Entrada por compra registrada');
-      router.push(ROUTES.transfers.list);
+      await router.push(ROUTES.transfers.list);
     } catch (err) {
       if (isUnauthorized(err)) {
         router.push('/login');
         return;
       }
-      setFormError(
-        getApiErrorMessage(err, 'No se pudo registrar la entrada por compra')
-      );
+      const apiMsg = getApiErrorMessage(err, 'No se pudo registrar la entrada por compra');
+      setFormError(apiMsg);
+      showError(apiMsg);
     } finally {
       setSubmitting(false);
     }
@@ -212,6 +233,7 @@ export default function CreateTransferPage() {
             onClick={() => {
               setMode('transfer');
               setFormError(null);
+              setExpirationDate('');
             }}
             className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
               mode === 'transfer'
@@ -270,7 +292,11 @@ export default function CreateTransferPage() {
         {loadingRefs ? (
           <div className="py-10 text-center text-gray-600">Cargando datos…</div>
         ) : (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form
+            noValidate
+            onSubmit={handleSubmit}
+            className="flex flex-col gap-4"
+          >
             {formError && (
               <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">
                 {formError}
@@ -376,6 +402,14 @@ export default function CreateTransferPage() {
             {selectedProduct && (
               <>
                 <Input
+                  label="Proveedor (catálogo)"
+                  value={selectedProduct.supplier?.name?.trim() || '—'}
+                  readOnly
+                  disabled
+                  className="bg-gray-100 cursor-not-allowed"
+                  title="Proveedor asignado al producto en el catálogo"
+                />
+                <Input
                   label="Unidad de ingreso (catálogo)"
                   value={formatProductInputUnitLabel(selectedProduct.inputUnit)}
                   readOnly
@@ -392,28 +426,27 @@ export default function CreateTransferPage() {
               </>
             )}
 
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-700">
-                Fecha de vencimiento (opcional)
-              </label>
-              <input
-                type="date"
-                className="border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#001F3F]"
-                value={expirationDate}
-                onChange={(e) => setExpirationDate(e.target.value)}
-              />
-            </div>
-
             {mode === 'purchase' && (
-              <Input
-                label="Costo unitario *"
-                type="number"
-                step="any"
-                min="0"
-                value={unitCost}
-                onChange={(e) => setUnitCost(e.target.value)}
-                required
-              />
+              <>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-gray-700">Fecha de vencimiento</label>
+                  <input
+                    type="date"
+                    className="border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#001F3F]"
+                    value={expirationDate}
+                    onChange={(e) => setExpirationDate(e.target.value)}
+                  />
+                </div>
+                <Input
+                  label="Costo unitario *"
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={unitCost}
+                  onChange={(e) => setUnitCost(e.target.value)}
+                  required
+                />
+              </>
             )}
 
             <div className="flex flex-col gap-1">

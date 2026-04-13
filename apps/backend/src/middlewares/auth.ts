@@ -41,6 +41,14 @@ export const authenticate = async (
   }
 };
 
+function normalizePermission(p: string): string {
+  return p.trim().toLowerCase();
+}
+
+function normalizedUserPermissions(userPermissions: string[] | undefined): string[] {
+  return (userPermissions || []).map(normalizePermission);
+}
+
 export const authorize = (requiredPermissions: string[]) => {
   return (
     req: AuthenticatedRequest,
@@ -51,11 +59,9 @@ export const authorize = (requiredPermissions: string[]) => {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    const userPermissions = req.user.permissions || [];
-
-    const hasAllPermissions = requiredPermissions.every((perm) =>
-      userPermissions.includes(perm)
-    );
+    const userSet = new Set(normalizedUserPermissions(req.user.permissions));
+    const required = requiredPermissions.map(normalizePermission);
+    const hasAllPermissions = required.every((perm) => userSet.has(perm));
 
     if (!hasAllPermissions) {
       return res.status(403).json({ error: 'Insufficient permissions' });
@@ -76,10 +82,9 @@ export const authorizeAny = (anyOfPermissions: string[]) => {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    const userPermissions = req.user.permissions || [];
-    const allowed = anyOfPermissions.some((perm) =>
-      userPermissions.includes(perm)
-    );
+    const userSet = new Set(normalizedUserPermissions(req.user.permissions));
+    const candidates = anyOfPermissions.map(normalizePermission);
+    const allowed = candidates.some((perm) => userSet.has(perm));
 
     if (!allowed) {
       return res.status(403).json({ error: 'Insufficient permissions' });

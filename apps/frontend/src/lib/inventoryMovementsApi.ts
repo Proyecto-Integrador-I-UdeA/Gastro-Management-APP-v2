@@ -38,7 +38,6 @@ export async function patchTransferRequest(
   body: {
     notes?: string | null;
     quantity?: number;
-    expirationDate?: string | null;
   }
 ): Promise<InventoryMovementRow> {
   return apiFetch<InventoryMovementRow>(`/inventory-movements/${id}`, {

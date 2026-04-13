@@ -1,5 +1,4 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { MovementType } from '@prisma/client';
 import {
   authenticate,
   authorize,
@@ -16,11 +15,12 @@ import {
 const router = Router();
 
 const authorizeCreateMovement = (req: Request, res: Response, next: NextFunction) => {
-  const type = req.body?.type as MovementType | undefined;
-  if (type === MovementType.TRANSFER) {
+  const raw = req.body?.type;
+  const typeStr = typeof raw === 'string' ? raw.trim().toUpperCase() : String(raw ?? '').toUpperCase();
+  if (typeStr === 'TRANSFER') {
     return authorize(['transfers.create'])(req, res, next);
   }
-  if (type === MovementType.PURCHASE) {
+  if (typeStr === 'PURCHASE') {
     return authorizeAny(['transfers.create', 'inventory.create'])(req, res, next);
   }
   return authorize(['inventory.create'])(req, res, next);
