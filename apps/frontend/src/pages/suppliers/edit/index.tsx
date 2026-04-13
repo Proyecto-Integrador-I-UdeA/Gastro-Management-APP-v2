@@ -77,15 +77,12 @@ export default function SupplierEditPage() {
       return;
     }
 
-
     setSubmitting(true);
-
 
     try {
       await updateSupplierRequest(supplierId, {
         internalCode,
         name,
-        taxId,
         phone,
         address,
         contactPerson: contactPerson.trim(),
@@ -146,11 +143,19 @@ export default function SupplierEditPage() {
             />
 
 
-            <Input
-              label="NIT / RUT"
-              value={taxId}
-              onChange={(e) => setTaxId(e.target.value)}
-            />
+            <div className="flex flex-col gap-1">
+              <Input
+                label="NIT / RUT"
+                value={taxId}
+                readOnly
+                className="bg-gray-100 cursor-not-allowed"
+                title="No se puede cambiar después de crear el proveedor"
+              />
+              <p className="text-xs text-gray-500">
+                El NIT/RUT queda fijo al crear el proveedor; si hubo un error, crea uno nuevo o contacta a
+                administración.
+              </p>
+            </div>
 
 
             <Input

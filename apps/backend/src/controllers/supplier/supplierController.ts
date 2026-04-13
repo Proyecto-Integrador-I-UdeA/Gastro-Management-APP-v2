@@ -113,12 +113,22 @@ export const updateSupplier = async (req: Request, res: Response) => {
   const data = validation.data;
 
   try {
+    const existing = await prisma.supplier.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    const bodyTaxId = (req.body as { taxId?: unknown }).taxId;
+    if (bodyTaxId !== undefined && String(bodyTaxId).trim() !== existing.taxId.trim()) {
+      return res.status(400).json({
+        error: 'El NIT/RUT no puede modificarse una vez creado el proveedor.',
+      });
+    }
+
     const supplier = await prisma.supplier.update({
       where: { id },
       data: {
-  
         ...(data.name !== undefined && { name: data.name }),
-        ...(data.taxId !== undefined && { taxId: data.taxId }),
         ...(data.phone !== undefined && { phone: data.phone }),
         ...(data.address !== undefined && { address: data.address }),
         ...(data.contactPerson !== undefined && { contactPerson: data.contactPerson }),
