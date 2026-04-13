@@ -20,6 +20,8 @@ export type MovementProductSummary = {
   unitOfMeasure: string;
   inputUnit?: string;
   inputUnitQuantity?: number;
+  /** Incluido cuando el API hace include del proveedor del producto */
+  supplier?: { id: number; name: string } | null;
 };
 
 export type MovementUserSummary = {
@@ -64,6 +66,8 @@ export type CreatePurchasePayload = {
   productId: number;
   quantity: number;
   unitCost: number;
+  /** Siempre null: el backend exige sin bodega de origen en compras */
+  sourceWarehouseId?: null;
   destinationWarehouseId: number;
   notes?: string | null;
   expirationDate?: string | null;

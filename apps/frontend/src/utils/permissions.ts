@@ -14,6 +14,18 @@ export const getUserPermissions = (): string[] => {
   }
 };
 
+/** Alineado con PUT /warehouses en backend (authorizeAny). */
+export const PERMS_WAREHOUSE_MUTATE = [
+  "warehouses.update",
+  "transfers.create",
+  "transfers.update",
+] as const;
+
+export function userCanMutateWarehouse(): boolean {
+  const set = new Set(getUserPermissions());
+  return PERMS_WAREHOUSE_MUTATE.some((k) => set.has(k));
+}
+
 
 
 

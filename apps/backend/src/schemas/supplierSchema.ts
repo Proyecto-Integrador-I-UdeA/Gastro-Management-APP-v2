@@ -10,7 +10,6 @@ export const createSupplierSchema = z.object({
 
 export const updateSupplierSchema = z.object({
   name: z.string().min(1).optional(),
-  taxId: z.string().min(1).optional(),
   phone: z.string().min(1).optional(),
   address: z.string().min(1).optional(),
   contactPerson: z.string().optional(),

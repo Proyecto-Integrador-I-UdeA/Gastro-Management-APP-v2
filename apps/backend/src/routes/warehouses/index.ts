@@ -10,25 +10,32 @@ import {
 const router = Router();
 
 // Lectura: módulo bodegas o traslados (elegir origen/destino).
+// Nombres de permiso alineados con seed (warehouses.*), no warehouse.*.
 router.get(
   '/',
   authenticate,
-  authorizeAny(['warehouse.read', 'transfers.read']),
+  authorizeAny(['warehouses.read', 'transfers.read']),
   listWarehouse
 );
 router.get(
   '/:id',
   authenticate,
-  authorizeAny(['warehouse.read', 'transfers.read']),
+  authorizeAny(['warehouses.read', 'transfers.read']),
   getWarehouseById
 );
 // Alta: quien gestiona bodegas o quien registra traslados puede crear ubicaciones al vuelo.
 router.post(
   '/',
   authenticate,
-  authorizeAny(['warehouse.create', 'transfers.create']),
+  authorizeAny(['warehouses.create', 'transfers.create']),
   createWarehouse
 );
-router.put('/:id', authenticate, authorize(['warehouse.update']), updateWarehouse);
+// Misma lógica que crear: quien gestiona traslados debe poder marcar bodega principal / activar.
+router.put(
+  '/:id',
+  authenticate,
+  authorizeAny(['warehouses.update', 'transfers.create', 'transfers.update']),
+  updateWarehouse
+);
 
 export default router;

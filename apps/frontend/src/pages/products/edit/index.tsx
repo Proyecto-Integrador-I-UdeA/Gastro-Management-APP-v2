@@ -7,9 +7,11 @@ import Button from '@/components/Button';
 import Input from '@/components/Input';
 import ProductUnitFields from '@/components/ProductUnitFields';
 import { ROUTES } from '@/constants/routes';
-import { fetchProductById, updateProductRequest } from '@/lib/productsApi';
+import { createProductRequest, fetchProductById, updateProductRequest } from '@/lib/productsApi';
 import { fetchSuppliers, fetchSupplierById } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
+import { showError, showSuccess } from '@/utils/toast';
+import { getUserPermissions } from '@/utils/permissions';
 import type { ProductSupplier } from '@/types/product';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
 import {
@@ -44,6 +46,15 @@ export default function ProductEditPage() {
   const [maxStock, setMaxStock] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [unitCost, setUnitCost] = useState(0);
+
+  const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
+  const [duplicateSupplierId, setDuplicateSupplierId] = useState('');
+  const [duplicating, setDuplicating] = useState(false);
+  const [canDuplicateProduct, setCanDuplicateProduct] = useState(false);
+
+  useEffect(() => {
+    setCanDuplicateProduct(getUserPermissions().includes('products.create'));
+  }, []);
 
   useEffect(() => {
     setInputUnit((prev) => coerceInputUnitForBase(baseUnit, prev));
@@ -143,6 +154,17 @@ export default function ProductEditPage() {
       return;
     }
 
+    const minN = parseFloat(minStock.replace(',', '.'));
+    const maxN = parseFloat(maxStock.replace(',', '.'));
+    if (!Number.isFinite(minN) || !Number.isFinite(maxN)) {
+      alert('Stock mínimo y máximo deben ser números válidos');
+      return;
+    }
+    if (minN > maxN) {
+      showError('El stock mínimo no puede ser mayor que el stock máximo.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -157,8 +179,8 @@ export default function ProductEditPage() {
         unitOfMeasure: baseUnit,
         inputUnit,
         inputUnitQuantity: iuq,
-        minStock: parseFloat(minStock),
-        maxStock: parseFloat(maxStock),
+        minStock: minN,
+        maxStock: maxN,
         supplierId: sid,
         unitCost,
       });
@@ -173,6 +195,84 @@ export default function ProductEditPage() {
       alert(getApiErrorMessage(e, 'No se pudo actualizar el producto'));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const openDuplicateModal = () => {
+    const currentSid = Number(supplierId);
+    const others = suppliers.filter((s) => s.id !== currentSid);
+    if (others.length === 0) {
+      showError(
+        'No hay otro proveedor disponible. Crea un proveedor nuevo o asigna este producto desde el formulario.'
+      );
+      return;
+    }
+    setDuplicateSupplierId(String(others[0].id));
+    setDuplicateModalOpen(true);
+  };
+
+  const handleDuplicateProduct = async () => {
+    const dupSid = Number(duplicateSupplierId);
+    if (!Number.isFinite(dupSid)) {
+      showError('Selecciona un proveedor válido.');
+      return;
+    }
+    if (dupSid === Number(supplierId)) {
+      showError('Elige un proveedor distinto al actual para el duplicado.');
+      return;
+    }
+
+    if (!name.trim() || !presentation.trim()) {
+      showError('Nombre y presentación son obligatorios para duplicar.');
+      return;
+    }
+
+    const iuq = parseFloat(inputUnitQuantity.replace(',', '.'));
+    if (!Number.isFinite(iuq) || iuq <= 0) {
+      showError('La cantidad por unidad ingresada debe ser mayor a cero.');
+      return;
+    }
+
+    const minN = parseFloat(minStock.replace(',', '.'));
+    const maxN = parseFloat(maxStock.replace(',', '.'));
+    if (!Number.isFinite(minN) || !Number.isFinite(maxN)) {
+      showError('Stock mínimo y máximo deben ser números válidos.');
+      return;
+    }
+    if (minN > maxN) {
+      showError('El stock mínimo no puede ser mayor que el stock máximo.');
+      return;
+    }
+
+    setDuplicating(true);
+    try {
+      const created = await createProductRequest({
+        name: name.trim(),
+        category: category || '',
+        isIngredient,
+        isSupply,
+        isFinishedProduct,
+        presentation: presentation.trim(),
+        unitOfMeasure: baseUnit,
+        inputUnit,
+        inputUnitQuantity: iuq,
+        minStock: minN,
+        maxStock: maxN,
+        supplierId: dupSid,
+        unitCost,
+      });
+
+      showSuccess('Producto duplicado. Se asignó un código interno nuevo.');
+      setDuplicateModalOpen(false);
+      await router.push(ROUTES.products.edit(created.id));
+    } catch (e) {
+      if (isUnauthorized(e)) {
+        router.push('/login');
+        return;
+      }
+      showError(getApiErrorMessage(e, 'No se pudo crear el duplicado'));
+    } finally {
+      setDuplicating(false);
     }
   };
 
@@ -239,16 +339,74 @@ export default function ProductEditPage() {
             </label>
           </div>
 
-          <div className="flex justify-end gap-4 mt-6">
-            <Button variant="secondary" onClick={() => router.push(ROUTES.products.list)}>
-              Cancelar
-            </Button>
-
-            <Button type="submit" disabled={submitting}>
-              {submitting ? 'Guardando…' : 'Guardar cambios'}
-            </Button>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:items-center gap-3 mt-6">
+            <div className="flex flex-wrap gap-3 sm:mr-auto">
+              {canDuplicateProduct && (
+                <Button type="button" variant="secondary" onClick={openDuplicateModal}>
+                  Duplicar producto
+                </Button>
+              )}
+            </div>
+            <div className="flex flex-wrap justify-end gap-3">
+              <Button variant="secondary" type="button" onClick={() => router.push(ROUTES.products.list)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting ? 'Guardando…' : 'Guardar cambios'}
+              </Button>
+            </div>
           </div>
         </form>
+      )}
+
+      {duplicateModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="duplicate-product-title"
+          onClick={(e) => e.target === e.currentTarget && setDuplicateModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="duplicate-product-title" className="text-lg font-bold text-[#001F3F]">
+              Duplicar producto
+            </h2>
+            <p className="text-sm text-gray-600">
+              Se creará un producto nuevo con los mismos datos del formulario (nombre, unidades, stock,
+              costo, etc.) y un <strong>código interno nuevo</strong>. Elige el proveedor del duplicado.
+            </p>
+            <div>
+              <label htmlFor="duplicate-supplier" className="block text-sm font-medium text-gray-700 mb-1">
+                Proveedor del duplicado
+              </label>
+              <select
+                id="duplicate-supplier"
+                value={duplicateSupplierId}
+                onChange={(e) => setDuplicateSupplierId(e.target.value)}
+                className="w-full border border-gray-300 rounded-md p-2 text-gray-900"
+              >
+                {suppliers
+                  .filter((s) => s.id !== Number(supplierId))
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button type="button" variant="secondary" onClick={() => setDuplicateModalOpen(false)}>
+                Cerrar
+              </Button>
+              <Button type="button" onClick={() => void handleDuplicateProduct()} disabled={duplicating}>
+                {duplicating ? 'Creando…' : 'Crear duplicado'}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </DashboardLayout>
   );

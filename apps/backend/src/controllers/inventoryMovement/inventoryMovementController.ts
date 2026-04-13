@@ -149,12 +149,14 @@ export const createInventoryMovement = async (req: AuthRequest, res: Response) =
   }
 
   let expirationDate: Date | null = null;
-  if (data.expirationDate != null && data.expirationDate !== '') {
-    const d = new Date(data.expirationDate);
-    if (Number.isNaN(d.getTime())) {
-      return res.status(400).json({ error: 'expirationDate inválida' });
+  if (data.type === MovementType.PURCHASE) {
+    if (data.expirationDate != null && data.expirationDate !== '') {
+      const d = new Date(data.expirationDate);
+      if (Number.isNaN(d.getTime())) {
+        return res.status(400).json({ error: 'expirationDate inválida' });
+      }
+      expirationDate = d;
     }
-    expirationDate = d;
   }
 
   try {
@@ -209,26 +211,9 @@ export const patchTransferMovement = async (req: AuthRequest, res: Response) => 
     });
   }
 
-  const { expirationDate: expRaw, ...patchRest } = validation.data;
-  let expirationDate: Date | null | undefined = undefined;
-  if (expRaw !== undefined) {
-    if (expRaw === null || expRaw === '') {
-      expirationDate = null;
-    } else {
-      const d = new Date(expRaw);
-      if (Number.isNaN(d.getTime())) {
-        return res.status(400).json({ error: 'expirationDate inválida' });
-      }
-      expirationDate = d;
-    }
-  }
-
   try {
     await prisma.$transaction(async (tx) => {
-      await updateTransferMovementInTransaction(tx, id, {
-        ...patchRest,
-        expirationDate,
-      });
+      await updateTransferMovementInTransaction(tx, id, validation.data);
     });
 
     const full = await prisma.inventoryMovement.findUnique({

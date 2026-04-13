@@ -8,11 +8,12 @@ import Input from '@/components/Input';
 import { ROUTES } from '@/constants/routes';
 import { fetchWarehouseById, updateWarehouseRequest } from '@/lib/warehousesApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
-import { useAuthGuard } from '@/hooks/useAuthGuard';
+import { useAuthGuardAny } from '@/hooks/useAuthGuard';
+import { PERMS_WAREHOUSE_MUTATE } from '@/utils/permissions';
 import { showSuccess } from '@/utils/toast';
 
 export default function EditWarehousePage() {
-  useAuthGuard('warehouses.update');
+  useAuthGuardAny(PERMS_WAREHOUSE_MUTATE);
 
   const router = useRouter();
   const { id } = router.query;
