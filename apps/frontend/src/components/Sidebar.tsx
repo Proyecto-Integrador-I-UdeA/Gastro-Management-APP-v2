@@ -26,6 +26,7 @@ function sidebarImageSrc(safePath: string): string {
   if (safePath.includes("/products/edit")) return "/images/sidebar-productos-edit.jpg";
   if (safePath.includes("/products")) return "/images/sidebar-productos.jpg";
   if (safePath.includes("/inventory")) return "/images/sidebar-dashboard.jpg";
+  if (safePath.includes("/reports")) return "/images/sidebar-dashboard.jpg";
   if (safePath.includes("/transfers")) return "/images/sidebar-dashboard.jpg";
   if (safePath.includes("/users/create")) return "/images/sidebar-users-create.jpg";
   if (safePath.includes("/users/edit")) return "/images/sidebar-users-edit.jpg";
@@ -63,6 +64,11 @@ export default function Sidebar() {
     safePath.startsWith("/products") || safePath.startsWith("/suppliers");
   const inTransfersModule = safePath.startsWith("/transfers");
   const inInventoryModule = safePath.startsWith("/inventory");
+  const inReportsModule = safePath.startsWith("/reports");
+  const reportsProductsActive =
+    safePath === "/reports/products" || safePath.startsWith("/reports/products");
+  const reportsSuppliersActive =
+    safePath === "/reports/suppliers" || safePath.startsWith("/reports/suppliers");
 
   const can = (perm: string) =>
     permissions.includes(perm.trim().toLowerCase());
@@ -228,6 +234,40 @@ export default function Sidebar() {
                   <span className="text-xl">↔️</span>
                   <span className="text-lg">Traslados</span>
                 </button>
+              )}
+              <button
+                type="button"
+                className="flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E] text-white/80"
+                onClick={() => handleNavigate("/dashboard")}
+              >
+                📈 <span className="text-lg">Dashboard</span>
+              </button>
+            </>
+          ) : inReportsModule ? (
+            <>
+              {can("reports.read") && (
+                <>
+                  <button
+                    type="button"
+                    className={itemClass(reportsProductsActive)}
+                    onClick={() =>
+                      handleNavigate("/reports/products", "reports.read")
+                    }
+                  >
+                    <span className="text-xl">📑</span>
+                    <span className="text-lg">Productos · Inventario</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={itemClass(reportsSuppliersActive)}
+                    onClick={() =>
+                      handleNavigate("/reports/suppliers", "reports.read")
+                    }
+                  >
+                    <span className="text-xl">🚚</span>
+                    <span className="text-lg">Proveedores · Catálogo</span>
+                  </button>
+                </>
               )}
               <button
                 type="button"

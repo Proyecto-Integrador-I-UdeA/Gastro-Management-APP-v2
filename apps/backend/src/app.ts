@@ -10,6 +10,7 @@ import inventoryMovementRoutes from './routes/inventory-movements/index';
 import recipeRoutes from './routes/recipes/index';
 import costRoutes from './routes/costs';
 import configRoutes from './routes/config';
+import reportRoutes from './routes/reports';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -66,6 +67,7 @@ app.use('/inventory-movements', inventoryMovementRoutes);
 app.use('/recipes', recipeRoutes);
 app.use('/costs', costRoutes);
 app.use('/config', configRoutes);
+app.use('/reports', reportRoutes);
 
 // 🔥 HEALTH CHECK
 app.get('/', (req, res) => {

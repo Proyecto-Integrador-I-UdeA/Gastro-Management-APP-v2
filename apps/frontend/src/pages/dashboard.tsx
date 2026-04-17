@@ -7,6 +7,7 @@ import Header from "@/components/Header";
 import Button from "@/components/Button";
 import { getUserRole } from "@/utils/auth";
 import { showError } from "@/utils/toast";
+import { ROUTES } from "@/constants/routes";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -200,7 +201,9 @@ export default function Dashboard() {
                 const allowed = can("reports.read");
                 return (
                   <div
-                    onClick={() => allowed && handleNavigate("/reports")}
+                    onClick={() =>
+                      allowed && handleNavigate(ROUTES.reports.productsInventory)
+                    }
                     className={`${baseCard} ${allowed ? activeCard : disabledCard}`}
                   >
                     <h2>REPORTES</h2>
