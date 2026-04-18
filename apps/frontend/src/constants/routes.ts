@@ -22,6 +22,11 @@ export const ROUTES = {
   inventory: {
     list: '/inventory',
   },
+  reports: {
+    root: '/reports',
+    productsInventory: '/reports/products',
+    suppliersCatalog: '/reports/suppliers',
+  },
   transfers: {
     list: '/transfers',
     create: '/transfers/create',

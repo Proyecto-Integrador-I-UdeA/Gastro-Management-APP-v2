@@ -118,6 +118,7 @@ async function main() {
       'warehouses.read',
       'warehouses.create',
       'warehouses.update',
+      'reports.read',
       'profile.update',
     ],
 

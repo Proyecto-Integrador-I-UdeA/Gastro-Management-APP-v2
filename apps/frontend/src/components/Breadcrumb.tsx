@@ -10,6 +10,7 @@ export default function Breadcrumb() {
   const format = (seg: string) => {
     const map: any = {
       dashboard: "Dashboard",
+      reports: "Reportes",
       products: "Productos",
       suppliers: "Proveedores",
       production: "Producción",
