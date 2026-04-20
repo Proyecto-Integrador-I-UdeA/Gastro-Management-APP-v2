@@ -4,13 +4,16 @@ import {
   createOtherCosts,
   getOtherCosts,
   updateOtherCosts,
-  deleteOtherCosts
-} from "../../controllers/cost/costController";
+  deleteOtherCosts,
+  calculateMenuItemCost 
+} from "../../controllers/cost/costController"; 
 
 const router = Router();
 
 // 🔥 COSTOS DE RECETA
-router.post("/recipe/:id", calculateRecipeCost);
+router.get("/recipe/:id", calculateRecipeCost);
+// 🔥 COSTOS DE PLATO
+router.get("/menu-item/:id", calculateMenuItemCost);
 
 // 🔥 OTROS COSTOS
 router.post("/others", createOtherCosts);

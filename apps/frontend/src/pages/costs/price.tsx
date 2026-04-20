@@ -4,40 +4,43 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import Button from "@/components/Button";
 import { showError } from "@/utils/toast";
-import { apiFetch } from "@/lib/api"; // 🔥 IMPORTANTE
+import { apiFetch } from "@/lib/api";
 
 export default function PriceCalculationPage() {
 
-  const [recipes, setRecipes] = useState<any[]>([]);
-  const [selectedRecipe, setSelectedRecipe] = useState("");
+  const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [selectedItem, setSelectedItem] = useState("");
   const [cost, setCost] = useState<number | null>(null);
   const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
   const [priceList, setPriceList] = useState<any[]>([]);
 
-  const [margin, setMargin] = useState(0.3);
-  const [tax, setTax] = useState(0.19);
+  const [margin, setMargin] = useState(0.4);
+  const [tax, setTax] = useState(0.22);
 
   const [price, setPrice] = useState<any>(null);
 
-  // 🔥 cargar recetas
-  const fetchRecipes = async () => {
+
+  // 🔥 cargar platos
+  const fetchMenuItems = async () => {
     try {
-      const data = await apiFetch("/recipes");
+      const data = await apiFetch("/menu-items");
 
       const list = Array.isArray(data)
         ? data
-        : data.recipes || data.data || [];
+        : data.data || [];
 
-      setRecipes(list);
+      setMenuItems(list.filter((m: any) => m.active));
 
     } catch (error) {
       console.error(error);
     }
   };
 
+
   useEffect(() => {
-    fetchRecipes();
+    fetchMenuItems();
   }, []);
+
 
   useEffect(() => {
     if (margin && tax) {
@@ -45,21 +48,23 @@ export default function PriceCalculationPage() {
     }
   }, [margin, tax]);
 
-  // 🔥 obtener costo
+
+  // 🔥 obtener costo (PLATO)
   const fetchCost = async () => {
-    if (!selectedRecipe) return;
+    if (!selectedItem) return;
 
     try {
-      const data = await apiFetch(`/costs/recipe/${selectedRecipe}`, {
-        method: "POST",
+      const data = await apiFetch(`/costs/menu-item/${selectedItem}`, {
+        method: "GET",
       });
 
-      setCost(data.costPerPortion);
+      setCost(data.totalCost);
 
     } catch (error) {
       console.error(error);
     }
   };
+
 
   // 🔥 CALCULO
   const handleCalculate = () => {
@@ -87,34 +92,36 @@ export default function PriceCalculationPage() {
     setSuggestedPrice(suggested);
   };
 
+
+  // 🔥 LISTA DE PRECIOS (PLATOS)
   const fetchSuggestedPrices = async () => {
     try {
-      const data = await apiFetch("/recipes");
+      const data = await apiFetch("/menu-items");
 
       const list = Array.isArray(data)
         ? data
-        : data.recipes || data.data || [];
+        : data.data || [];
 
       const results = await Promise.all(
-        list.map(async (r: any) => {
+        list
+          .filter((m: any) => m.active)
+          .map(async (m: any) => {
 
-          const costData = await apiFetch(`/costs/recipe/${r.id}`, {
-            method: "POST",
-          });
+            const costData = await apiFetch(`/costs/menu-item/${m.id}`);
 
-          const cost = costData.costPerPortion;
+            const cost = costData.totalCost;
 
-          const priceWithoutTax = cost / (1 - margin);
-          const finalPrice = priceWithoutTax * (1 + tax);
-          const suggested = Math.ceil(finalPrice / 1000) * 1000;
+            const priceWithoutTax = cost / (1 - margin);
+            const finalPrice = priceWithoutTax * (1 + tax);
+            const suggested = Math.ceil(finalPrice / 1000) * 1000;
 
-          return {
-            name: r.name,
-            cost,
-            finalPrice,
-            suggested
-          };
-        })
+            return {
+              name: m.name,
+              cost,
+              finalPrice,
+              suggested
+            };
+          })
       );
 
       setPriceList(results);
@@ -123,6 +130,7 @@ export default function PriceCalculationPage() {
       console.error(error);
     }
   };
+
 
   return (
     <DashboardLayout>
@@ -134,16 +142,16 @@ export default function PriceCalculationPage() {
       <div className="bg-gray-400/20 p-6 rounded-2xl space-y-6">
 
         <div>
-          <label>Seleccionar receta</label>
+          <label>Seleccionar plato</label>
           <select
-            value={selectedRecipe}
-            onChange={(e) => setSelectedRecipe(e.target.value)}
+            value={selectedItem}
+            onChange={(e) => setSelectedItem(e.target.value)}
             className="border p-2 rounded w-full"
           >
             <option value="">-- Seleccionar --</option>
-            {recipes.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
+            {menuItems.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
               </option>
             ))}
           </select>
@@ -155,12 +163,12 @@ export default function PriceCalculationPage() {
 
         {cost && (
           <div>
-            <strong>Costo por porción:</strong> ${cost.toFixed(2)}
+            <strong>Costo del plato:</strong> ${cost.toFixed(2)}
           </div>
         )}
 
         <div>
-          <label>Margen (ej: 0.3 = 30%)</label>
+          <label>Margen (ej: 0.4 = 40%)</label>
           <input
             type="number"
             step="0.1"
@@ -171,7 +179,7 @@ export default function PriceCalculationPage() {
         </div>
 
         <div>
-          <label>Impuesto (ej: 0.19 = 19%)</label>
+          <label>Impuesto (ej: 0.22 = 22%)</label>
           <input
             type="number"
             step="0.01"
@@ -186,6 +194,7 @@ export default function PriceCalculationPage() {
         </Button>
 
       </div>
+
 
       {price && (
         <div className="mt-10 bg-white p-6 rounded-xl shadow">
@@ -241,6 +250,7 @@ export default function PriceCalculationPage() {
         </div>
       )}
 
+
       {priceList.length > 0 && (
         <div className="mt-10 bg-white p-6 rounded-xl shadow">
 
@@ -251,7 +261,7 @@ export default function PriceCalculationPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b">
-                <th className="text-left">Producto</th>
+                <th className="text-left">Plato</th>
                 <th>Costo</th>
                 <th>Precio sin impuesto</th>
                 <th>Precio final</th>

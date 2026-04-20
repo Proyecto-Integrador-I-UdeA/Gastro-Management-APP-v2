@@ -8,55 +8,43 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum MovementType {
-  PURCHASE
-  TRANSFER
-  WASTE
-  CONSUMPTION
-}
-enum ProductBaseUnit {
-  g
-  kg
-  ml
-  l
-  unit
-}
-
 model Supplier {
-  id              Int       @id @default(autoincrement())
-  internalCode    String    @unique
-  name            String
-  taxId           String
-  phone           String
-  address         String
-  contactPerson   String
-  active          Boolean   @default(true)
-  products        Product[]
+  id            Int       @id @default(autoincrement())
+  internalCode  String    @unique
+  name          String
+  taxId         String
+  phone         String
+  address       String
+  contactPerson String
+  active        Boolean   @default(true)
+  products      Product[]
 
   @@map("suppliers")
 }
 
 model Product {
-  id                Int                 @id @default(autoincrement())
-  internalCode      String              @unique @db.Text
-  name              String              @db.Text
-  category          String              @default("") @db.Text
-  isIngredient      Boolean             @default(false)
-  isSupply          Boolean             @default(false)
-  isFinishedProduct Boolean             @default(false)
-  presentation      String              @db.Text
-  unitOfMeasure     String              @db.Text
-  inputUnit         String              @default("g") @db.Text
-  inputUnitQuantity Float               @default(1)
+  id                 Int                 @id @default(autoincrement())
+  internalCode       String              @unique
+  name               String
+  category           String              @default("")
+  isIngredient       Boolean             @default(false)
+  isSupply           Boolean             @default(false)
+  isFinishedProduct  Boolean             @default(false)
+  presentation       String
+  unitOfMeasure      String
+  inputUnit          String              @default("g")
+  inputUnitQuantity  Float               @default(1)
+  minStock           Float
+  maxStock           Float
+  currentStock       Float               @default(0)
+  unitCost           Float               @default(0)
+  active             Boolean             @default(true)
+  supplierId         Int
   inventories        Inventory[]
   inventoryMovements InventoryMovement[]
-  minStock          Float
-  maxStock          Float
-  active            Boolean             @default(true)
-  supplierId        Int
-  supplier          Supplier            @relation(fields: [supplierId], references: [id])
-  recipeItems       RecipeItem[]
-  unitCost Float @default(0)
+  supplier           Supplier            @relation(fields: [supplierId], references: [id])
+  recipeItems        RecipeItem[]
+  MenuItemComponent  MenuItemComponent[]
 
   @@map("products")
 }
@@ -71,8 +59,8 @@ model Warehouse {
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
   inventories       Inventory[]
-  movementsAsSource InventoryMovement[] @relation("SourceWarehouse")
   movementsAsDest   InventoryMovement[] @relation("DestinationWarehouse")
+  movementsAsSource InventoryMovement[] @relation("SourceWarehouse")
 
   @@map("warehouses")
 }
@@ -81,11 +69,11 @@ model Inventory {
   id          Int       @id @default(autoincrement())
   quantity    Float     @default(0)
   productId   Int
-  product     Product   @relation(fields: [productId], references: [id])
   warehouseId Int
-  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  product     Product   @relation(fields: [productId], references: [id])
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
 
   @@unique([productId, warehouseId])
   @@map("inventories")
@@ -99,15 +87,15 @@ model InventoryMovement {
   expirationDate         DateTime?
   notes                  String?
   productId              Int
-  product                Product      @relation(fields: [productId], references: [id])
   sourceWarehouseId      Int?
-  sourceWarehouse        Warehouse?   @relation("SourceWarehouse", fields: [sourceWarehouseId], references: [id])
   destinationWarehouseId Int?
-  destinationWarehouse   Warehouse?   @relation("DestinationWarehouse", fields: [destinationWarehouseId], references: [id])
   userId                 Int
-  user                   User         @relation(fields: [userId], references: [id])
   createdAt              DateTime     @default(now())
   updatedAt              DateTime     @updatedAt
+  destinationWarehouse   Warehouse?   @relation("DestinationWarehouse", fields: [destinationWarehouseId], references: [id])
+  product                Product      @relation(fields: [productId], references: [id])
+  sourceWarehouse        Warehouse?   @relation("SourceWarehouse", fields: [sourceWarehouseId], references: [id])
+  user                   User         @relation(fields: [userId], references: [id])
 
   @@map("inventory_movements")
 }
@@ -121,8 +109,8 @@ model User {
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
   active       Boolean             @default(true)
-  role         Role?               @relation(fields: [roleId], references: [id])
   movements    InventoryMovement[]
+  role         Role?               @relation(fields: [roleId], references: [id])
 
   @@map("users")
 }
@@ -158,63 +146,55 @@ model RolePermission {
   @@unique([roleId, permissionId])
   @@map("role_permissions")
 }
+
 model Recipe {
-  id          Int     @id @default(autoincrement())
-
-  internalCode String @unique   // 🔥 NUEVO
-  active       Boolean @default(true) // 🔥 NUEVO
-
-  name        String
-  description String?
-
-  batchQuantity Float
-  portions      Int
-
-  totalCost Decimal? @db.Decimal(10, 2)
-
-  createdAt DateTime @default(now())
-
-  items     RecipeItem[]
-  processes RecipeProcess[]
+  id                Int                 @id @default(autoincrement())
+  internalCode      String              @unique
+  active            Boolean             @default(true)
+  name              String
+  description       String?
+  batchQuantity     Float
+  portions          Int
+  totalCost         Decimal?            @db.Decimal(10, 2)
+  createdAt         DateTime            @default(now())
+  items             RecipeItem[]
+  processes         RecipeProcess[]
+  MenuItemComponent MenuItemComponent[]
 
   @@map("recipes")
 }
 
-
 model RecipeItem {
-  id        Int @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   recipeId  Int
   productId Int
-
   quantity  Float
   unitCost  Decimal @db.Decimal(10, 2)
   totalCost Decimal @db.Decimal(10, 2)
-
-  recipe  Recipe  @relation(fields: [recipeId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+  recipe    Recipe  @relation(fields: [recipeId], references: [id])
 
   @@map("recipe_items")
 }
 
 model RecipeProcess {
-  id              Int    @id @default(autoincrement())
+  id              Int     @id @default(autoincrement())
   recipeId        Int
   name            String
   processType     String
   duration        Float
   operators       Int
   stepDescription String?
-  stepOrder       Int    @default(0) @map("order")
-
-  recipe Recipe @relation(fields: [recipeId], references: [id])
+  stepOrder       Int     @default(0) @map("order")
+  recipe          Recipe  @relation(fields: [recipeId], references: [id])
 
   @@map("recipe_processes")
 }
 
 model Cost {
-  id           Int     @id @default(autoincrement())
+  id           Int    @id @default(autoincrement())
   name         String
-  type         String // fijo | variable | impuesto
+  type         String
   monthlyValue Float
 
   @@map("costs")
@@ -240,8 +220,47 @@ model OtherCosts {
   @@map("other_costs")
 }
 
+enum MovementType {
+  PURCHASE
+  TRANSFER
+  WASTE
+  CONSUMPTION
+}
 
+enum ProductBaseUnit {
+  g
+  kg
+  ml
+  l
+  unit
+}
 
+model MenuItem {
+  id          Int     @id @default(autoincrement())
+  name        String // nombre del plato (ej: "Hamburguesa Especial")
+  description String? // acompañantes (texto libre)
 
+  hasDrink   Boolean @default(false)
+  hasDessert Boolean @default(false)
 
+  active Boolean @default(true)
 
+  createdAt DateTime @default(now())
+
+  components MenuItemComponent[]
+}
+
+model MenuItemComponent {
+  id Int @id @default(autoincrement())
+
+  menuItemId Int
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+
+  productId Int?
+  product   Product? @relation(fields: [productId], references: [id])
+
+  recipeId Int?
+  recipe   Recipe? @relation(fields: [recipeId], references: [id])
+
+  quantity Float
+}

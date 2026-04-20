@@ -21,7 +21,24 @@ export default function ProductionModule() {
   title: "Editar receta",
   description: "Modifica ingredientes y procesos",
   path: "/recipes/edit"
-}
+},
+    {
+  title: "Crear Plato del Menú",
+  description: "Crea tus Platos del menú como saldran a la mesa",
+  path: "/menu/create"
+},
+    {
+  title: "Menú",
+  description: "Aca puedes ver todo tu menu completo ",
+  path: "/menu"
+},
+    {
+  title: "Editar Platos del Menú",
+  description: "Modifica tus platos del menú",
+  path: "/menu/edit"
+},
+
+
   ];
 
   return (

@@ -4,24 +4,37 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import Button from "@/components/Button";
 import { showError } from "@/utils/toast";
-import { apiFetch } from "@/lib/api"; // 🔥 IMPORTANTE
+import { apiFetch } from "@/lib/api";
 
 export default function TotalCostPage() {
 
+  const [type, setType] = useState<"recipe" | "menu">("menu");
+
   const [recipes, setRecipes] = useState<any[]>([]);
-  const [selectedRecipe, setSelectedRecipe] = useState("");
+  const [menuItems, setMenuItems] = useState<any[]>([]);
+
+  const [selectedId, setSelectedId] = useState("");
   const [result, setResult] = useState<any>(null);
 
-  // 🔥 cargar recetas
-  const fetchRecipes = async () => {
+
+  // 🔥 cargar datos
+  const fetchData = async () => {
     try {
-      const data = await apiFetch("/recipes");
+      const [recipesData, menuData] = await Promise.all([
+        apiFetch("/recipes"),
+        apiFetch("/menu-items"),
+      ]);
 
-      const list = Array.isArray(data)
-        ? data
-        : data.recipes || data.data || [];
+      const recipesList = Array.isArray(recipesData)
+        ? recipesData
+        : recipesData.recipes || recipesData.data || [];
 
-      setRecipes(list);
+      const menuList = Array.isArray(menuData)
+        ? menuData
+        : menuData.menuItems || menuData.data || [];
+
+      setRecipes(recipesList);
+      setMenuItems(menuList.filter((m: any) => m.active));
 
     } catch (error) {
       console.error(error);
@@ -29,16 +42,29 @@ export default function TotalCostPage() {
   };
 
   useEffect(() => {
-    fetchRecipes();
+    fetchData();
   }, []);
+
 
   // 🔥 calcular costo
   const handleCalculate = async () => {
-    if (!selectedRecipe) return showError("Selecciona una receta");
+
+    if (!selectedId) {
+      return showError("Selecciona una opción");
+    }
 
     try {
-      const data = await apiFetch(`/costs/recipe/${selectedRecipe}`, {
-        method: "POST",
+
+      let endpoint = "";
+
+      if (type === "recipe") {
+        endpoint = `/costs/recipe/${selectedId}`;
+      } else {
+        endpoint = `/costs/menu-item/${selectedId}`;
+      }
+
+      const data = await apiFetch(endpoint, {
+        method: "GET",
       });
 
       setResult(data);
@@ -48,37 +74,70 @@ export default function TotalCostPage() {
     }
   };
 
+
   return (
     <DashboardLayout>
 
       <h1 className="text-3xl font-bold text-[#001F3F] mb-6">
-        Cálculo de Costo por Plato
+        Cálculo de Costos
       </h1>
 
       <div className="bg-gray-400/20 backdrop-blur-md p-6 rounded-2xl space-y-6">
 
-        {/* SELECT RECETA */}
+        {/* 🔥 SELECT TIPO */}
         <div>
-          <label className="text-sm text-gray-600">Seleccionar receta</label>
+          <label className="text-sm text-gray-600">Tipo</label>
           <select
-            value={selectedRecipe}
-            onChange={(e) => setSelectedRecipe(e.target.value)}
+            value={type}
+            onChange={(e) => {
+              setType(e.target.value as any);
+              setSelectedId("");
+              setResult(null);
+            }}
+            className="border p-2 rounded w-full"
+          >
+            <option value="menu">Platos del menú</option>
+            <option value="recipe">Recetas</option>
+          </select>
+        </div>
+
+
+        {/* 🔥 SELECT DINÁMICO */}
+        <div>
+          <label className="text-sm text-gray-600">
+            {type === "menu" ? "Seleccionar plato" : "Seleccionar receta"}
+          </label>
+
+          <select
+            value={selectedId}
+            onChange={(e) => setSelectedId(e.target.value)}
             className="border p-2 rounded w-full"
           >
             <option value="">-- Seleccionar --</option>
-            {recipes.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
+
+            {type === "recipe" &&
+              recipes.map((r) => (
+                <option key={r.id} value={r.id}>
+                  🍳 {r.name}
+                </option>
+              ))}
+
+            {type === "menu" &&
+              menuItems.map((m) => (
+                <option key={m.id} value={m.id}>
+                  🍽 {m.name}
+                </option>
+              ))}
           </select>
         </div>
+
 
         <Button onClick={handleCalculate}>
           Calcular costo
         </Button>
 
       </div>
+
 
       {/* 🔥 RESULTADOS */}
       {result && (
@@ -90,27 +149,49 @@ export default function TotalCostPage() {
 
           <div className="grid grid-cols-2 gap-4">
 
-            <div>
-              <strong>Ingredientes:</strong>
-              <p>${result.ingredientsCost?.toFixed(2) || "0.00"}</p>
-            </div>
+            {/* 🧂 RECETA */}
+            {type === "recipe" && (
+              <>
+                <div>
+                  <strong>Ingredientes:</strong>
+                  <p>${result.ingredientsCost?.toFixed(2) || "0.00"}</p>
+                </div>
 
-            <div>
-              <strong>Costos prorrateados:</strong>
-              <p>${result.indirectCostPerUnit?.toFixed(2) || "0.00"}</p>
-            </div>
+                <div>
+                  <strong>Costo total receta:</strong>
+                  <p>${result.totalCost?.toFixed(2) || "0.00"}</p>
+                </div>
 
-            <div>
-              <strong>Costo total receta:</strong>
-              <p>${result.totalCost?.toFixed(2) || "0.00"}</p>
-            </div>
+                <div>
+                  <strong>Costo por porción:</strong>
+                  <p className="text-blue-600 font-bold">
+                    ${result.costPerPortion?.toFixed(2) || "0.00"}
+                  </p>
+                </div>
+              </>
+            )}
 
-            <div>
-              <strong>Costo por porción:</strong>
-              <p className="text-blue-600 font-bold">
-                ${result.costPerPortion?.toFixed(2) || "0.00"}
-              </p>
-            </div>
+            {/* 🍽 PLATO */}
+            {type === "menu" && (
+              <>
+                <div>
+                  <strong>Costo base:</strong>
+                  <p>${result.baseCost?.toFixed(2) || "0.00"}</p>
+                </div>
+
+                <div>
+                  <strong>Costos indirectos:</strong>
+                  <p>${result.indirectCost?.toFixed(2) || "0.00"}</p>
+                </div>
+
+                <div>
+                  <strong>Costo total plato:</strong>
+                  <p className="text-blue-600 font-bold">
+                    ${result.totalCost?.toFixed(2) || "0.00"}
+                  </p>
+                </div>
+              </>
+            )}
 
           </div>
 

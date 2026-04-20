@@ -277,7 +277,7 @@ export default function ProductCreatePage() {
             </label>
           </div>
 
-          <div className="flex justify-end gap-4 mt-6">
+         <div className="flex justify-end gap-4 mt-6">
             <Button
               variant="secondary"
               onClick={() => router.push(ROUTES.products.list)}

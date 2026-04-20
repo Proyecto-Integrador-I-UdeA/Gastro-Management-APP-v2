@@ -80,9 +80,21 @@ export default function Dashboard() {
             </h1>
 
             {/* BOTONES DASHBOARD */}
-            {/* (se mantienen comentados como pediste) */}
-
+          
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+               {/* PROVEEDORES */}
+ {(() => {
+   const allowed = can("suppliers.read");
+   return (
+     <div
+       onClick={() => allowed && handleNavigate("/suppliers")}
+       className={`${baseCard} ${allowed ? activeCard : disabledCard}`}
+     >
+       <h2>PROVEEDORES</h2>
+       <p>Directorio y Datos de tus Aliados</p>
+     </div>
+   );
+ })()}
 
               {/* PRODUCTOS */}
               {(() => {
@@ -94,20 +106,6 @@ export default function Dashboard() {
                   >
                     <h2>PRODUCTOS</h2>
                     <p>Gestiona stocks y categorías</p>
-                  </div>
-                );
-              })()}
-
-              {/* PROVEEDORES */}
-              {(() => {
-                const allowed = can("suppliers.read");
-                return (
-                  <div
-                    onClick={() => allowed && handleNavigate("/suppliers")}
-                    className={`${baseCard} ${allowed ? activeCard : disabledCard}`}
-                  >
-                    <h2>PROVEEDORES</h2>
-                    <p>Directorio y Datos de tus Aliados</p>
                   </div>
                 );
               })()}
