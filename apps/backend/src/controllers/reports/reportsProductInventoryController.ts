@@ -115,10 +115,14 @@ export const getProductsInventoryRisk = async (_req: Request, res: Response) => 
       )
       .slice(0, 10);
 
+    const topByTotalStock = [...rows]
+      .sort((a, b) => b.totalQuantity - a.totalQuantity)
+      .slice(0, 10);
+
     res.json({
       kpis,
       rows,
-      rankings: { criticalLow, highExcess },
+      rankings: { criticalLow, highExcess, topByTotalStock },
     });
   } catch (error) {
     console.error('getProductsInventoryRisk:', error);

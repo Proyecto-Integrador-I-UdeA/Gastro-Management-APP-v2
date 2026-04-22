@@ -28,6 +28,7 @@ export interface ProductsInventoryRiskResponse {
   rankings: {
     criticalLow: ProductInventoryRiskRow[];
     highExcess: ProductInventoryRiskRow[];
+    topByTotalStock: ProductInventoryRiskRow[];
   };
 }
 

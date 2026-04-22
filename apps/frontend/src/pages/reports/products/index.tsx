@@ -5,8 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import {
   Badge,
+  BarChart,
   BarList,
   Card,
+  DonutChart,
   Metric,
   Table,
   TableBody,
@@ -26,6 +28,7 @@ import { useAuthGuard } from '@/hooks/useAuthGuard';
 import type { InventoryRiskLevel, ProductInventoryRiskRow } from '@/types/reports';
 
 const nf = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 });
+const ni = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
 
 function riskLabel(risk: InventoryRiskLevel): string {
   switch (risk) {
@@ -71,6 +74,7 @@ export default function ReportsProductsInventoryPage() {
   } | null>(null);
   const [criticalLow, setCriticalLow] = useState<ProductInventoryRiskRow[]>([]);
   const [highExcess, setHighExcess] = useState<ProductInventoryRiskRow[]>([]);
+  const [topByTotalStock, setTopByTotalStock] = useState<ProductInventoryRiskRow[]>([]);
   const [search, setSearch] = useState('');
 
   const load = useCallback(async () => {
@@ -82,6 +86,7 @@ export default function ReportsProductsInventoryPage() {
       setRows(data.rows);
       setCriticalLow(data.rankings.criticalLow);
       setHighExcess(data.rankings.highExcess);
+      setTopByTotalStock(data.rankings.topByTotalStock ?? []);
     } catch (e) {
       if (isUnauthorized(e)) {
         void router.push('/login');
@@ -126,6 +131,25 @@ export default function ReportsProductsInventoryPage() {
     [highExcess]
   );
 
+  const riskDonutData = useMemo(() => {
+    if (!kpis) return [];
+    return [
+      { name: 'Sin stock', value: kpis.zeroStock },
+      { name: 'Bajo mínimo', value: kpis.lowStock },
+      { name: 'Sobre máximo', value: kpis.highStock },
+      { name: 'En rango OK', value: kpis.okStock },
+    ];
+  }, [kpis]);
+
+  const topStockChartData = useMemo(
+    () =>
+      topByTotalStock.map((r) => ({
+        producto: `${r.internalCode}`.slice(0, 18),
+        Existencia: r.totalQuantity,
+      })),
+    [topByTotalStock]
+  );
+
   return (
     <DashboardLayout>
       <div className="min-w-0 space-y-8">
@@ -167,6 +191,48 @@ export default function ReportsProductsInventoryPage() {
                 <Card decoration="top" decorationColor="emerald">
                   <Text>En rango OK</Text>
                   <Metric>{nf.format(kpis.okStock)}</Metric>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <Card>
+                  <Title className="text-base">Distribución de riesgo</Title>
+                  <Text className="text-sm mt-1">
+                    Productos activos clasificados por umbrales de inventario.
+                  </Text>
+                  {riskDonutData.every((d) => d.value === 0) ? (
+                    <Text className="mt-6">Sin datos.</Text>
+                  ) : (
+                    <DonutChart
+                      className="mt-4 h-56"
+                      data={riskDonutData}
+                      category="value"
+                      index="name"
+                      colors={['red', 'amber', 'orange', 'emerald']}
+                      valueFormatter={(v) => ni.format(v)}
+                      showLabel={true}
+                    />
+                  )}
+                </Card>
+                <Card>
+                  <Title className="text-base">Top 10 por stock total</Title>
+                  <Text className="text-sm mt-1">
+                    Existencia agregada en todas las bodegas (productos activos).
+                  </Text>
+                  {topStockChartData.length === 0 ? (
+                    <Text className="mt-6">Sin productos.</Text>
+                  ) : (
+                    <BarChart
+                      className="mt-4 h-80"
+                      data={topStockChartData}
+                      index="producto"
+                      categories={['Existencia']}
+                      colors={['cyan']}
+                      layout="horizontal"
+                      yAxisWidth={72}
+                      valueFormatter={(v) => nf.format(v)}
+                    />
+                  )}
                 </Card>
               </div>
 
