@@ -69,6 +69,8 @@ export default function Sidebar() {
     safePath === "/reports/products" || safePath.startsWith("/reports/products");
   const reportsSuppliersActive =
     safePath === "/reports/suppliers" || safePath.startsWith("/reports/suppliers");
+  const reportsTransfersActive =
+    safePath === "/reports/transfers" || safePath.startsWith("/reports/transfers");
 
   const can = (perm: string) =>
     permissions.includes(perm.trim().toLowerCase());
@@ -266,6 +268,16 @@ export default function Sidebar() {
                   >
                     <span className="text-xl">🚚</span>
                     <span className="text-lg">Proveedores · Catálogo</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={itemClass(reportsTransfersActive)}
+                    onClick={() =>
+                      handleNavigate("/reports/transfers", "reports.read")
+                    }
+                  >
+                    <span className="text-xl">↔️</span>
+                    <span className="text-lg">Traslados · Resumen</span>
                   </button>
                 </>
               )}

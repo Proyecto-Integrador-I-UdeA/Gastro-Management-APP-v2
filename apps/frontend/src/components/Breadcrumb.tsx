@@ -13,6 +13,7 @@ export default function Breadcrumb() {
       reports: "Reportes",
       products: "Productos",
       suppliers: "Proveedores",
+      transfers: "Traslados",
       production: "Producción",
       recipes: "Producción",
       costs: "Costos",
