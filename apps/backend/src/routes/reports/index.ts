@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate, authorize } from '../../middlewares/auth';
 import { getProductsInventoryRisk } from '../../controllers/reports/reportsProductInventoryController';
 import { getSuppliersCatalogReport } from '../../controllers/reports/reportsSupplierCatalogController';
+import { getTransfersReport } from '../../controllers/reports/reportsTransfersController';
 
 const router = Router();
 
@@ -17,6 +18,13 @@ router.get(
   authenticate,
   authorize(['reports.read']),
   getSuppliersCatalogReport
+);
+
+router.get(
+  '/transfers/summary',
+  authenticate,
+  authorize(['reports.read']),
+  getTransfersReport
 );
 
 export default router;

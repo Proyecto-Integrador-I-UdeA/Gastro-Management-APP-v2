@@ -26,6 +26,7 @@ export const ROUTES = {
     root: '/reports',
     productsInventory: '/reports/products',
     suppliersCatalog: '/reports/suppliers',
+    transfersSummary: '/reports/transfers',
   },
   transfers: {
     list: '/transfers',

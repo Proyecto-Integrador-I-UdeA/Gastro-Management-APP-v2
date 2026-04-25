@@ -5,8 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import {
   Badge,
+  BarChart,
   BarList,
   Card,
+  DonutChart,
   Metric,
   Table,
   TableBody,
@@ -88,6 +90,28 @@ export default function ReportsSuppliersCatalogPage() {
     [topByActive]
   );
 
+  const catalogDonutData = useMemo(() => {
+    if (!kpis) return [];
+    const activeWithProducts = Math.max(
+      0,
+      kpis.activeSuppliers - kpis.activeWithNoActiveProducts
+    );
+    return [
+      { name: 'Inactivos', value: kpis.inactiveSuppliers },
+      { name: 'Activos sin producto activo', value: kpis.activeWithNoActiveProducts },
+      { name: 'Activos con productos activos', value: activeWithProducts },
+    ];
+  }, [kpis]);
+
+  const topActiveBarChartData = useMemo(
+    () =>
+      topByActive.map((r) => ({
+        proveedor: `${r.internalCode}`.slice(0, 18),
+        'Prod. activos': r.activeProductCount,
+      })),
+    [topByActive]
+  );
+
   return (
     <DashboardLayout>
       <div className="min-w-0 space-y-8">
@@ -127,6 +151,50 @@ export default function ReportsSuppliersCatalogPage() {
                   <Text className="text-xs text-gray-500 mt-1">
                     Marca activa en proveedor, cero productos activos asignados
                   </Text>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <Card>
+                  <Title className="text-base">Composición del catálogo</Title>
+                  <Text className="text-sm mt-1">
+                    Mismo total que «Proveedores en catálogo» ({kpis.totalSuppliers}): inactivos,
+                    activos sin ningún producto activo, y activos con al menos un producto activo.
+                  </Text>
+                  {catalogDonutData.every((d) => d.value === 0) ? (
+                    <Text className="mt-6">Sin datos.</Text>
+                  ) : (
+                    <DonutChart
+                      className="mt-4 h-56"
+                      data={catalogDonutData}
+                      category="value"
+                      index="name"
+                      colors={['gray', 'amber', 'emerald']}
+                      valueFormatter={(v) => ni.format(v)}
+                      showLabel={true}
+                    />
+                  )}
+                </Card>
+                <Card>
+                  <Title className="text-base">Top 10 por productos activos</Title>
+                  <Text className="text-sm mt-1">
+                    Proveedores con al menos un producto activo (mismo criterio que la lista
+                    inferior).
+                  </Text>
+                  {topActiveBarChartData.length === 0 ? (
+                    <Text className="mt-6">Ningún proveedor con productos activos.</Text>
+                  ) : (
+                    <BarChart
+                      className="mt-4 h-80"
+                      data={topActiveBarChartData}
+                      index="proveedor"
+                      categories={['Prod. activos']}
+                      colors={['cyan']}
+                      layout="horizontal"
+                      yAxisWidth={72}
+                      valueFormatter={(v) => ni.format(v)}
+                    />
+                  )}
                 </Card>
               </div>
 

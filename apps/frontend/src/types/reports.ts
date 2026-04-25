@@ -28,6 +28,7 @@ export interface ProductsInventoryRiskResponse {
   rankings: {
     criticalLow: ProductInventoryRiskRow[];
     highExcess: ProductInventoryRiskRow[];
+    topByTotalStock: ProductInventoryRiskRow[];
   };
 }
 
@@ -55,4 +56,59 @@ export interface SuppliersCatalogResponse {
     topByActiveProducts: SupplierCatalogRow[];
     noActiveProducts: SupplierCatalogRow[];
   };
+}
+
+export interface TransfersReportKpis {
+  movementCount: number;
+  totalQuantity: number;
+  distinctProducts: number;
+  distinctWarehouses: number;
+}
+
+export interface TransfersReportTimePoint {
+  day: string;
+  movementCount: number;
+  totalQuantity: number;
+}
+
+export interface TransfersReportProductRank {
+  productId: number;
+  internalCode: string;
+  name: string;
+  unitOfMeasure: string;
+  totalQuantity: number;
+}
+
+export interface TransfersReportRouteRow {
+  sourceWarehouseId: number | null;
+  sourceWarehouseName: string;
+  destinationWarehouseId: number | null;
+  destinationWarehouseName: string;
+  movementCount: number;
+  totalQuantity: number;
+}
+
+export interface TransfersReportDetailRow {
+  id: number;
+  quantity: number;
+  createdAt: string;
+  notes: string | null;
+  product: {
+    id: number;
+    internalCode: string;
+    name: string;
+    unitOfMeasure: string;
+  };
+  sourceWarehouse: { id: number; name: string } | null;
+  destinationWarehouse: { id: number; name: string } | null;
+  user: { id: number; fullName: string | null; email: string };
+}
+
+export interface TransfersReportResponse {
+  range: { from: string; to: string };
+  kpis: TransfersReportKpis;
+  timeSeries: TransfersReportTimePoint[];
+  topProducts: TransfersReportProductRank[];
+  routes: TransfersReportRouteRow[];
+  details: TransfersReportDetailRow[];
 }
