@@ -29,6 +29,9 @@ import type { SupplierCatalogRow } from '@/types/reports';
 
 const ni = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
 
+const kpiMetricClass =
+  '!text-4xl sm:!text-5xl tabular-nums tracking-tight text-slate-900';
+
 export default function ReportsSuppliersCatalogPage() {
   useAuthGuard('reports.read');
 
@@ -98,7 +101,7 @@ export default function ReportsSuppliersCatalogPage() {
     );
     return [
       { name: 'Inactivos', value: kpis.inactiveSuppliers },
-      { name: 'Activos sin producto activo', value: kpis.activeWithNoActiveProducts },
+      { name: 'Activos sin producto', value: kpis.activeWithNoActiveProducts },
       { name: 'Activos con productos activos', value: activeWithProducts },
     ];
   }, [kpis]);
@@ -135,21 +138,23 @@ export default function ReportsSuppliersCatalogPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 <Card decoration="top" decorationColor="slate">
                   <Text>Proveedores en catálogo</Text>
-                  <Metric>{ni.format(kpis.totalSuppliers)}</Metric>
+                  <Metric className={kpiMetricClass}>{ni.format(kpis.totalSuppliers)}</Metric>
                 </Card>
                 <Card decoration="top" decorationColor="emerald">
                   <Text>Proveedores activos</Text>
-                  <Metric>{ni.format(kpis.activeSuppliers)}</Metric>
+                  <Metric className={kpiMetricClass}>{ni.format(kpis.activeSuppliers)}</Metric>
                 </Card>
                 <Card decoration="top" decorationColor="gray">
                   <Text>Proveedores inactivos</Text>
-                  <Metric>{ni.format(kpis.inactiveSuppliers)}</Metric>
+                  <Metric className={kpiMetricClass}>{ni.format(kpis.inactiveSuppliers)}</Metric>
                 </Card>
                 <Card decoration="top" decorationColor="amber">
-                  <Text>Activos sin producto activo</Text>
-                  <Metric>{ni.format(kpis.activeWithNoActiveProducts)}</Metric>
+                  <Text>Activos sin producto</Text>
+                  <Metric className={kpiMetricClass}>
+                    {ni.format(kpis.activeWithNoActiveProducts)}
+                  </Metric>
                   <Text className="text-xs text-gray-500 mt-1">
-                    Marca activa en proveedor, cero productos activos asignados
+                    Proveedor activo sin ningún producto asignado
                   </Text>
                 </Card>
               </div>
@@ -159,7 +164,7 @@ export default function ReportsSuppliersCatalogPage() {
                   <Title className="text-base">Composición del catálogo</Title>
                   <Text className="text-sm mt-1">
                     Mismo total que «Proveedores en catálogo» ({kpis.totalSuppliers}): inactivos,
-                    activos sin ningún producto activo, y activos con al menos un producto activo.
+                    activos sin ningún producto, y activos con al menos un producto activo.
                   </Text>
                   {catalogDonutData.every((d) => d.value === 0) ? (
                     <Text className="mt-6">Sin datos.</Text>
@@ -215,7 +220,7 @@ export default function ReportsSuppliersCatalogPage() {
                   )}
                 </Card>
                 <Card>
-                  <Title className="text-base">Activos sin producto activo</Title>
+                  <Title className="text-base">Activos sin producto</Title>
                   <Text className="text-sm mt-1">
                     Conviene asignar productos o marcar el proveedor inactivo si no aplica.
                   </Text>

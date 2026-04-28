@@ -18,6 +18,9 @@ import { useAuthGuard } from '@/hooks/useAuthGuard';
 const nf = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 });
 const ni = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
 
+const kpiMetricClass =
+  '!text-4xl sm:!text-5xl tabular-nums tracking-tight text-slate-900';
+
 function localYmd(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -192,19 +195,19 @@ export default function ReportsTransfersPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               <Card decoration="top" decorationColor="slate">
                 <Text>Traslados (movimientos)</Text>
-                <Metric>{ni.format(kpis.movementCount)}</Metric>
+                <Metric className={kpiMetricClass}>{ni.format(kpis.movementCount)}</Metric>
               </Card>
               <Card decoration="top" decorationColor="cyan">
                 <Text>Cantidad total movida</Text>
-                <Metric>{nf.format(kpis.totalQuantity)}</Metric>
+                <Metric className={kpiMetricClass}>{nf.format(kpis.totalQuantity)}</Metric>
               </Card>
               <Card decoration="top" decorationColor="indigo">
                 <Text>Productos distintos</Text>
-                <Metric>{ni.format(kpis.distinctProducts)}</Metric>
+                <Metric className={kpiMetricClass}>{ni.format(kpis.distinctProducts)}</Metric>
               </Card>
               <Card decoration="top" decorationColor="violet">
                 <Text>Bodegas involucradas</Text>
-                <Metric>{ni.format(kpis.distinctWarehouses)}</Metric>
+                <Metric className={kpiMetricClass}>{ni.format(kpis.distinctWarehouses)}</Metric>
               </Card>
             </div>
 

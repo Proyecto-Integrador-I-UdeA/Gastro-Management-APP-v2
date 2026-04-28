@@ -30,6 +30,9 @@ import type { InventoryRiskLevel, ProductInventoryRiskRow } from '@/types/report
 const nf = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 });
 const ni = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
 
+const kpiMetricClass =
+  '!text-4xl sm:!text-5xl tabular-nums tracking-tight text-slate-900';
+
 function riskLabel(risk: InventoryRiskLevel): string {
   switch (risk) {
     case 'zero':
@@ -174,23 +177,23 @@ export default function ReportsProductsInventoryPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
                 <Card decoration="top" decorationColor="slate">
                   <Text>Productos activos</Text>
-                  <Metric>{nf.format(kpis.totalActiveProducts)}</Metric>
+                  <Metric className={kpiMetricClass}>{nf.format(kpis.totalActiveProducts)}</Metric>
                 </Card>
                 <Card decoration="top" decorationColor="red">
                   <Text>Sin stock</Text>
-                  <Metric>{nf.format(kpis.zeroStock)}</Metric>
+                  <Metric className={kpiMetricClass}>{nf.format(kpis.zeroStock)}</Metric>
                 </Card>
                 <Card decoration="top" decorationColor="amber">
-                  <Text>Bajo mínimo (&gt;0)</Text>
-                  <Metric>{nf.format(kpis.lowStock)}</Metric>
+                  <Text>Bajo mínimo</Text>
+                  <Metric className={kpiMetricClass}>{nf.format(kpis.lowStock)}</Metric>
                 </Card>
                 <Card decoration="top" decorationColor="orange">
                   <Text>Sobre máximo</Text>
-                  <Metric>{nf.format(kpis.highStock)}</Metric>
+                  <Metric className={kpiMetricClass}>{nf.format(kpis.highStock)}</Metric>
                 </Card>
                 <Card decoration="top" decorationColor="emerald">
                   <Text>En rango OK</Text>
-                  <Metric>{nf.format(kpis.okStock)}</Metric>
+                  <Metric className={kpiMetricClass}>{nf.format(kpis.okStock)}</Metric>
                 </Card>
               </div>
 
