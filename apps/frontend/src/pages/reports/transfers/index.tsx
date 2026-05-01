@@ -10,6 +10,7 @@ import {
   Text,
   Title,
 } from '@tremor/react';
+import type { CustomTooltipProps } from '@tremor/react';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import { fetchTransfersReportSummary } from '@/lib/reportsApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
@@ -20,6 +21,20 @@ const ni = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
 
 const kpiMetricClass =
   '!text-4xl sm:!text-5xl tabular-nums tracking-tight text-slate-900';
+
+function TopTransferVolumeTooltip({ active, payload }: CustomTooltipProps) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload as { nombre?: string; Volumen?: number } | undefined;
+  if (!row) return null;
+  return (
+    <div className="rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default shadow-tremor-dropdown">
+      <p className="font-medium text-tremor-content-emphasis">{row.nombre ?? '—'}</p>
+      <p className="mt-1 text-sm text-tremor-content">
+        Volumen: {nf.format(row.Volumen ?? 0)}
+      </p>
+    </div>
+  );
+}
 
 function localYmd(d: Date): string {
   const y = d.getFullYear();
@@ -123,11 +138,12 @@ export default function ReportsTransfersPage() {
     [timeSeries]
   );
 
-  const barTopProducts = useMemo(
+  const topProductsChartData = useMemo(
     () =>
-      topProducts.map((r) => ({
-        name: `${r.internalCode} · ${r.name}`.slice(0, 56),
-        value: r.totalQuantity,
+      topProducts.slice(0, 5).map((r) => ({
+        producto: `${r.internalCode}`.slice(0, 16),
+        nombre: r.name,
+        Volumen: r.totalQuantity,
       })),
     [topProducts]
   );
@@ -231,23 +247,22 @@ export default function ReportsTransfersPage() {
                 )}
               </Card>
               <Card>
-                <Title className="text-base">Top productos por volumen</Title>
+                <Title className="text-base">Top 5 productos por volumen</Title>
                 <Text className="text-sm mt-1">Suma de cantidades transferidas en el periodo.</Text>
-                {barTopProducts.length === 0 ? (
+                {topProductsChartData.length === 0 ? (
                   <Text className="mt-6">Sin datos.</Text>
                 ) : (
                   <BarChart
                     className="mt-4 h-72"
-                    data={topProducts.map((r) => ({
-                      producto: `${r.internalCode}`.slice(0, 16),
-                      Volumen: r.totalQuantity,
-                    }))}
+                    data={topProductsChartData}
                     index="producto"
                     categories={['Volumen']}
                     colors={['indigo']}
                     layout="horizontal"
                     yAxisWidth={88}
                     valueFormatter={(v) => nf.format(v)}
+                    customTooltip={TopTransferVolumeTooltip}
+                    showLegend={false}
                   />
                 )}
               </Card>

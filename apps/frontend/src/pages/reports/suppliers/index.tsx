@@ -20,6 +20,7 @@ import {
   Title,
   TextInput,
 } from '@tremor/react';
+import type { CustomTooltipProps } from '@tremor/react';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import { ROUTES } from '@/constants/routes';
 import { fetchSuppliersCatalogReport } from '@/lib/reportsApi';
@@ -31,6 +32,23 @@ const ni = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
 
 const kpiMetricClass =
   '!text-4xl sm:!text-5xl tabular-nums tracking-tight text-slate-900';
+
+function TopSuppliersActiveTooltip({ active, payload }: CustomTooltipProps) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload as
+    | { nombre?: string; 'Prod. activos'?: number }
+    | undefined;
+  if (!row) return null;
+  const count = row['Prod. activos'];
+  return (
+    <div className="rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default shadow-tremor-dropdown">
+      <p className="font-medium text-tremor-content-emphasis">{row.nombre ?? '—'}</p>
+      <p className="mt-1 text-sm text-tremor-content">
+        Prod. activos: {ni.format(count ?? 0)}
+      </p>
+    </div>
+  );
+}
 
 export default function ReportsSuppliersCatalogPage() {
   useAuthGuard('reports.read');
@@ -110,6 +128,7 @@ export default function ReportsSuppliersCatalogPage() {
     () =>
       topByActive.map((r) => ({
         proveedor: `${r.internalCode}`.slice(0, 18),
+        nombre: r.name,
         'Prod. activos': r.activeProductCount,
       })),
     [topByActive]
@@ -198,6 +217,8 @@ export default function ReportsSuppliersCatalogPage() {
                       layout="horizontal"
                       yAxisWidth={72}
                       valueFormatter={(v) => ni.format(v)}
+                      customTooltip={TopSuppliersActiveTooltip}
+                      showLegend={false}
                     />
                   )}
                 </Card>
