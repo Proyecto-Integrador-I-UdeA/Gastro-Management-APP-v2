@@ -20,6 +20,7 @@ import {
   Title,
   TextInput,
 } from '@tremor/react';
+import type { CustomTooltipProps } from '@tremor/react';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import { ROUTES } from '@/constants/routes';
 import { fetchSuppliersCatalogReport } from '@/lib/reportsApi';
@@ -28,6 +29,26 @@ import { useAuthGuard } from '@/hooks/useAuthGuard';
 import type { SupplierCatalogRow } from '@/types/reports';
 
 const ni = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
+
+const kpiMetricClass =
+  '!text-4xl sm:!text-5xl tabular-nums tracking-tight text-slate-900';
+
+function TopSuppliersActiveTooltip({ active, payload }: CustomTooltipProps) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload as
+    | { nombre?: string; 'Prod. activos'?: number }
+    | undefined;
+  if (!row) return null;
+  const count = row['Prod. activos'];
+  return (
+    <div className="rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default shadow-tremor-dropdown">
+      <p className="font-medium text-tremor-content-emphasis">{row.nombre ?? '—'}</p>
+      <p className="mt-1 text-sm text-tremor-content">
+        Prod. activos: {ni.format(count ?? 0)}
+      </p>
+    </div>
+  );
+}
 
 export default function ReportsSuppliersCatalogPage() {
   useAuthGuard('reports.read');
@@ -98,7 +119,7 @@ export default function ReportsSuppliersCatalogPage() {
     );
     return [
       { name: 'Inactivos', value: kpis.inactiveSuppliers },
-      { name: 'Activos sin producto activo', value: kpis.activeWithNoActiveProducts },
+      { name: 'Activos sin producto', value: kpis.activeWithNoActiveProducts },
       { name: 'Activos con productos activos', value: activeWithProducts },
     ];
   }, [kpis]);
@@ -107,6 +128,7 @@ export default function ReportsSuppliersCatalogPage() {
     () =>
       topByActive.map((r) => ({
         proveedor: `${r.internalCode}`.slice(0, 18),
+        nombre: r.name,
         'Prod. activos': r.activeProductCount,
       })),
     [topByActive]
@@ -135,21 +157,23 @@ export default function ReportsSuppliersCatalogPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 <Card decoration="top" decorationColor="slate">
                   <Text>Proveedores en catálogo</Text>
-                  <Metric>{ni.format(kpis.totalSuppliers)}</Metric>
+                  <Metric className={kpiMetricClass}>{ni.format(kpis.totalSuppliers)}</Metric>
                 </Card>
                 <Card decoration="top" decorationColor="emerald">
                   <Text>Proveedores activos</Text>
-                  <Metric>{ni.format(kpis.activeSuppliers)}</Metric>
+                  <Metric className={kpiMetricClass}>{ni.format(kpis.activeSuppliers)}</Metric>
                 </Card>
                 <Card decoration="top" decorationColor="gray">
                   <Text>Proveedores inactivos</Text>
-                  <Metric>{ni.format(kpis.inactiveSuppliers)}</Metric>
+                  <Metric className={kpiMetricClass}>{ni.format(kpis.inactiveSuppliers)}</Metric>
                 </Card>
                 <Card decoration="top" decorationColor="amber">
-                  <Text>Activos sin producto activo</Text>
-                  <Metric>{ni.format(kpis.activeWithNoActiveProducts)}</Metric>
+                  <Text>Activos sin producto</Text>
+                  <Metric className={kpiMetricClass}>
+                    {ni.format(kpis.activeWithNoActiveProducts)}
+                  </Metric>
                   <Text className="text-xs text-gray-500 mt-1">
-                    Marca activa en proveedor, cero productos activos asignados
+                    Proveedor activo sin ningún producto asignado
                   </Text>
                 </Card>
               </div>
@@ -159,7 +183,7 @@ export default function ReportsSuppliersCatalogPage() {
                   <Title className="text-base">Composición del catálogo</Title>
                   <Text className="text-sm mt-1">
                     Mismo total que «Proveedores en catálogo» ({kpis.totalSuppliers}): inactivos,
-                    activos sin ningún producto activo, y activos con al menos un producto activo.
+                    activos sin ningún producto, y activos con al menos un producto activo.
                   </Text>
                   {catalogDonutData.every((d) => d.value === 0) ? (
                     <Text className="mt-6">Sin datos.</Text>
@@ -193,6 +217,8 @@ export default function ReportsSuppliersCatalogPage() {
                       layout="horizontal"
                       yAxisWidth={72}
                       valueFormatter={(v) => ni.format(v)}
+                      customTooltip={TopSuppliersActiveTooltip}
+                      showLegend={false}
                     />
                   )}
                 </Card>
@@ -215,7 +241,7 @@ export default function ReportsSuppliersCatalogPage() {
                   )}
                 </Card>
                 <Card>
-                  <Title className="text-base">Activos sin producto activo</Title>
+                  <Title className="text-base">Activos sin producto</Title>
                   <Text className="text-sm mt-1">
                     Conviene asignar productos o marcar el proveedor inactivo si no aplica.
                   </Text>
@@ -281,7 +307,6 @@ export default function ReportsSuppliersCatalogPage() {
                         <TableHeaderCell>Estado</TableHeaderCell>
                         <TableHeaderCell className="text-right">Prod. activos</TableHeaderCell>
                         <TableHeaderCell className="text-right">Prod. total</TableHeaderCell>
-                        <TableHeaderCell></TableHeaderCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -302,14 +327,6 @@ export default function ReportsSuppliersCatalogPage() {
                           </TableCell>
                           <TableCell className="text-right tabular-nums text-gray-600">
                             {ni.format(r.totalProductCount)}
-                          </TableCell>
-                          <TableCell>
-                            <Link
-                              href={ROUTES.suppliers.edit(r.supplierId)}
-                              className="text-sm text-blue-700 hover:underline whitespace-nowrap"
-                            >
-                              Editar
-                            </Link>
                           </TableCell>
                         </TableRow>
                       ))}

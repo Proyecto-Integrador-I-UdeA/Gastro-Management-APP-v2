@@ -4,12 +4,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import {
   BarChart,
-  BarList,
   Card,
   Metric,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
   Text,
   Title,
 } from '@tremor/react';
+import type { CustomTooltipProps } from '@tremor/react';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import { fetchTransfersReportSummary } from '@/lib/reportsApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
@@ -17,6 +23,23 @@ import { useAuthGuard } from '@/hooks/useAuthGuard';
 
 const nf = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 });
 const ni = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
+
+const kpiMetricClass =
+  '!text-4xl sm:!text-5xl tabular-nums tracking-tight text-slate-900';
+
+function TopTransferVolumeTooltip({ active, payload }: CustomTooltipProps) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload as { nombre?: string; Volumen?: number } | undefined;
+  if (!row) return null;
+  return (
+    <div className="rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-tremor-default shadow-tremor-dropdown">
+      <p className="font-medium text-tremor-content-emphasis">{row.nombre ?? '—'}</p>
+      <p className="mt-1 text-sm text-tremor-content">
+        Volumen: {nf.format(row.Volumen ?? 0)}
+      </p>
+    </div>
+  );
+}
 
 function localYmd(d: Date): string {
   const y = d.getFullYear();
@@ -120,22 +143,14 @@ export default function ReportsTransfersPage() {
     [timeSeries]
   );
 
-  const barTopProducts = useMemo(
+  const topProductsChartData = useMemo(
     () =>
-      topProducts.map((r) => ({
-        name: `${r.internalCode} · ${r.name}`.slice(0, 56),
-        value: r.totalQuantity,
+      topProducts.slice(0, 5).map((r) => ({
+        producto: `${r.internalCode}`.slice(0, 16),
+        nombre: r.name,
+        Volumen: r.totalQuantity,
       })),
     [topProducts]
-  );
-
-  const barRoutes = useMemo(
-    () =>
-      routes.map((r) => ({
-        name: `${r.sourceWarehouseName} → ${r.destinationWarehouseName}`.slice(0, 64),
-        value: r.totalQuantity,
-      })),
-    [routes]
   );
 
   return (
@@ -192,19 +207,19 @@ export default function ReportsTransfersPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               <Card decoration="top" decorationColor="slate">
                 <Text>Traslados (movimientos)</Text>
-                <Metric>{ni.format(kpis.movementCount)}</Metric>
+                <Metric className={kpiMetricClass}>{ni.format(kpis.movementCount)}</Metric>
               </Card>
               <Card decoration="top" decorationColor="cyan">
                 <Text>Cantidad total movida</Text>
-                <Metric>{nf.format(kpis.totalQuantity)}</Metric>
+                <Metric className={kpiMetricClass}>{nf.format(kpis.totalQuantity)}</Metric>
               </Card>
               <Card decoration="top" decorationColor="indigo">
                 <Text>Productos distintos</Text>
-                <Metric>{ni.format(kpis.distinctProducts)}</Metric>
+                <Metric className={kpiMetricClass}>{ni.format(kpis.distinctProducts)}</Metric>
               </Card>
               <Card decoration="top" decorationColor="violet">
                 <Text>Bodegas involucradas</Text>
-                <Metric>{ni.format(kpis.distinctWarehouses)}</Metric>
+                <Metric className={kpiMetricClass}>{ni.format(kpis.distinctWarehouses)}</Metric>
               </Card>
             </div>
 
@@ -228,37 +243,61 @@ export default function ReportsTransfersPage() {
                 )}
               </Card>
               <Card>
-                <Title className="text-base">Top productos por volumen</Title>
+                <Title className="text-base">Top 5 productos por volumen</Title>
                 <Text className="text-sm mt-1">Suma de cantidades transferidas en el periodo.</Text>
-                {barTopProducts.length === 0 ? (
+                {topProductsChartData.length === 0 ? (
                   <Text className="mt-6">Sin datos.</Text>
                 ) : (
                   <BarChart
                     className="mt-4 h-72"
-                    data={topProducts.map((r) => ({
-                      producto: `${r.internalCode}`.slice(0, 16),
-                      Volumen: r.totalQuantity,
-                    }))}
+                    data={topProductsChartData}
                     index="producto"
                     categories={['Volumen']}
                     colors={['indigo']}
                     layout="horizontal"
                     yAxisWidth={88}
                     valueFormatter={(v) => nf.format(v)}
+                    customTooltip={TopTransferVolumeTooltip}
+                    showLegend={false}
                   />
                 )}
               </Card>
             </div>
 
-            <Card>
-              <Title className="text-base">Rutas origen → destino</Title>
-              <Text className="text-sm mt-1">Por cantidad total movida en el periodo.</Text>
-              {barRoutes.length === 0 ? (
-                <Text className="mt-4">Sin rutas en el periodo.</Text>
-              ) : (
-                <BarList data={barRoutes} className="mt-4" valueFormatter={(v) => nf.format(v)} />
-              )}
-            </Card>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <Card>
+                <Title className="text-base">Rutas origen → destino</Title>
+                <Text className="text-sm mt-1">Por cantidad total movida en el periodo.</Text>
+                {routes.length === 0 ? (
+                  <Text className="mt-4">Sin rutas en el periodo.</Text>
+                ) : (
+                  <Table className="mt-4">
+                    <TableHead>
+                      <TableRow>
+                        <TableHeaderCell>Origen → destino</TableHeaderCell>
+                        <TableHeaderCell className="text-right whitespace-nowrap w-28">
+                          Cantidad
+                        </TableHeaderCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {routes.map((r, i) => (
+                        <TableRow
+                          key={`${r.sourceWarehouseName}-${r.destinationWarehouseName}-${i}`}
+                        >
+                          <TableCell className="text-sm pr-4">
+                            {r.sourceWarehouseName} → {r.destinationWarehouseName}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums text-sm whitespace-nowrap">
+                            {nf.format(r.totalQuantity)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </Card>
+            </div>
           </>
         ) : null}
       </div>
