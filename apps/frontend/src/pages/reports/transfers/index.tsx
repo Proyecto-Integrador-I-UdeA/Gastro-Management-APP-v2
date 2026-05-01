@@ -4,9 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import {
   BarChart,
-  BarList,
   Card,
   Metric,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
   Text,
   Title,
 } from '@tremor/react';
@@ -148,15 +153,6 @@ export default function ReportsTransfersPage() {
     [topProducts]
   );
 
-  const barRoutes = useMemo(
-    () =>
-      routes.map((r) => ({
-        name: `${r.sourceWarehouseName} → ${r.destinationWarehouseName}`.slice(0, 64),
-        value: r.totalQuantity,
-      })),
-    [routes]
-  );
-
   return (
     <DashboardLayout>
       <div className="min-w-0 space-y-8">
@@ -268,15 +264,40 @@ export default function ReportsTransfersPage() {
               </Card>
             </div>
 
-            <Card>
-              <Title className="text-base">Rutas origen → destino</Title>
-              <Text className="text-sm mt-1">Por cantidad total movida en el periodo.</Text>
-              {barRoutes.length === 0 ? (
-                <Text className="mt-4">Sin rutas en el periodo.</Text>
-              ) : (
-                <BarList data={barRoutes} className="mt-4" valueFormatter={(v) => nf.format(v)} />
-              )}
-            </Card>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <Card>
+                <Title className="text-base">Rutas origen → destino</Title>
+                <Text className="text-sm mt-1">Por cantidad total movida en el periodo.</Text>
+                {routes.length === 0 ? (
+                  <Text className="mt-4">Sin rutas en el periodo.</Text>
+                ) : (
+                  <Table className="mt-4">
+                    <TableHead>
+                      <TableRow>
+                        <TableHeaderCell>Origen → destino</TableHeaderCell>
+                        <TableHeaderCell className="text-right whitespace-nowrap w-28">
+                          Cantidad
+                        </TableHeaderCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {routes.map((r, i) => (
+                        <TableRow
+                          key={`${r.sourceWarehouseName}-${r.destinationWarehouseName}-${i}`}
+                        >
+                          <TableCell className="text-sm pr-4">
+                            {r.sourceWarehouseName} → {r.destinationWarehouseName}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums text-sm whitespace-nowrap">
+                            {nf.format(r.totalQuantity)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </Card>
+            </div>
           </>
         ) : null}
       </div>
