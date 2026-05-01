@@ -307,7 +307,6 @@ export default function ReportsSuppliersCatalogPage() {
                         <TableHeaderCell>Estado</TableHeaderCell>
                         <TableHeaderCell className="text-right">Prod. activos</TableHeaderCell>
                         <TableHeaderCell className="text-right">Prod. total</TableHeaderCell>
-                        <TableHeaderCell></TableHeaderCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -328,14 +327,6 @@ export default function ReportsSuppliersCatalogPage() {
                           </TableCell>
                           <TableCell className="text-right tabular-nums text-gray-600">
                             {ni.format(r.totalProductCount)}
-                          </TableCell>
-                          <TableCell>
-                            <Link
-                              href={ROUTES.suppliers.edit(r.supplierId)}
-                              className="text-sm text-blue-700 hover:underline whitespace-nowrap"
-                            >
-                              Editar
-                            </Link>
                           </TableCell>
                         </TableRow>
                       ))}
