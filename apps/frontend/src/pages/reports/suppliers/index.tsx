@@ -30,8 +30,9 @@ import type { SupplierCatalogRow } from '@/types/reports';
 
 const ni = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
 
+const kpiCardClass = 'flex flex-col items-center text-center';
 const kpiMetricClass =
-  '!text-4xl sm:!text-5xl tabular-nums tracking-tight text-slate-900';
+  'w-full text-center block !text-4xl sm:!text-5xl tabular-nums tracking-tight text-slate-900';
 
 function TopSuppliersActiveTooltip({ active, payload }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
@@ -155,24 +156,24 @@ export default function ReportsSuppliersCatalogPage() {
           ) : kpis ? (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                <Card decoration="top" decorationColor="slate">
+                <Card className={kpiCardClass} decoration="top" decorationColor="slate">
                   <Text>Proveedores en catálogo</Text>
                   <Metric className={kpiMetricClass}>{ni.format(kpis.totalSuppliers)}</Metric>
                 </Card>
-                <Card decoration="top" decorationColor="emerald">
+                <Card className={kpiCardClass} decoration="top" decorationColor="emerald">
                   <Text>Proveedores activos</Text>
                   <Metric className={kpiMetricClass}>{ni.format(kpis.activeSuppliers)}</Metric>
                 </Card>
-                <Card decoration="top" decorationColor="gray">
+                <Card className={kpiCardClass} decoration="top" decorationColor="gray">
                   <Text>Proveedores inactivos</Text>
                   <Metric className={kpiMetricClass}>{ni.format(kpis.inactiveSuppliers)}</Metric>
                 </Card>
-                <Card decoration="top" decorationColor="amber">
+                <Card className={kpiCardClass} decoration="top" decorationColor="amber">
                   <Text>Activos sin producto</Text>
                   <Metric className={kpiMetricClass}>
                     {ni.format(kpis.activeWithNoActiveProducts)}
                   </Metric>
-                  <Text className="text-xs text-gray-500 mt-1">
+                  <Text className="text-xs text-gray-500 mt-1 max-w-xs text-balance">
                     Proveedor activo sin ningún producto asignado
                   </Text>
                 </Card>

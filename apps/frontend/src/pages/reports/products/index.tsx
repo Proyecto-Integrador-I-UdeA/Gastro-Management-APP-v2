@@ -31,8 +31,9 @@ import type { InventoryRiskLevel, ProductInventoryRiskRow } from '@/types/report
 const nf = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 });
 const ni = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
 
+const kpiCardClass = 'flex flex-col items-center text-center';
 const kpiMetricClass =
-  '!text-4xl sm:!text-5xl tabular-nums tracking-tight text-slate-900';
+  'w-full text-center block !text-4xl sm:!text-5xl tabular-nums tracking-tight text-slate-900';
 
 function TopStockTooltip({ active, payload }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
@@ -191,23 +192,23 @@ export default function ReportsProductsInventoryPage() {
           ) : kpis ? (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-                <Card decoration="top" decorationColor="slate">
+                <Card className={kpiCardClass} decoration="top" decorationColor="slate">
                   <Text>Productos activos</Text>
                   <Metric className={kpiMetricClass}>{nf.format(kpis.totalActiveProducts)}</Metric>
                 </Card>
-                <Card decoration="top" decorationColor="red">
+                <Card className={kpiCardClass} decoration="top" decorationColor="red">
                   <Text>Sin stock</Text>
                   <Metric className={kpiMetricClass}>{nf.format(kpis.zeroStock)}</Metric>
                 </Card>
-                <Card decoration="top" decorationColor="amber">
+                <Card className={kpiCardClass} decoration="top" decorationColor="amber">
                   <Text>Bajo mínimo</Text>
                   <Metric className={kpiMetricClass}>{nf.format(kpis.lowStock)}</Metric>
                 </Card>
-                <Card decoration="top" decorationColor="orange">
+                <Card className={kpiCardClass} decoration="top" decorationColor="orange">
                   <Text>Sobre máximo</Text>
                   <Metric className={kpiMetricClass}>{nf.format(kpis.highStock)}</Metric>
                 </Card>
-                <Card decoration="top" decorationColor="emerald">
+                <Card className={kpiCardClass} decoration="top" decorationColor="emerald">
                   <Text>En rango OK</Text>
                   <Metric className={kpiMetricClass}>{nf.format(kpis.okStock)}</Metric>
                 </Card>
