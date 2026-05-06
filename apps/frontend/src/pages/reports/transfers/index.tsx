@@ -207,19 +207,19 @@ export default function ReportsTransfersPage() {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               <Card className={kpiCardClass} decoration="top" decorationColor="slate">
-                <Text>Traslados (movimientos)</Text>
+                <Text className="font-bold">Traslados (movimientos)</Text>
                 <Metric className={kpiMetricClass}>{ni.format(kpis.movementCount)}</Metric>
               </Card>
               <Card className={kpiCardClass} decoration="top" decorationColor="cyan">
-                <Text>Cantidad total movida</Text>
+                <Text className="font-bold">Cantidad total movida</Text>
                 <Metric className={kpiMetricClass}>{nf.format(kpis.totalQuantity)}</Metric>
               </Card>
               <Card className={kpiCardClass} decoration="top" decorationColor="indigo">
-                <Text>Productos distintos</Text>
+                <Text className="font-bold">Productos distintos</Text>
                 <Metric className={kpiMetricClass}>{ni.format(kpis.distinctProducts)}</Metric>
               </Card>
               <Card className={kpiCardClass} decoration="top" decorationColor="violet">
-                <Text>Bodegas involucradas</Text>
+                <Text className="font-bold">Bodegas involucradas</Text>
                 <Metric className={kpiMetricClass}>{ni.format(kpis.distinctWarehouses)}</Metric>
               </Card>
             </div>

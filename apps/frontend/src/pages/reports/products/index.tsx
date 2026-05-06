@@ -174,23 +174,23 @@ export default function ReportsProductsInventoryPage() {
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
                 <Card className={kpiCardClass} decoration="top" decorationColor="slate">
-                  <Text>Productos activos</Text>
+                  <Text className="font-bold">Productos activos</Text>
                   <Metric className={kpiMetricClass}>{nf.format(kpis.totalActiveProducts)}</Metric>
                 </Card>
                 <Card className={kpiCardClass} decoration="top" decorationColor="red">
-                  <Text>Sin inventario</Text>
+                  <Text className="font-bold">Sin inventario</Text>
                   <Metric className={kpiMetricClass}>{nf.format(kpis.zeroStock)}</Metric>
                 </Card>
                 <Card className={kpiCardClass} decoration="top" decorationColor="amber">
-                  <Text>Por debajo del stock mínimo</Text>
+                  <Text className="font-bold">Por debajo del stock mínimo</Text>
                   <Metric className={kpiMetricClass}>{nf.format(kpis.lowStock)}</Metric>
                 </Card>
                 <Card className={kpiCardClass} decoration="top" decorationColor="orange">
-                  <Text>Por encima del stock máximo</Text>
+                  <Text className="font-bold">Por encima del stock máximo</Text>
                   <Metric className={kpiMetricClass}>{nf.format(kpis.highStock)}</Metric>
                 </Card>
                 <Card className={kpiCardClass} decoration="top" decorationColor="emerald">
-                  <Text>En rango de stock</Text>
+                  <Text className="font-bold">En rango de stock</Text>
                   <Metric className={kpiMetricClass}>{nf.format(kpis.okStock)}</Metric>
                 </Card>
               </div>
