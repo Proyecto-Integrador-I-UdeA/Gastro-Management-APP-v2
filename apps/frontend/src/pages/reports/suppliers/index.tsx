@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import {
   Badge,
@@ -20,6 +21,7 @@ import {
 } from '@tremor/react';
 import type { CustomTooltipProps } from '@tremor/react';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
+import { ROUTES } from '@/constants/routes';
 import { fetchSuppliersCatalogReport } from '@/lib/reportsApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
@@ -270,9 +272,21 @@ export default function ReportsSuppliersCatalogPage() {
                       {filteredRows.map((r) => (
                         <TableRow key={r.supplierId}>
                           <TableCell className="font-mono text-sm">
-                            {r.internalCode}
+                            <Link
+                              href={ROUTES.products.listBySupplier(r.supplierId, r.internalCode)}
+                              className="text-blue-700 hover:underline"
+                            >
+                              {r.internalCode}
+                            </Link>
                           </TableCell>
-                          <TableCell className="font-medium text-gray-900">{r.name}</TableCell>
+                          <TableCell className="font-medium text-gray-900">
+                            <Link
+                              href={ROUTES.products.listBySupplier(r.supplierId, r.internalCode)}
+                              className="text-blue-700 hover:underline"
+                            >
+                              {r.name}
+                            </Link>
+                          </TableCell>
                           <TableCell className="text-sm text-gray-700">{r.taxId}</TableCell>
                           <TableCell>
                             <Badge color={r.active ? 'emerald' : 'gray'}>

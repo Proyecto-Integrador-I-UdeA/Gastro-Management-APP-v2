@@ -9,6 +9,9 @@ export const ROUTES = {
   },
   products: {
     list: '/products',
+    /** Código interno en la URL (evita espacios/caracteres del nombre). El filtro real es `supplierId`. */
+    listBySupplier: (id: string | number, internalCode: string) =>
+      `/products?supplierId=${encodeURIComponent(String(id))}&supplierCode=${encodeURIComponent(internalCode)}`,
     create: '/products/create',
     edit: (id: string | number) =>
       `/products/edit?id=${encodeURIComponent(String(id))}`,

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'next/router';
 import Button from '@/components/Button';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import { ROUTES } from '@/constants/routes';
@@ -19,7 +19,9 @@ export default function ProductsPage() {
 
   const [permissions, setPermissions] = useState<string[]>([]);
   const router = useRouter();
-  const { products, loading, error, refetch } = useProductList();
+
+  const { products, loading, error, refetch, filterSupplierId, supplierLabel } =
+    useProductList();
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const handleToggleActive = async (id: number, name: string, active: boolean) => {
@@ -82,6 +84,21 @@ export default function ProductsPage() {
           </div>
         )}
 
+        {filterSupplierId != null && (
+          <div className="mb-4 flex flex-col gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              Mostrando productos del proveedor{' '}
+              <span className="font-semibold">
+                {supplierLabel ?? `#${filterSupplierId}`}
+              </span>
+              .
+            </p>
+            <Button variant="secondary" className="shrink-0" onClick={() => void router.push(ROUTES.products.list)}>
+              Quitar filtro
+            </Button>
+          </div>
+        )}
+
         {loading ? (
           <div className="text-center py-10">Cargando productos…</div>
         ) : (
@@ -105,7 +122,9 @@ export default function ProductsPage() {
                 {products.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="text-center py-6">
-                      No hay productos
+                      {filterSupplierId != null
+                        ? 'No hay productos para este proveedor'
+                        : 'No hay productos'}
                     </td>
                   </tr>
                 ) : (
