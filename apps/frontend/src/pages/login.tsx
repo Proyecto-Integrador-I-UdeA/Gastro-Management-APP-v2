@@ -1,5 +1,6 @@
 "use client";
 
+import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,6 +10,7 @@ import { useEffect, useState } from 'react';
 import Header from '../components/Header';
 import { showError, showSuccess } from '@/utils/toast';
 import { apiFetch } from "@/lib/api"; // 🔥 CAMBIO CLAVE
+import { ROUTES } from '@/constants/routes';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -138,6 +140,12 @@ export default function Login() {
             <Button type="submit" className="w-full">
               Iniciar Sesión
             </Button>
+
+            <p className="text-center text-sm text-gray-600">
+              <Link href={ROUTES.root} className="font-medium text-[#001F3F] hover:underline">
+                Volver al inicio
+              </Link>
+            </p>
 
           </form>
 
