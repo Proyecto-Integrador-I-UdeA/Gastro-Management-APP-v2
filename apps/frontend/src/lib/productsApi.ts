@@ -19,8 +19,14 @@ export type ProductWritePayload = {
   unitCost: number;
 };
 
-export async function fetchProductsWithSuppliers(): Promise<Product[]> {
-  const data = await apiFetch<unknown[]>('/products?include=supplier');
+export async function fetchProductsWithSuppliers(
+  supplierId?: number | null
+): Promise<Product[]> {
+  const params = new URLSearchParams({ include: 'supplier' });
+  if (supplierId != null && !Number.isNaN(supplierId)) {
+    params.set('supplierId', String(supplierId));
+  }
+  const data = await apiFetch<unknown[]>(`/products?${params.toString()}`);
 
   if (!Array.isArray(data)) return [];
 

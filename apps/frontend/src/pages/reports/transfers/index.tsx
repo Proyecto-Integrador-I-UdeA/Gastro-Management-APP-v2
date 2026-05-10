@@ -24,8 +24,9 @@ import { useAuthGuard } from '@/hooks/useAuthGuard';
 const nf = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 });
 const ni = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
 
+const kpiCardClass = 'flex flex-col items-center text-center';
 const kpiMetricClass =
-  '!text-4xl sm:!text-5xl tabular-nums tracking-tight text-slate-900';
+  'w-full text-center block !text-4xl sm:!text-5xl tabular-nums tracking-tight text-slate-900';
 
 function TopTransferVolumeTooltip({ active, payload }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
@@ -205,20 +206,20 @@ export default function ReportsTransfersPage() {
         ) : kpis ? (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-              <Card decoration="top" decorationColor="slate">
-                <Text>Traslados (movimientos)</Text>
+              <Card className={kpiCardClass} decoration="top" decorationColor="slate">
+                <Text className="font-bold">Traslados (movimientos)</Text>
                 <Metric className={kpiMetricClass}>{ni.format(kpis.movementCount)}</Metric>
               </Card>
-              <Card decoration="top" decorationColor="cyan">
-                <Text>Cantidad total movida</Text>
+              <Card className={kpiCardClass} decoration="top" decorationColor="cyan">
+                <Text className="font-bold">Cantidad total movida</Text>
                 <Metric className={kpiMetricClass}>{nf.format(kpis.totalQuantity)}</Metric>
               </Card>
-              <Card decoration="top" decorationColor="indigo">
-                <Text>Productos distintos</Text>
+              <Card className={kpiCardClass} decoration="top" decorationColor="indigo">
+                <Text className="font-bold">Productos distintos</Text>
                 <Metric className={kpiMetricClass}>{ni.format(kpis.distinctProducts)}</Metric>
               </Card>
-              <Card decoration="top" decorationColor="violet">
-                <Text>Bodegas involucradas</Text>
+              <Card className={kpiCardClass} decoration="top" decorationColor="violet">
+                <Text className="font-bold">Bodegas involucradas</Text>
                 <Metric className={kpiMetricClass}>{ni.format(kpis.distinctWarehouses)}</Metric>
               </Card>
             </div>

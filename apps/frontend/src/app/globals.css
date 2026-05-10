@@ -41,7 +41,7 @@ body {
     font-family: 'Inter', sans-serif;
     background-color: var(--bg-light);
     color: var(--text-main);
-    overflow: hidden;
+    overflow-x: hidden;
 }
 
 .app-container {

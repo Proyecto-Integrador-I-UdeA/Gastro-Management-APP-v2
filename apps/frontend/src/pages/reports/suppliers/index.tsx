@@ -6,7 +6,6 @@ import { useRouter } from 'next/router';
 import {
   Badge,
   BarChart,
-  BarList,
   Card,
   DonutChart,
   Metric,
@@ -30,8 +29,9 @@ import type { SupplierCatalogRow } from '@/types/reports';
 
 const ni = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
 
+const kpiCardClass = 'flex flex-col items-center text-center';
 const kpiMetricClass =
-  '!text-4xl sm:!text-5xl tabular-nums tracking-tight text-slate-900';
+  'w-full text-center block !text-4xl sm:!text-5xl tabular-nums tracking-tight text-slate-900';
 
 function TopSuppliersActiveTooltip({ active, payload }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
@@ -102,15 +102,6 @@ export default function ReportsSuppliersCatalogPage() {
     });
   }, [rows, search]);
 
-  const barTop = useMemo(
-    () =>
-      topByActive.map((r) => ({
-        name: `${r.internalCode} · ${r.name}`.slice(0, 56),
-        value: r.activeProductCount,
-      })),
-    [topByActive]
-  );
-
   const catalogDonutData = useMemo(() => {
     if (!kpis) return [];
     const activeWithProducts = Math.max(
@@ -119,7 +110,7 @@ export default function ReportsSuppliersCatalogPage() {
     );
     return [
       { name: 'Inactivos', value: kpis.inactiveSuppliers },
-      { name: 'Activos sin producto', value: kpis.activeWithNoActiveProducts },
+      { name: 'Proveedores activos sin producto', value: kpis.activeWithNoActiveProducts },
       { name: 'Activos con productos activos', value: activeWithProducts },
     ];
   }, [kpis]);
@@ -155,56 +146,81 @@ export default function ReportsSuppliersCatalogPage() {
           ) : kpis ? (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                <Card decoration="top" decorationColor="slate">
-                  <Text>Proveedores en catálogo</Text>
+                <Card className={kpiCardClass} decoration="top" decorationColor="slate">
+                  <Text className="font-bold">Proveedores en catálogo</Text>
                   <Metric className={kpiMetricClass}>{ni.format(kpis.totalSuppliers)}</Metric>
                 </Card>
-                <Card decoration="top" decorationColor="emerald">
-                  <Text>Proveedores activos</Text>
+                <Card className={kpiCardClass} decoration="top" decorationColor="emerald">
+                  <Text className="font-bold">Proveedores activos</Text>
                   <Metric className={kpiMetricClass}>{ni.format(kpis.activeSuppliers)}</Metric>
                 </Card>
-                <Card decoration="top" decorationColor="gray">
-                  <Text>Proveedores inactivos</Text>
+                <Card className={kpiCardClass} decoration="top" decorationColor="gray">
+                  <Text className="font-bold">Proveedores inactivos</Text>
                   <Metric className={kpiMetricClass}>{ni.format(kpis.inactiveSuppliers)}</Metric>
                 </Card>
-                <Card decoration="top" decorationColor="amber">
-                  <Text>Activos sin producto</Text>
+                <Card className={kpiCardClass} decoration="top" decorationColor="amber">
+                  <Text className="font-bold">Proveedores activos sin producto</Text>
                   <Metric className={kpiMetricClass}>
                     {ni.format(kpis.activeWithNoActiveProducts)}
                   </Metric>
-                  <Text className="text-xs text-gray-500 mt-1">
+                  <Text className="text-xs text-gray-500 mt-1 max-w-xs text-balance">
                     Proveedor activo sin ningún producto asignado
                   </Text>
                 </Card>
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <Card>
-                  <Title className="text-base">Composición del catálogo</Title>
-                  <Text className="text-sm mt-1">
-                    Mismo total que «Proveedores en catálogo» ({kpis.totalSuppliers}): inactivos,
-                    activos sin ningún producto, y activos con al menos un producto activo.
-                  </Text>
-                  {catalogDonutData.every((d) => d.value === 0) ? (
-                    <Text className="mt-6">Sin datos.</Text>
-                  ) : (
-                    <DonutChart
-                      className="mt-4 h-56"
-                      data={catalogDonutData}
-                      category="value"
-                      index="name"
-                      colors={['gray', 'amber', 'emerald']}
-                      valueFormatter={(v) => ni.format(v)}
-                      showLabel={true}
-                    />
-                  )}
-                </Card>
+                <div className="flex flex-col gap-6 min-w-0">
+                  <Card>
+                    <Title className="text-base">Composición del catálogo</Title>
+                    {catalogDonutData.every((d) => d.value === 0) ? (
+                      <Text className="mt-6">Sin datos.</Text>
+                    ) : (
+                      <DonutChart
+                        className="mt-4 h-56"
+                        data={catalogDonutData}
+                        category="value"
+                        index="name"
+                        colors={['gray', 'amber', 'emerald']}
+                        valueFormatter={(v) => ni.format(v)}
+                        showLabel={true}
+                      />
+                    )}
+                  </Card>
+                  <Card>
+                    <Title className="text-base">Proveedores activos sin producto</Title>
+                    <Text className="text-sm mt-1">
+                      Conviene asignar productos o marcar el proveedor inactivo si no aplica.
+                    </Text>
+                    {noActiveProducts.length === 0 ? (
+                      <Text className="mt-4">
+                        Todos los proveedores activos tienen al menos un producto activo.
+                      </Text>
+                    ) : (
+                      <div className="overflow-x-auto max-h-[280px] overflow-y-auto mt-4">
+                        <Table>
+                          <TableHead>
+                            <TableRow>
+                              <TableHeaderCell>Código</TableHeaderCell>
+                              <TableHeaderCell>Nombre</TableHeaderCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {noActiveProducts.map((r) => (
+                              <TableRow key={r.supplierId}>
+                                <TableCell className="font-mono text-sm">{r.internalCode}</TableCell>
+                                <TableCell className="text-sm">{r.name}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </Card>
+                </div>
                 <Card>
                   <Title className="text-base">Top 10 por productos activos</Title>
-                  <Text className="text-sm mt-1">
-                    Proveedores con al menos un producto activo (mismo criterio que la lista
-                    inferior).
-                  </Text>
+                  <Text className="text-sm mt-1">Proveedores productos activos</Text>
                   {topActiveBarChartData.length === 0 ? (
                     <Text className="mt-6">Ningún proveedor con productos activos.</Text>
                   ) : (
@@ -220,63 +236,6 @@ export default function ReportsSuppliersCatalogPage() {
                       customTooltip={TopSuppliersActiveTooltip}
                       showLegend={false}
                     />
-                  )}
-                </Card>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card>
-                  <Title className="text-base">Top por productos activos</Title>
-                  <Text className="text-sm mt-1">
-                    Proveedores con al menos un producto activo, ordenados por volumen.
-                  </Text>
-                  {barTop.length === 0 ? (
-                    <Text className="mt-4">Ningún proveedor con productos activos.</Text>
-                  ) : (
-                    <BarList
-                      data={barTop}
-                      className="mt-4"
-                      valueFormatter={(v) => ni.format(v)}
-                    />
-                  )}
-                </Card>
-                <Card>
-                  <Title className="text-base">Activos sin producto</Title>
-                  <Text className="text-sm mt-1">
-                    Conviene asignar productos o marcar el proveedor inactivo si no aplica.
-                  </Text>
-                  {noActiveProducts.length === 0 ? (
-                    <Text className="mt-4">Todos los proveedores activos tienen al menos un producto activo.</Text>
-                  ) : (
-                    <div className="overflow-x-auto max-h-[280px] overflow-y-auto mt-4">
-                      <Table>
-                        <TableHead>
-                          <TableRow>
-                            <TableHeaderCell>Código</TableHeaderCell>
-                            <TableHeaderCell>Nombre</TableHeaderCell>
-                            <TableHeaderCell></TableHeaderCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {noActiveProducts.map((r) => (
-                            <TableRow key={r.supplierId}>
-                              <TableCell className="font-mono text-sm">
-                                {r.internalCode}
-                              </TableCell>
-                              <TableCell className="text-sm">{r.name}</TableCell>
-                              <TableCell>
-                                <Link
-                                  href={ROUTES.suppliers.edit(r.supplierId)}
-                                  className="text-sm text-blue-700 hover:underline whitespace-nowrap"
-                                >
-                                  Editar
-                                </Link>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
                   )}
                 </Card>
               </div>
@@ -313,9 +272,21 @@ export default function ReportsSuppliersCatalogPage() {
                       {filteredRows.map((r) => (
                         <TableRow key={r.supplierId}>
                           <TableCell className="font-mono text-sm">
-                            {r.internalCode}
+                            <Link
+                              href={ROUTES.products.listBySupplier(r.supplierId, r.internalCode)}
+                              className="text-blue-700 hover:underline"
+                            >
+                              {r.internalCode}
+                            </Link>
                           </TableCell>
-                          <TableCell className="font-medium text-gray-900">{r.name}</TableCell>
+                          <TableCell className="font-medium text-gray-900">
+                            <Link
+                              href={ROUTES.products.listBySupplier(r.supplierId, r.internalCode)}
+                              className="text-blue-700 hover:underline"
+                            >
+                              {r.name}
+                            </Link>
+                          </TableCell>
                           <TableCell className="text-sm text-gray-700">{r.taxId}</TableCell>
                           <TableCell>
                             <Badge color={r.active ? 'emerald' : 'gray'}>

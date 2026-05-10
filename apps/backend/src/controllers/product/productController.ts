@@ -6,7 +6,19 @@ import { Prisma } from '@prisma/client';
 export const listProducts = async (req: Request, res: Response) => {
   try {
     const includeSupplier = req.query.include === 'supplier';
+    const supplierIdRaw = req.query.supplierId;
+    const supplierIdStr = Array.isArray(supplierIdRaw)
+      ? supplierIdRaw[0]
+      : supplierIdRaw;
+    const where: Prisma.ProductWhereInput = {};
+    if (supplierIdStr !== undefined && supplierIdStr !== '') {
+      const sid = parseInt(String(supplierIdStr), 10);
+      if (!Number.isNaN(sid)) {
+        where.supplierId = sid;
+      }
+    }
     const products = await prisma.product.findMany({
+      where: Object.keys(where).length > 0 ? where : undefined,
       orderBy: { id: 'asc' },
       include: includeSupplier ? { supplier: true } : undefined,
     });

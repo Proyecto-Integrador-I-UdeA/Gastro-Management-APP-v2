@@ -6,7 +6,6 @@ import { useRouter } from 'next/router';
 import {
   Badge,
   BarChart,
-  BarList,
   Card,
   DonutChart,
   Metric,
@@ -31,8 +30,9 @@ import type { InventoryRiskLevel, ProductInventoryRiskRow } from '@/types/report
 const nf = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 });
 const ni = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
 
+const kpiCardClass = 'flex flex-col items-center text-center';
 const kpiMetricClass =
-  '!text-4xl sm:!text-5xl tabular-nums tracking-tight text-slate-900';
+  'w-full text-center block !text-4xl sm:!text-5xl tabular-nums tracking-tight text-slate-900';
 
 function TopStockTooltip({ active, payload }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
@@ -51,13 +51,13 @@ function TopStockTooltip({ active, payload }: CustomTooltipProps) {
 function riskLabel(risk: InventoryRiskLevel): string {
   switch (risk) {
     case 'zero':
-      return 'Sin stock';
+      return 'Sin inventario';
     case 'low':
-      return 'Bajo mínimo';
+      return 'Por debajo del stock mínimo';
     case 'high':
-      return 'Sobre máximo';
+      return 'Por encima del stock máximo';
     default:
-      return 'OK';
+      return 'En rango de stock';
   }
 }
 
@@ -131,31 +131,13 @@ export default function ReportsProductsInventoryPage() {
     });
   }, [rows, search]);
 
-  const barCritical = useMemo(
-    () =>
-      criticalLow.map((r) => ({
-        name: `${r.internalCode} · ${r.name}`.slice(0, 56),
-        value: r.deficitBelowMin ?? 0,
-      })),
-    [criticalLow]
-  );
-
-  const barExcess = useMemo(
-    () =>
-      highExcess.map((r) => ({
-        name: `${r.internalCode} · ${r.name}`.slice(0, 56),
-        value: r.excessAboveMax ?? 0,
-      })),
-    [highExcess]
-  );
-
   const riskDonutData = useMemo(() => {
     if (!kpis) return [];
     return [
-      { name: 'Sin stock', value: kpis.zeroStock },
-      { name: 'Bajo mínimo', value: kpis.lowStock },
-      { name: 'Sobre máximo', value: kpis.highStock },
-      { name: 'En rango OK', value: kpis.okStock },
+      { name: 'Sin inventario', value: kpis.zeroStock },
+      { name: 'Por debajo del stock mínimo', value: kpis.lowStock },
+      { name: 'Por encima del stock máximo', value: kpis.highStock },
+      { name: 'En rango de stock', value: kpis.okStock },
     ];
   }, [kpis]);
 
@@ -191,24 +173,24 @@ export default function ReportsProductsInventoryPage() {
           ) : kpis ? (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-                <Card decoration="top" decorationColor="slate">
-                  <Text>Productos activos</Text>
+                <Card className={kpiCardClass} decoration="top" decorationColor="slate">
+                  <Text className="font-bold">Productos activos</Text>
                   <Metric className={kpiMetricClass}>{nf.format(kpis.totalActiveProducts)}</Metric>
                 </Card>
-                <Card decoration="top" decorationColor="red">
-                  <Text>Sin stock</Text>
+                <Card className={kpiCardClass} decoration="top" decorationColor="red">
+                  <Text className="font-bold">Sin inventario</Text>
                   <Metric className={kpiMetricClass}>{nf.format(kpis.zeroStock)}</Metric>
                 </Card>
-                <Card decoration="top" decorationColor="amber">
-                  <Text>Bajo mínimo</Text>
+                <Card className={kpiCardClass} decoration="top" decorationColor="amber">
+                  <Text className="font-bold">Por debajo del stock mínimo</Text>
                   <Metric className={kpiMetricClass}>{nf.format(kpis.lowStock)}</Metric>
                 </Card>
-                <Card decoration="top" decorationColor="orange">
-                  <Text>Sobre máximo</Text>
+                <Card className={kpiCardClass} decoration="top" decorationColor="orange">
+                  <Text className="font-bold">Por encima del stock máximo</Text>
                   <Metric className={kpiMetricClass}>{nf.format(kpis.highStock)}</Metric>
                 </Card>
-                <Card decoration="top" decorationColor="emerald">
-                  <Text>En rango OK</Text>
+                <Card className={kpiCardClass} decoration="top" decorationColor="emerald">
+                  <Text className="font-bold">En rango de stock</Text>
                   <Metric className={kpiMetricClass}>{nf.format(kpis.okStock)}</Metric>
                 </Card>
               </div>
@@ -235,9 +217,6 @@ export default function ReportsProductsInventoryPage() {
                 </Card>
                 <Card>
                   <Title className="text-base">Top 10 por stock total</Title>
-                  <Text className="text-sm mt-1">
-                    Existencia agregada en todas las bodegas (productos activos).
-                  </Text>
                   {topStockChartData.length === 0 ? (
                     <Text className="mt-6">Sin productos.</Text>
                   ) : (
@@ -259,33 +238,91 @@ export default function ReportsProductsInventoryPage() {
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
-                  <Title className="text-base">Mayor déficit vs mínimo</Title>
-                  <Text className="text-sm mt-1">
-                    Incluye sin stock (déficit = mínimo − existencia).
-                  </Text>
-                  {barCritical.length === 0 ? (
-                    <Text className="mt-4">Ningún producto bajo el mínimo.</Text>
+                  <Title className="text-base">Mayor faltante frente al stock mínimo</Title>
+                  {criticalLow.length === 0 ? (
+                    <Text className="mt-4">Ningún producto por debajo del stock mínimo.</Text>
                   ) : (
-                    <BarList
-                      data={barCritical}
-                      className="mt-4"
-                      valueFormatter={(v) => nf.format(v)}
-                    />
+                    <div className="overflow-x-auto max-h-[320px] overflow-y-auto mt-4">
+                      <Table>
+                        <TableHead>
+                          <TableRow>
+                            <TableHeaderCell>Producto</TableHeaderCell>
+                            <TableHeaderCell className="text-right whitespace-nowrap">
+                              Stock mínimo
+                            </TableHeaderCell>
+                            <TableHeaderCell className="text-right whitespace-nowrap">
+                              Stock actual
+                            </TableHeaderCell>
+                            <TableHeaderCell className="text-right whitespace-nowrap">
+                              Déficit
+                            </TableHeaderCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {criticalLow.map((r) => (
+                            <TableRow key={r.productId}>
+                              <TableCell className="text-sm">
+                                <span className="font-mono">{r.internalCode}</span>
+                                <Text className="text-xs text-gray-600">{r.name}</Text>
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-sm text-gray-700">
+                                {nf.format(r.minStock)}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-sm">
+                                {nf.format(r.totalQuantity)}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-sm">
+                                {nf.format(r.deficitBelowMin ?? 0)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   )}
                 </Card>
                 <Card>
-                  <Title className="text-base">Mayor exceso vs máximo</Title>
-                  <Text className="text-sm mt-1">
-                    Solo si el producto tiene máximo &gt; 0 en catálogo.
-                  </Text>
-                  {barExcess.length === 0 ? (
-                    <Text className="mt-4">Ningún producto sobre el máximo.</Text>
+                  <Title className="text-base">Mayor exceso sobre el stock máximo</Title>
+                  {highExcess.length === 0 ? (
+                    <Text className="mt-4">Ningún producto por encima del stock máximo.</Text>
                   ) : (
-                    <BarList
-                      data={barExcess}
-                      className="mt-4"
-                      valueFormatter={(v) => nf.format(v)}
-                    />
+                    <div className="overflow-x-auto max-h-[320px] overflow-y-auto mt-4">
+                      <Table>
+                        <TableHead>
+                          <TableRow>
+                            <TableHeaderCell>Producto</TableHeaderCell>
+                            <TableHeaderCell className="text-right whitespace-nowrap">
+                              Stock máximo
+                            </TableHeaderCell>
+                            <TableHeaderCell className="text-right whitespace-nowrap">
+                              Stock actual
+                            </TableHeaderCell>
+                            <TableHeaderCell className="text-right whitespace-nowrap">
+                              Exceso
+                            </TableHeaderCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {highExcess.map((r) => (
+                            <TableRow key={r.productId}>
+                              <TableCell className="text-sm">
+                                <span className="font-mono">{r.internalCode}</span>
+                                <Text className="text-xs text-gray-600">{r.name}</Text>
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-sm text-gray-700">
+                                {nf.format(r.maxStock)}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-sm">
+                                {nf.format(r.totalQuantity)}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-sm">
+                                {nf.format(r.excessAboveMax ?? 0)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   )}
                 </Card>
               </div>
@@ -311,8 +348,8 @@ export default function ReportsProductsInventoryPage() {
                         <TableHeaderCell>Código</TableHeaderCell>
                         <TableHeaderCell>Producto</TableHeaderCell>
                         <TableHeaderCell>Proveedor</TableHeaderCell>
-                        <TableHeaderCell className="text-right">Stock</TableHeaderCell>
                         <TableHeaderCell className="text-right">Mín</TableHeaderCell>
+                        <TableHeaderCell className="text-right">Stock</TableHeaderCell>
                         <TableHeaderCell className="text-right">Máx</TableHeaderCell>
                         <TableHeaderCell>Riesgo</TableHeaderCell>
                         <TableHeaderCell></TableHeaderCell>
@@ -331,11 +368,11 @@ export default function ReportsProductsInventoryPage() {
                           <TableCell className="text-sm text-gray-700">
                             {r.supplierName}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {nf.format(r.totalQuantity)}
-                          </TableCell>
                           <TableCell className="text-right tabular-nums text-gray-600">
                             {nf.format(r.minStock)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {nf.format(r.totalQuantity)}
                           </TableCell>
                           <TableCell className="text-right tabular-nums text-gray-600">
                             {r.maxStock > 0 ? nf.format(r.maxStock) : '—'}
