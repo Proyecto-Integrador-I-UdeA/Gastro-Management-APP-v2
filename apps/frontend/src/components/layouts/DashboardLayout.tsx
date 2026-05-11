@@ -91,7 +91,7 @@ export default function DashboardLayout({
         <Header />
 
         {/* Contenido dinámico */}
-        <main className="p-8">
+        <main className="p-4">
 
           <Breadcrumb />
 

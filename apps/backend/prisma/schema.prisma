@@ -38,6 +38,13 @@ model Product {
   maxStock           Float
   currentStock       Float               @default(0)
   unitCost           Float               @default(0)
+  // 🔥 INFORMACIÓN NUTRICIONAL (por 100g / 100ml)
+caloriesPer100g Float?  // kcal
+fatPer100g      Float?  // g
+carbsPer100g    Float?  // g
+proteinPer100g  Float?  // g
+sodiumPer100g   Float?  // mg
+sugarPer100g    Float?  // g
   active             Boolean             @default(true)
   supplierId         Int
   inventories        Inventory[]

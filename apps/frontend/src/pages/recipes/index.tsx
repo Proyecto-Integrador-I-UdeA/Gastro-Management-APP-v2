@@ -13,38 +13,31 @@ export default function RecipesPage() {
 
   const fetchRecipes = async () => {
     try {
-      
-
-      const API_URL = process.env.NEXT_PUBLIC_API_URL;
       const data = await apiFetch("/recipes");
-
-
 
       const list = Array.isArray(data)
         ? data
         : data.recipes || data.data || [];
+       setRecipes(list.filter((r: any) => r.active === true));
 
       setRecipes(list);
-
     } catch (error) {
       console.error("Error cargando recetas", error);
     } finally {
       setLoading(false);
     }
   };
- 
+
   useEffect(() => {
-  const token = localStorage.getItem("token");
+    const token = localStorage.getItem("token");
 
-  if (!token || token === "null") {
-    router.push("/login");
-    return;
-  }
+    if (!token || token === "null") {
+      router.push("/login");
+      return;
+    }
 
-  fetchRecipes();
-}, []);
-
-
+    fetchRecipes();
+  }, []);
 
   return (
     <DashboardLayout>
@@ -68,56 +61,62 @@ export default function RecipesPage() {
         {/* LOADING */}
         {loading ? (
           <div className="text-center py-10">Cargando recetas…</div>
+        ) : recipes.length === 0 ? (
+          <div className="text-center py-10">
+            ⚠️ No hay recetas o la API no respondió correctamente
+          </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
 
-              <thead className="text-left border-b">
-                <tr>
-                  <th>Código</th>
-                  <th className="py-2">Nombre</th>
-                  <th>Porciones</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
+          /* 🔥 GRID DE CARDS */
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
 
-              <tbody>
-                {recipes.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="text-center py-6">
-                      ⚠️ No hay recetas o la API no respondió correctamente
-                    </td>
-                  </tr>
-                ) : (
-                  recipes.map((recipe) => (
-                    <tr key={recipe.id} className="hover:bg-gray-200/20">
-                      <td>REC-{recipe.id}</td>
-                      <td className="py-2 font-semibold">{recipe.name}</td>
-                      <td>{recipe.portions}</td>
+            {recipes.map((recipe) => (
+              <div
+                key={recipe.id}
+                className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white rounded-2xl p-5 shadow-xl
+                hover:scale-[1.02] transition-all duration-300 flex flex-col justify-between"
+              >
 
-                      <td className="space-x-4">
+                {/* INFO */}
+                <div>
+                  <div className="text-xs text-gray-400 mb-1">
+                    REC-{recipe.id}
+                  </div>
 
-                        <button
-                          onClick={() => router.push(`/recipes/${recipe.id}`)}
-                          className="text-blue-600 hover:underline"
-                        >
-                          Ver / Editar
-                        </button>
+                  <h2 className="text-lg font-semibold mb-2">
+                    {recipe.name}
+                  </h2>
 
-                        <button
-                          onClick={() => router.push(`/recipes/${recipe.id}`)}
-                          className="text-purple-600 hover:underline"
-                        >
-                          Procesos
-                        </button>
+                  <div className="flex justify-between text-sm text-gray-300">
+                    <span>Porciones</span>
+                    <span className="text-right font-semibold">
+                      {recipe.portions}
+                    </span>
+                  </div>
+                </div>
 
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
+                {/* ACCIONES */}
+                <div className="flex justify-between mt-6 pt-4 border-t border-white/10">
 
-            </table>
+                  <button
+                    onClick={() => router.push(`/recipes/${recipe.id}`)}
+                    className="text-blue-400 hover:underline text-sm"
+                  >
+                    Ver / Editar
+                  </button>
+
+                  <button
+                    onClick={() => router.push(`/recipes/${recipe.id}`)}
+                    className="text-purple-400 hover:underline text-sm"
+                  >
+                    Procesos
+                  </button>
+
+                </div>
+
+              </div>
+            ))}
+
           </div>
         )}
       </div>

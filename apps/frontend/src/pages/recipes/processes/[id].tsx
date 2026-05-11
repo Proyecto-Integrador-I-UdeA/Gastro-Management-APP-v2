@@ -20,7 +20,6 @@ export default function ProcessDetail() {
       },
     });
 
-    
     setRecipe(res);
   };
 
@@ -28,42 +27,81 @@ export default function ProcessDetail() {
     if (id) fetchRecipe();
   }, [id]);
 
-  if (!recipe) return <div>Cargando...</div>;
+  if (!recipe) return <div className="p-6">Cargando...</div>;
 
   return (
     <DashboardLayout>
 
-      <h1 className="text-2xl font-bold mb-6">
-        {recipe.name} ({recipe.portions} porciones)
-      </h1>
+      {/* HEADER */}
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-[#001F3F]">
+          {recipe.name}
+        </h1>
+        <p className="text-gray-600">
+          {recipe.portions} porciones
+        </p>
+      </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      {/* GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* 🔹 INGREDIENTES */}
-        <div className="p-4 border rounded">
-          <h2 className="font-semibold mb-3">Ingredientes</h2>
+        <div className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white rounded-2xl p-5 shadow-xl">
 
-          {recipe.items.map((item: any) => (
-            <div key={item.id}>
-              {item.product?.name} - {item.quantity} {item.product?.unitOfMeasure}
-            </div>
-          ))}
+          <h2 className="text-lg font-semibold mb-4">
+            Ingredientes
+          </h2>
+
+          <div className="space-y-3 text-sm">
+            {recipe.items.map((item: any) => (
+              <div
+                key={item.id}
+                className="flex justify-between border-b border-white/10 pb-2"
+              >
+                <span>{item.product?.name}</span>
+                <span className="text-right font-semibold">
+                  {item.quantity} {item.product?.unitOfMeasure}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* 🔹 PROCESOS */}
-        <div className="p-4 border rounded">
-          <h2 className="font-semibold mb-3">Proceso</h2>
+        {/* 🔥 PROCESOS (MÁS IMPORTANTE) */}
+        <div className="lg:col-span-2 bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white rounded-2xl p-6 shadow-xl">
 
-          {recipe.processes.map((p: any, index: number) => (
-            <div key={index} className="mb-3">
-              <div className="font-semibold">
-                {index + 1}. {p.name} ({p.duration} min)
+          <h2 className="text-lg font-semibold mb-4">
+            Proceso de preparación
+          </h2>
+
+          <div className="space-y-4">
+
+            {recipe.processes.map((p: any, index: number) => (
+              <div
+                key={index}
+                className="p-4 rounded-xl bg-white/5 border border-white/10"
+              >
+
+                {/* TÍTULO */}
+                <div className="flex justify-between mb-2">
+                  <div className="font-semibold">
+                    {index + 1}. {p.name}
+                  </div>
+
+                  <div className="text-sm text-blue-300 font-semibold">
+                    {p.duration} min
+                  </div>
+                </div>
+
+                {/* DESCRIPCIÓN */}
+                <div className="text-sm text-gray-300">
+                  {p.stepDescription}
+                </div>
+
               </div>
-              <div className="text-gray-600">
-                {p.stepDescription}
-              </div>
-            </div>
-          ))}
+            ))}
+
+          </div>
         </div>
 
       </div>

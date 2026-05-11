@@ -105,7 +105,8 @@ export const listRecipes = async (req: Request, res: Response) => {
 
 export const createRecipe = async (req: Request, res: Response) => {
   try {
-    const { name, description, batchQuantity, portions, items, processes } = req.body;
+    // 🔥 FIX: agregar active aquí
+    const { name, description, batchQuantity, portions, items, processes, active } = req.body;
 
     if (!name || !items || items.length === 0) {
       return res.status(400).json({ error: 'Datos incompletos' });
@@ -173,6 +174,7 @@ export const createRecipe = async (req: Request, res: Response) => {
         description,
         batchQuantity,
         portions,
+        active: active ?? true, // 🔥 ahora sí funciona
         items: {
           create: recipeItems
         },
@@ -201,18 +203,20 @@ export const createRecipe = async (req: Request, res: Response) => {
   }
 };
 
-// ✅ UPDATE CORREGIDO (SOLO ESTA PARTE CAMBIÓ)
+// ✅ UPDATE (YA ESTABA BIEN)
 export const updateRecipe = async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
-    const { name, portions, description, processes, items } = req.body;
+
+    const { name, portions, description, processes, items, active } = req.body;
 
     await prisma.recipe.update({
       where: { id },
       data: {
-        name,
-        portions,
-        description
+        ...(name !== undefined && { name }),
+        ...(portions !== undefined && { portions }),
+        ...(description !== undefined && { description }),
+        ...(active !== undefined && { active }),
       }
     });
 
@@ -243,7 +247,6 @@ export const updateRecipe = async (req: Request, res: Response) => {
 
     if (items && items.length > 0) {
 
-      // 🔥 TRAER PRODUCTOS PARA COSTOS REALES
       const productIds = items.map((item: any) => Number(item.productId));
 
       const products = await prisma.product.findMany({
@@ -269,7 +272,6 @@ export const updateRecipe = async (req: Request, res: Response) => {
       }
 
       for (const item of items) {
-
         if (!item.productId) continue;
 
         const product = productMap.get(Number(item.productId));
@@ -278,6 +280,7 @@ export const updateRecipe = async (req: Request, res: Response) => {
           item.unitCost !== undefined &&
           item.unitCost !== null &&
           item.unitCost !== '';
+
         const unitCost = hasExplicitUnitCost
           ? Number(item.unitCost)
           : Number(
@@ -285,6 +288,7 @@ export const updateRecipe = async (req: Request, res: Response) => {
                 ? latestPurchaseUnitCost.get(product.id)
                 : undefined) ?? 0
             );
+
         const quantity = Number(item.quantity || 0);
         const totalCost = unitCost * quantity;
 
@@ -294,10 +298,9 @@ export const updateRecipe = async (req: Request, res: Response) => {
             productId: Number(item.productId),
             quantity,
             unitCost,
-            totalCost, // 🔥 AHORA SE CALCULA BIEN
+            totalCost,
           }
         });
-
       }
     }
 
