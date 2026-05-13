@@ -18,7 +18,7 @@ model Supplier {
   contactPerson String
   active        Boolean   @default(true)
   createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  updatedAt     DateTime  @default(now()) @updatedAt
   products      Product[]
 
   @@map("suppliers")
@@ -50,7 +50,7 @@ model Product {
   sugarPer100g       Float? // g
   active             Boolean             @default(true)
   createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  updatedAt          DateTime            @default(now()) @updatedAt
   supplierId         Int
   inventories        Inventory[]
   inventoryMovements InventoryMovement[]
@@ -69,7 +69,7 @@ model Warehouse {
   isMain            Boolean             @default(false)
   active            Boolean             @default(true)
   createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  updatedAt         DateTime            @default(now()) @updatedAt
   inventories       Inventory[]
   movementsAsDest   InventoryMovement[] @relation("DestinationWarehouse")
   movementsAsSource InventoryMovement[] @relation("SourceWarehouse")
@@ -83,7 +83,7 @@ model Inventory {
   productId   Int
   warehouseId Int
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  updatedAt   DateTime  @default(now()) @updatedAt
   product     Product   @relation(fields: [productId], references: [id])
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
 
@@ -103,7 +103,7 @@ model InventoryMovement {
   destinationWarehouseId   Int?
   userId                   Int
   createdAt                DateTime     @default(now())
-  updatedAt                DateTime     @updatedAt
+  updatedAt                DateTime     @default(now()) @updatedAt
   destinationWarehouse     Warehouse?   @relation("DestinationWarehouse", fields: [destinationWarehouseId], references: [id])
   product                  Product      @relation(fields: [productId], references: [id])
   sourceWarehouse          Warehouse?   @relation("SourceWarehouse", fields: [sourceWarehouseId], references: [id])
@@ -119,7 +119,7 @@ model User {
   fullName     String?
   roleId       Int?
   createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  updatedAt    DateTime            @default(now()) @updatedAt
   active       Boolean             @default(true)
   movements    InventoryMovement[]
   role         Role?               @relation(fields: [roleId], references: [id])
@@ -132,7 +132,7 @@ model Role {
   name        String           @unique
   description String?
   createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  updatedAt   DateTime         @default(now()) @updatedAt
   permissions RolePermission[]
   users       User[]
 
@@ -144,7 +144,7 @@ model Permission {
   name        String           @unique
   description String?
   createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  updatedAt   DateTime         @default(now()) @updatedAt
   roles       RolePermission[]
 
   @@map("permissions")
@@ -155,7 +155,7 @@ model RolePermission {
   roleId       Int
   permissionId Int
   createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  updatedAt    DateTime   @default(now()) @updatedAt
   permission   Permission @relation(fields: [permissionId], references: [id])
   role         Role       @relation(fields: [roleId], references: [id])
 
