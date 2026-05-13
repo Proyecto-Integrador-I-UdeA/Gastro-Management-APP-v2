@@ -17,6 +17,8 @@ model Supplier {
   address       String
   contactPerson String
   active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   products      Product[]
 
   @@map("suppliers")
@@ -31,21 +33,24 @@ model Product {
   isSupply           Boolean             @default(false)
   isFinishedProduct  Boolean             @default(false)
   presentation       String
-  unitOfMeasure      String
+  /// Base de medida (enum nativo en BD tras migración `20260326160000_product_unit_base_enum`).
+  unitOfMeasure      ProductBaseUnit     @default(g)
   inputUnit          String              @default("g")
   inputUnitQuantity  Float               @default(1)
   minStock           Float
   maxStock           Float
   currentStock       Float               @default(0)
   unitCost           Float               @default(0)
-  // 🔥 INFORMACIÓN NUTRICIONAL (por 100g / 100ml)
-caloriesPer100g Float?  // kcal
-fatPer100g      Float?  // g
-carbsPer100g    Float?  // g
-proteinPer100g  Float?  // g
-sodiumPer100g   Float?  // mg
-sugarPer100g    Float?  // g
+  // Información nutricional (por 100g / 100ml)
+  caloriesPer100g    Float? // kcal
+  fatPer100g         Float? // g
+  carbsPer100g       Float? // g
+  proteinPer100g     Float? // g
+  sodiumPer100g      Float? // mg
+  sugarPer100g       Float? // g
   active             Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
   supplierId         Int
   inventories        Inventory[]
   inventoryMovements InventoryMovement[]
@@ -87,22 +92,22 @@ model Inventory {
 }
 
 model InventoryMovement {
-  id                     Int          @id @default(autoincrement())
-  type                   MovementType
-  quantity               Float
-  unitCost               Decimal?     @db.Decimal(10, 2)
-  expirationDate         DateTime?
-  notes                  String?
-  productId              Int
-  sourceWarehouseId      Int?
-  destinationWarehouseId Int?
-  userId                 Int
-  createdAt              DateTime     @default(now())
-  updatedAt              DateTime     @updatedAt
-  destinationWarehouse   Warehouse?   @relation("DestinationWarehouse", fields: [destinationWarehouseId], references: [id])
-  product                Product      @relation(fields: [productId], references: [id])
-  sourceWarehouse        Warehouse?   @relation("SourceWarehouse", fields: [sourceWarehouseId], references: [id])
-  user                   User         @relation(fields: [userId], references: [id])
+  id                       Int          @id @default(autoincrement())
+  type                     MovementType
+  quantity                 Float
+  unitCost                 Decimal?     @db.Decimal(10, 2)
+  expirationDate           DateTime?
+  notes                    String?
+  productId                Int
+  sourceWarehouseId        Int?
+  destinationWarehouseId   Int?
+  userId                   Int
+  createdAt                DateTime     @default(now())
+  updatedAt                DateTime     @updatedAt
+  destinationWarehouse     Warehouse?   @relation("DestinationWarehouse", fields: [destinationWarehouseId], references: [id])
+  product                  Product      @relation(fields: [productId], references: [id])
+  sourceWarehouse          Warehouse?   @relation("SourceWarehouse", fields: [sourceWarehouseId], references: [id])
+  user                     User         @relation(fields: [userId], references: [id])
 
   @@map("inventory_movements")
 }
@@ -138,6 +143,8 @@ model Permission {
   id          Int              @id @default(autoincrement())
   name        String           @unique
   description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
   roles       RolePermission[]
 
   @@map("permissions")
@@ -147,6 +154,8 @@ model RolePermission {
   id           Int        @id @default(autoincrement())
   roleId       Int
   permissionId Int
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
   permission   Permission @relation(fields: [permissionId], references: [id])
   role         Role       @relation(fields: [roleId], references: [id])
 
@@ -234,12 +243,11 @@ enum MovementType {
   CONSUMPTION
 }
 
+/// Coincide con el tipo PostgreSQL `ProductBaseUnit` creado en `20260326160000_product_unit_base_enum`.
 enum ProductBaseUnit {
   g
-  kg
   ml
-  l
-  unit
+  und
 }
 
 model MenuItem {

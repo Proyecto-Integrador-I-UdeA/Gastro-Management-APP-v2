@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ProductBaseUnit } from '@prisma/client';
 
 export const createProductSchema = z.object({
   name: z.string().min(1, 'Nombre requerido'),
@@ -7,7 +8,7 @@ export const createProductSchema = z.object({
   isSupply: z.boolean().optional().default(false),
   isFinishedProduct: z.boolean().optional().default(false),
   presentation: z.string().min(1, 'Presentación requerida'),
-  unitOfMeasure: z.string().min(1, 'Unidad de medida requerida'),
+  unitOfMeasure: z.nativeEnum(ProductBaseUnit),
   inputUnit: z.string().min(1).optional().default('g'),
   inputUnitQuantity: z.number().positive().optional().default(1),
   minStock: z.number().min(0),
@@ -27,7 +28,7 @@ export const updateProductSchema = z.object({
   isSupply: z.boolean().optional(),
   isFinishedProduct: z.boolean().optional(),
   presentation: z.string().min(1).optional(),
-  unitOfMeasure: z.string().min(1).optional(),
+  unitOfMeasure: z.nativeEnum(ProductBaseUnit).optional(),
   inputUnit: z.string().min(1).optional(),
   inputUnitQuantity: z.number().positive().optional(),
   minStock: z.number().min(0).optional(),
