@@ -53,17 +53,32 @@ export default function ProcessDetail() {
           </h2>
 
           <div className="space-y-3 text-sm">
-            {recipe.items.map((item: any) => (
-              <div
-                key={item.id}
-                className="flex justify-between border-b border-white/10 pb-2"
-              >
-                <span>{item.product?.name}</span>
-                <span className="text-right font-semibold">
-                  {item.quantity} {item.product?.unitOfMeasure}
-                </span>
-              </div>
-            ))}
+      
+      {recipe.items.map((item: any) => {
+  const isSubRecipe = !!item.subRecipeId;
+
+  return (
+    <div
+      key={item.id}
+      className="flex justify-between border-b border-white/10 pb-2"
+    >
+      <span>
+        {isSubRecipe
+          ? item.subRecipe?.name
+          : item.product?.name}
+      </span>
+
+      <span className="text-right font-semibold">
+        {item.quantity}{" "}
+        {isSubRecipe
+          ? "porciones"
+          : item.product?.unitOfMeasure}
+      </span>
+    </div>
+  );
+})}
+           
+      
           </div>
         </div>
 

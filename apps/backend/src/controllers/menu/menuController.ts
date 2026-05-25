@@ -4,18 +4,43 @@ import prisma from "../../lib/prisma";
 // CREAR PLATO
 export const createMenuItem = async (req: Request, res: Response) => {
   try {
-    const { name, description, hasDrink, hasDessert, components } = req.body;
+    const {
+  name,
+  description,
+  hasDrink,
+  hasDessert,
+  components,
+
+  totalCost,
+  caloriesPerPortion,
+  proteinPerPortion,
+  carbsPerPortion,
+  fatPerPortion,
+  sodiumPerPortion,
+  sugarPerPortion,
+  nutritionScore,
+} = req.body;
 
     const safeComponents = Array.isArray(components) ? components : [];
 
     const newItem = await prisma.menuItem.create({
-      data: {
-        name,
-        description,
-        hasDrink,
-        hasDessert,
-        active: true,
-        components: {
+     data: {
+  name,
+  description,
+  hasDrink,
+  hasDessert,
+  active: true,
+
+  totalCost: totalCost ?? null,
+  caloriesPerPortion: caloriesPerPortion ?? null,
+  proteinPerPortion: proteinPerPortion ?? null,
+  carbsPerPortion: carbsPerPortion ?? null,
+  fatPerPortion: fatPerPortion ?? null,
+  sodiumPerPortion: sodiumPerPortion ?? null,
+  sugarPerPortion: sugarPerPortion ?? null,
+  nutritionScore: nutritionScore ?? null,
+
+  components: {  
           create: safeComponents.map((c: any) => ({
             quantity: Number(c.quantity) || 1,
             ...(c.productId ? { productId: c.productId } : {}),
@@ -61,15 +86,24 @@ export const updateMenuItem = async (req: Request, res: Response) => {
   const id = Number(req.params.id);
 
   try {
-    const {
-      name,
-      description,
-      hasDrink,
-      hasDessert,
-      active,
-      components,
-    } = req.body;
+   const {
+  name,
+  description,
+  hasDrink,
+  hasDessert,
+  active,
+  components,
 
+  totalCost,
+  caloriesPerPortion,
+  proteinPerPortion,
+  carbsPerPortion,
+  fatPerPortion,
+  sodiumPerPortion,
+  sugarPerPortion,
+  nutritionScore,
+} = req.body;
+   
     const safeComponents = Array.isArray(components) ? components : [];
 
     // eliminar componentes actuales
@@ -79,14 +113,23 @@ export const updateMenuItem = async (req: Request, res: Response) => {
 
     const updated = await prisma.menuItem.update({
       where: { id },
-      data: {
-        ...(name !== undefined && { name }),
-        ...(description !== undefined && { description }),
-        ...(hasDrink !== undefined && { hasDrink }),
-        ...(hasDessert !== undefined && { hasDessert }),
-        ...(active !== undefined && { active }),
+     data: {
+  ...(name !== undefined && { name }),
+  ...(description !== undefined && { description }),
+  ...(hasDrink !== undefined && { hasDrink }),
+  ...(hasDessert !== undefined && { hasDessert }),
+  ...(active !== undefined && { active }),
 
-        components: {
+  ...(totalCost !== undefined && { totalCost }),
+  ...(caloriesPerPortion !== undefined && { caloriesPerPortion }),
+  ...(proteinPerPortion !== undefined && { proteinPerPortion }),
+  ...(carbsPerPortion !== undefined && { carbsPerPortion }),
+  ...(fatPerPortion !== undefined && { fatPerPortion }),
+  ...(sodiumPerPortion !== undefined && { sodiumPerPortion }),
+  ...(sugarPerPortion !== undefined && { sugarPerPortion }),
+  ...(nutritionScore !== undefined && { nutritionScore }),
+
+  components: {
           create: safeComponents.map((c: any) => ({
             quantity: Number(c.quantity) || 1,
             ...(c.productId ? { productId: c.productId } : {}),

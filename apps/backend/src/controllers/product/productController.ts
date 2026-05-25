@@ -89,15 +89,26 @@ export const createProduct = async (req: Request, res: Response) => {
         isSupply: data.isSupply,
         isFinishedProduct: data.isFinishedProduct,
         presentation: data.presentation,
-        unitOfMeasure: data.unitOfMeasure,
+        unitOfMeasure: data.unitOfMeasure as any,
         inputUnit: data.inputUnit,
         inputUnitQuantity: data.inputUnitQuantity,
         minStock: data.minStock,
         maxStock: data.maxStock,
         supplierId: data.supplierId,
         unitCost: data.unitCost ?? 0,
-        active: data.active ?? true,
-      },
+
+       catalogId: data.catalogId ?? null,
+
+       caloriesPer100g: data.caloriesPer100g ?? null,
+       carbsPer100g: data.carbsPer100g ?? null,
+       fatPer100g: data.fatPer100g ?? null,
+       proteinPer100g: data.proteinPer100g ?? null,
+       sugarPer100g: data.sugarPer100g ?? null,
+       sodiumPer100g: data.sodiumPer100g ?? null,
+
+       active: data.active ?? true,
+       
+      },  
       include: { supplier: true },
     });
 
@@ -127,7 +138,7 @@ const buildUpdateData = (data: any): any => {
   if (data.isFinishedProduct !== undefined) updateData.isFinishedProduct = data.isFinishedProduct;
   if (data.presentation !== undefined) updateData.presentation = data.presentation;
   if (data.unitCost !== undefined) updateData.unitCost = Number(data.unitCost);
-  if (data.unitOfMeasure !== undefined) updateData.unitOfMeasure = data.unitOfMeasure;
+  if (data.unitOfMeasure !== undefined) updateData.unitOfMeasure = data.unitOfMeasure as any;
   if (data.inputUnit !== undefined) updateData.inputUnit = data.inputUnit;
   if (data.inputUnitQuantity !== undefined) updateData.inputUnitQuantity = data.inputUnitQuantity;
   if (data.minStock !== undefined) updateData.minStock = data.minStock;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import Button from "@/components/Button";
 import { showError, showSuccess } from "@/utils/toast";
@@ -16,6 +16,54 @@ export default function OtherCostsPage() {
 
   const [costsList, setCostsList] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const formatCurrency = (value: number) => {
+
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    minimumFractionDigits: 0,
+  }).format(value || 0);
+};
+const analytics = useMemo(() => {
+  const totalMonthly =
+    Number(fixedCosts || 0) +
+    Number(variableCosts || 0) +
+    Number(payroll || 0);
+
+  const perPlate =
+    monthlyProduction > 0
+      ? totalMonthly / monthlyProduction
+      : 0;
+
+  let status = {
+    label: "Sin datos suficientes",
+    color: "text-gray-300",
+  };
+
+  if (perPlate > 5000) {
+    status = {
+      label: "🔴 Costos operativos elevados",
+      color: "text-red-400",
+    };
+  } else if (perPlate >= 2000) {
+    status = {
+      label: "🟡 Revisar eficiencia operativa",
+      color: "text-yellow-400",
+    };
+  } else if (perPlate > 0) {
+    status = {
+      label: "🟢 Estructura operativa saludable",
+      color: "text-green-400",
+    };
+  }
+
+  return {
+    totalMonthly,
+    perPlate,
+    status,
+  };
+}, [fixedCosts, variableCosts, payroll, monthlyProduction]);
 
   // 🔥 TRAER COSTOS
   const fetchCosts = async () => {
@@ -99,74 +147,112 @@ export default function OtherCostsPage() {
       console.error(error);
     }
   };
-
   return (
-    <DashboardLayout>
+  <DashboardLayout>
 
-      <h1 className="text-3xl font-bold text-[#001F3F] mb-6">
-        Otros Costos
-      </h1>
+    <h1 className="text-3xl font-bold text-[#001F3F] mb-6">
+      Costos Operativos
+    </h1>
 
-      <div className="bg-gray-400/20 backdrop-blur-md border border-white/20 rounded-2xl p-6 space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* MES */}
+      {/* FORMULARIO */}
+      <div className="lg:col-span-2 bg-gray-400/20 backdrop-blur-md border border-white/20 rounded-2xl p-6 shadow-[0_8px_30px_rgba(0,0,0,0.25)] space-y-6">
+
+        {/* PERIODO */}
         <div>
-          <label className="text-sm text-gray-600">Mes</label>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+            Periodo contable
+          </h2>
+
+          <p className="text-sm text-gray-600 mb-3">
+            Selecciona el mes al que corresponden estos costos operativos.
+          </p>
+
           <input
             type="month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="border p-2 rounded w-60"
+            className="border p-3 rounded-xl w-64"
           />
         </div>
 
         {/* COSTOS FIJOS */}
         <div>
-          <label className="text-sm text-gray-600">Costos fijos mensuales</label>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+            Costos fijos mensuales
+          </h2>
+
+          <p className="text-sm text-gray-600 mb-3">
+            Gastos que debes cubrir independientemente del volumen de ventas
+            (arriendo, internet, software, servicios, seguros, depreciación).
+          </p>
+
           <input
             type="number"
             min="0"
             value={fixedCosts}
             onChange={(e) => setFixedCosts(Number(e.target.value))}
-            className="border p-2 rounded w-full"
+            className="border p-3 rounded-xl w-full text-right"
           />
         </div>
 
-        {/* COSTOS VARIABLES */}
+        {/* VARIABLES */}
         <div>
-          <label className="text-sm text-gray-600">Costos variables mensuales</label>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+            Costos variables operativos
+          </h2>
+
+          <p className="text-sm text-gray-600 mb-3">
+            Gastos que cambian según la operación del restaurante
+            (gas, empaques, limpieza, desperdicio, comisiones).
+          </p>
+
           <input
             type="number"
             min="0"
             value={variableCosts}
             onChange={(e) => setVariableCosts(Number(e.target.value))}
-            className="border p-2 rounded w-full"
+            className="border p-3 rounded-xl w-full text-right"
           />
         </div>
 
-        {/* NÓMINA */}
+        {/* NOMINA */}
         <div>
-          <label className="text-sm text-gray-600">Nómina mensual</label>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+            Nómina mensual
+          </h2>
+
+          <p className="text-sm text-gray-600 mb-3">
+            Personal operativo y administrativo asociado al funcionamiento
+            del negocio (chef, auxiliares, caja, administración).
+          </p>
+
           <input
             type="number"
             min="0"
             value={payroll}
             onChange={(e) => setPayroll(Number(e.target.value))}
-            className="border p-2 rounded w-full"
+            className="border p-3 rounded-xl w-full text-right"
           />
         </div>
 
-        {/* PRODUCCIÓN */}
+        {/* PRODUCCION */}
         <div>
-          <label className="text-sm text-gray-600">
-            Producción mensual (platos)
-          </label>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+            Producción mensual estimada
+          </h2>
+
+          <p className="text-sm text-gray-600 mb-3">
+            Número total estimado de platos vendidos durante el mes.
+          </p>
+
           <input
             type="number"
             min="1"
             value={monthlyProduction}
             onChange={(e) => setMonthlyProduction(Number(e.target.value))}
-            className="border p-2 rounded w-full"
+            className="border p-3 rounded-xl w-full text-right"
           />
         </div>
 
@@ -176,64 +262,159 @@ export default function OtherCostsPage() {
 
       </div>
 
-      {/* TABLA */}
-      <div className="mt-10 bg-white rounded-xl p-6 shadow">
+      {/* PANEL */}
+      <div className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white rounded-2xl p-6 shadow-xl space-y-6">
 
-        <h2 className="text-xl font-semibold mb-4">
-          Historial de costos
+        <h2 className="text-xl font-semibold">
+          Panel Inteligente
         </h2>
 
-        <table className="w-full text-sm border">
-          <thead>
-            <tr className="bg-gray-200">
-              <th className="p-2">Mes</th>
-              <th>Fijos</th>
-              <th>Variables</th>
-              <th>Nómina</th>
-              <th>Producción</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
+        <div className="flex justify-between">
+          <span>Costo mensual total</span>
+          <span className="text-green-400 font-bold">
+            {formatCurrency(analytics.totalMonthly)}
+          </span>
+        </div>
 
-          <tbody>
-            {costsList.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="text-center p-4">
-                  No hay registros
-                </td>
-              </tr>
-            ) : (
-              costsList.map((c) => (
-                <tr key={c.id} className="text-center border-t">
-                  <td className="p-2">{c.month}</td>
-                  <td>{c.fixedCosts}</td>
-                  <td>{c.variableCosts}</td>
-                  <td>{c.payroll}</td>
-                  <td>{c.monthlyProduction}</td>
+        <div className="flex justify-between">
+          <span>Costo indirecto por plato</span>
+          <span className="text-green-400 font-bold">
+            {formatCurrency(analytics.perPlate)}
+          </span>
+        </div>
 
-                  <td className="space-x-2">
-                    <button
-                      onClick={() => handleEdit(c)}
-                      className="text-blue-600 hover:underline"
-                    >
-                      Editar
-                    </button>
-
-                    <button
-                      onClick={() => handleDelete(c.id)}
-                      className="text-red-600 hover:underline"
-                    >
-                      Eliminar
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        <div>
+          <span className={`font-semibold ${analytics.status.color}`}>
+            {analytics.status.label}
+          </span>
+        </div>
 
       </div>
 
-    </DashboardLayout>
-  );
-}
+    </div>
+          {/* HISTORIAL */}
+      <div className="mt-10">
+        <button
+          onClick={() => setShowHistory(!showHistory)}
+          className="bg-gray-400/20 backdrop-blur-md border border-white/20 rounded-2xl px-6 py-4 shadow-xl hover:shadow-2xl transition-all duration-300"
+        >
+          {showHistory
+            ? "▲ Ocultar historial de costos"
+            : "▼ Ver historial de costos"}
+        </button>
+      </div>
+
+      {showHistory && (
+        <div className="mt-6">
+          {costsList.length === 0 ? (
+            <div className="bg-gray-400/20 backdrop-blur-md border border-white/20 rounded-2xl p-10 text-center text-gray-700 shadow-xl">
+              No hay registros de costos
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+
+              {costsList.map((c) => {
+                const total =
+                  Number(c.fixedCosts || 0) +
+                  Number(c.variableCosts || 0) +
+                  Number(c.payroll || 0);
+
+                const perPlate =
+                  c.monthlyProduction > 0
+                    ? total / c.monthlyProduction
+                    : 0;
+
+                return (
+                  <div
+                    key={c.id}
+                    className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white rounded-2xl p-5 shadow-xl hover:scale-[1.02] hover:shadow-2xl transition-all duration-300"
+                  >
+
+                    <div className="text-xs text-gray-400 mb-2">
+                      {c.month}
+                    </div>
+
+                    <h3 className="text-lg font-semibold mb-4">
+                      Registro operativo
+                    </h3>
+
+                    <div className="space-y-2 text-sm">
+
+                      <div className="flex justify-between">
+                        <span>Costos fijos</span>
+                        <span className="text-green-400 font-semibold">
+                          {formatCurrency(c.fixedCosts)}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between">
+                        <span>Variables</span>
+                        <span className="text-green-400 font-semibold">
+                          {formatCurrency(c.variableCosts)}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between">
+                        <span>Nómina</span>
+                        <span className="text-green-400 font-semibold">
+                          {formatCurrency(c.payroll)}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between">
+                        <span>Producción</span>
+                        <span className="font-semibold">
+                          {c.monthlyProduction}
+                        </span>
+                      </div>
+
+                      <div className="border-t border-white/10 pt-3 mt-3">
+
+                        <div className="flex justify-between">
+                          <span>Total mensual</span>
+                          <span className="text-green-400 font-bold">
+                            {formatCurrency(total)}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between mt-2">
+                          <span>Costo/plato</span>
+                          <span className="text-green-400 font-bold">
+                            {formatCurrency(perPlate)}
+                          </span>
+                        </div>
+
+                      </div>
+
+                    </div>
+
+                    <div className="mt-6 pt-4 border-t border-white/10 flex justify-between">
+
+                      <button
+                        onClick={() => handleEdit(c)}
+                        className="text-blue-400 hover:underline text-sm"
+                      >
+                        Editar
+                      </button>
+
+                      <button
+                        onClick={() => handleDelete(c.id)}
+                        className="text-red-400 hover:underline text-sm"
+                      >
+                        Eliminar
+                      </button>
+
+                    </div>
+
+                  </div>
+                );
+              })}
+
+            </div>
+          )}
+        </div>
+      )}
+        </DashboardLayout>
+)}
+
+

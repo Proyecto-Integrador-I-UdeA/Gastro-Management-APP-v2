@@ -17,6 +17,15 @@ export type ProductWritePayload = {
   maxStock: number;
   supplierId: number;
   unitCost: number;
+
+  catalogId?: number | null;
+
+  caloriesPer100g?: number;
+  carbsPer100g?: number;
+  fatPer100g?: number;
+  proteinPer100g?: number;
+  sugarPer100g?: number;
+  sodiumPer100g?: number;
 };
 
 export async function fetchProductsWithSuppliers(

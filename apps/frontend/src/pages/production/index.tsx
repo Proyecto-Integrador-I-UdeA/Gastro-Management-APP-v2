@@ -16,7 +16,7 @@ export default function ProductionModule() {
       <div className="bg-gray-400/20 backdrop-blur-md border border-white/20 rounded-2xl p-6 shadow-[0_8px_30px_rgba(0,0,0,0.25)]">
         
         <p className="text-black-500 mb-1">
-          Gestiona la estandarización de tus recetas y procesos productivos
+          Gestiona la Estandarización de tus Recetas y Procesos Productivos
         </p>
 
         {/* 🔥 GRID PRINCIPAL */}

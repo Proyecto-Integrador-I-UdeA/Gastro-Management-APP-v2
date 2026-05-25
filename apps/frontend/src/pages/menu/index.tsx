@@ -60,7 +60,6 @@ export default function MenuListPage() {
         {menuItems.map((item) => (
           <div
             key={item.id}
-            onClick={() => router.push(`/menu/${item.id}`)}
             className={`cursor-pointer rounded-2xl p-5 shadow-xl
             transition-all duration-300 flex flex-col justify-between border
             hover:scale-[1.03] hover:shadow-2xl
@@ -102,11 +101,6 @@ export default function MenuListPage() {
 
             {/* ACCIONES */}
             <div className="mt-6 pt-4 border-t border-white/10 flex justify-between items-center">
-
-              {/* EDITAR */}
-              <span className="text-blue-400 text-sm">
-                Editar →
-              </span>
 
               {/* 🔥 ACTIVAR / INACTIVAR */}
               <button

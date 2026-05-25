@@ -8,6 +8,11 @@ import Input from '@/components/Input';
 import ProductUnitFields from '@/components/ProductUnitFields';
 import { ROUTES } from '@/constants/routes';
 import { createProductRequest } from '@/lib/productsApi';
+import {
+  fetchIngredientCatalog,
+  createIngredientCatalogItem,
+  type IngredientCatalogItem,
+} from '@/lib/ingredientCatalogApi';
 import { fetchSuppliers } from '@/lib/suppliersApi';
 import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import type { ProductSupplier } from '@/types/product';
@@ -34,6 +39,29 @@ export default function ProductCreatePage() {
   const [isIngredient, setIsIngredient] = useState(true);
   const [isSupply, setIsSupply] = useState(false);
   const [isFinishedProduct, setIsFinishedProduct] = useState(false);
+
+const [catalogItems, setCatalogItems] = useState<IngredientCatalogItem[]>([]);
+const [selectedCatalogId, setSelectedCatalogId] = useState<number | null>(null);
+const [selectedCatalogItem, setSelectedCatalogItem] =
+  useState<IngredientCatalogItem | null>(null);
+
+const [catalogSearch, setCatalogSearch] = useState('');
+const [showCatalogResults, setShowCatalogResults] = useState(false);
+
+
+
+const [showCreateCatalog, setShowCreateCatalog] = useState(false);
+
+const [newCatalogName, setNewCatalogName] = useState('');
+const [newCatalogCategory, setNewCatalogCategory] = useState('');
+
+const [newCalories, setNewCalories] = useState('');
+const [newCarbs, setNewCarbs] = useState('');
+const [newFat, setNewFat] = useState('');
+const [newProtein, setNewProtein] = useState('');
+const [newSugar, setNewSugar] = useState('');
+const [newSodium, setNewSodium] = useState('');
+
   const [baseUnit, setBaseUnit] = useState<ProductBaseUnit>('g');
   const [inputUnit, setInputUnit] = useState<ProductInputUnit>('kg');
   const [inputUnitQuantity, setInputUnitQuantity] = useState('1');
@@ -41,45 +69,95 @@ export default function ProductCreatePage() {
   const [maxStock, setMaxStock] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [unitCost, setUnitCost] = useState(0);
+  const filteredCatalogItems = catalogItems.filter((item) =>
+  item.name.toLowerCase().includes(catalogSearch.toLowerCase())
+);
 
   useEffect(() => {
     setInputUnit((prev) => coerceInputUnitForBase(baseUnit, prev));
   }, [baseUnit]);
 
   useEffect(() => {
-    let cancelled = false;
+  let cancelled = false;
 
-    (async () => {
-      setLoadingSuppliers(true);
-      setSupplierError(null);
+  async function loadData() {
+    setLoadingSuppliers(true);
+    setSupplierError(null);
 
-      try {
-        const list = await fetchSuppliers();
+    try {
+      const [supplierList, catalogList] = await Promise.all([
+        fetchSuppliers(),
+        fetchIngredientCatalog(),
+      ]);
+      console.log("CATALOGO NUTRICIONAL:", catalogList);
+      if (!cancelled) {
+        setSuppliers(supplierList);
+        setCatalogItems(catalogList);
 
-        if (!cancelled) {
-          setSuppliers(list);
-          if (list.length === 1) setSupplierId(String(list[0].id));
+        if (supplierList.length === 1) {
+          setSupplierId(String(supplierList[0].id));
         }
-      } catch (e) {
-        if (!cancelled) {
-          if (isUnauthorized(e)) {
-            router.push('/login');
-            return;
-          }
-
-          setSupplierError(
-            getApiErrorMessage(e, 'No se pudieron cargar los proveedores')
-          );
-        }
-      } finally {
-        if (!cancelled) setLoadingSuppliers(false);
       }
-    })();
+    } catch (e) {
+      if (!cancelled) {
+        if (isUnauthorized(e)) {
+          router.push('/login');
+          return;
+        }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [router]);
+        setSupplierError(
+          getApiErrorMessage(
+            e,
+            'No se pudieron cargar proveedores o catálogo nutricional'
+          )
+        );
+      }
+    } finally {
+      if (!cancelled) {
+        setLoadingSuppliers(false);
+      }
+    }
+  }
+
+  loadData();
+
+  return () => {
+    cancelled = true;
+  };
+}, [router]); 
+
+async function handleCreateCatalogItem() {
+  try {
+    const created = await createIngredientCatalogItem({
+      name: newCatalogName,
+      category: newCatalogCategory,
+      caloriesPer100g: Number(newCalories),
+      carbsPer100g: Number(newCarbs),
+      fatPer100g: Number(newFat),
+      proteinPer100g: Number(newProtein),
+      sugarPer100g: Number(newSugar),
+      sodiumPer100g: Number(newSodium),
+    });
+
+    setCatalogItems((prev) => [...prev, created]);
+    setSelectedCatalogId(created.id);
+    setSelectedCatalogItem(created);
+
+    setShowCreateCatalog(false);
+
+    setNewCatalogName('');
+    setNewCatalogCategory('');
+    setNewCalories('');
+    setNewCarbs('');
+    setNewFat('');
+    setNewProtein('');
+    setNewSugar('');
+    setNewSodium('');
+  } catch (error) {
+    console.error(error);
+    alert('No se pudo crear ingrediente nutricional');
+  }
+}
 
   const handleSave = async () => {
     if (
@@ -120,21 +198,47 @@ export default function ProductCreatePage() {
     setSubmitting(true);
 
     try {
-      await createProductRequest({
-        name,
-        category,
-        isIngredient,
-        isSupply,
-        isFinishedProduct,
-        presentation,
-        unitOfMeasure: baseUnit,
-        inputUnit,
-        inputUnitQuantity: iuq,
-        minStock: minN,
-        maxStock: maxN,
-        supplierId: sid,
-        unitCost,
-      });
+    await createProductRequest({
+  name,
+  category,
+
+  isIngredient,
+  isSupply,
+  isFinishedProduct,
+
+  presentation,
+
+  unitOfMeasure: baseUnit,
+  inputUnit,
+  inputUnitQuantity: iuq,
+
+  minStock: minN,
+  maxStock: maxN,
+
+  supplierId: sid,
+  unitCost,
+
+  catalogId: selectedCatalogId,
+
+  caloriesPer100g:
+    selectedCatalogItem?.caloriesPer100g ?? undefined,
+
+  carbsPer100g:
+    selectedCatalogItem?.carbsPer100g ?? undefined,
+
+  fatPer100g:
+    selectedCatalogItem?.fatPer100g ?? undefined,
+
+  proteinPer100g:
+    selectedCatalogItem?.proteinPer100g ?? undefined,
+
+  sugarPer100g:
+    selectedCatalogItem?.sugarPer100g ?? undefined,
+
+  sodiumPer100g:
+    selectedCatalogItem?.sodiumPer100g ?? undefined,
+});
+    
 
       router.push(ROUTES.products.list);
     } catch (e) {
@@ -277,9 +381,185 @@ export default function ProductCreatePage() {
             </label>
           </div>
 
-         <div className="flex justify-end gap-4 mt-6">
+{isIngredient && (
+  <div className="mt-6 bg-gray-50 border rounded-xl p-6">
+    <h3 className="text-lg font-semibold mb-4">
+      Información nutricional del ingrediente por cada 100g o ml
+    </h3>
+
+    <div className="mb-4">
+      <label className="block text-sm mb-1">
+        Seleccionar ingrediente del catálogo
+      </label>
+
+    <div className="relative">
+  <input
+    type="text"
+    value={catalogSearch}
+    onChange={(e) => {
+      setCatalogSearch(e.target.value);
+      setShowCatalogResults(true);
+
+      if (!e.target.value.trim()) {
+        setSelectedCatalogId(null);
+        setSelectedCatalogItem(null);
+      }
+    }}
+    onFocus={() => setShowCatalogResults(true)}
+    placeholder="Escribe para buscar ingrediente..."
+    className="w-full border rounded-md p-2"
+  />
+
+  {showCatalogResults && catalogSearch.trim() && (
+    <div className="absolute z-50 mt-1 w-full bg-white border rounded-md shadow-lg max-h-64 overflow-y-auto">
+      {filteredCatalogItems.length > 0 ? (
+        filteredCatalogItems.slice(0, 20).map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => {
+              setSelectedCatalogId(item.id);
+              setSelectedCatalogItem(item);
+              setCatalogSearch(item.name);
+              setShowCatalogResults(false);
+            }}
+            className="w-full text-left px-4 py-2 hover:bg-gray-100"
+          >
+            {item.name}
+          </button>
+        ))
+      ) : (
+        <div className="px-4 py-2 text-gray-500">
+          No se encontraron ingredientes
+        </div>
+      )}
+    </div>
+  )}
+</div>
+
+    </div>
+   
+   <Button
+  type="button"
+  variant="primary"
+  onClick={() => setShowCreateCatalog(!showCreateCatalog)}
+  className="mb-6"
+>
+  {showCreateCatalog
+    ? 'Cerrar creación manual'
+    : '+ Crear ingrediente nutricional'}
+</Button>
+
+    {showCreateCatalog && (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border rounded-xl p-4 mb-6 bg-white">
+        <input
+          placeholder="Nombre"
+          value={newCatalogName}
+          onChange={(e) => setNewCatalogName(e.target.value)}
+          className="border rounded-md p-2"
+        />
+
+        <input
+          placeholder="Categoría"
+          value={newCatalogCategory}
+          onChange={(e) => setNewCatalogCategory(e.target.value)}
+          className="border rounded-md p-2"
+        />
+
+        <input
+          placeholder="Calorías(Kcal /100g)"
+          value={newCalories}
+          onChange={(e) => setNewCalories(e.target.value)}
+          className="border rounded-md p-2"
+        />
+
+        <input
+          placeholder="Carbohidratos(g /100g)"
+          value={newCarbs}
+          onChange={(e) => setNewCarbs(e.target.value)}
+          className="border rounded-md p-2"
+        />
+
+        <input
+          placeholder="Grasas(g /100g)"
+          value={newFat}
+          onChange={(e) => setNewFat(e.target.value)}
+          className="border rounded-md p-2"
+        />
+
+        <input
+          placeholder="Proteína(g /100g)"
+          value={newProtein}
+          onChange={(e) => setNewProtein(e.target.value)}
+          className="border rounded-md p-2"
+        />
+
+        <input
+          placeholder="Azúcares(g /100g)"
+          value={newSugar}
+          onChange={(e) => setNewSugar(e.target.value)}
+          className="border rounded-md p-2"
+        />
+
+        <input
+          placeholder="Sodio(mg /100g)"
+          value={newSodium}
+          onChange={(e) => setNewSodium(e.target.value)}
+          className="border rounded-md p-2"
+        />
+
+        <div className="md:col-span-2">
+          <button
+            type="button"
+            onClick={handleCreateCatalogItem}
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+          >
+            Guardar ingrediente nutricional
+          </button>
+        </div>
+      </div>
+    )}
+{selectedCatalogItem && (
+  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+    <div>
+      <strong>Calorías /100g:</strong>{' '}
+      {selectedCatalogItem.caloriesPer100g ?? 0} kcal
+    </div>
+
+    <div>
+      <strong>Carbohidratos /100g:</strong>{' '}
+      {selectedCatalogItem.carbsPer100g ?? 0} g
+    </div>
+
+    <div>
+      <strong>Grasas /100g:</strong>{' '}
+      {selectedCatalogItem.fatPer100g ?? 0} g
+    </div>
+
+    <div>
+      <strong>Proteína /100g:</strong>{' '}
+      {selectedCatalogItem.proteinPer100g ?? 0} g
+    </div>
+
+    <div>
+      <strong>Azúcares /100g:</strong>{' '}
+      {selectedCatalogItem.sugarPer100g ?? 0} g
+    </div>
+
+    <div>
+      <strong>Sodio /100g:</strong>{' '}
+      {selectedCatalogItem.sodiumPer100g ?? 0} mg
+    </div>
+  </div>
+)}
+  </div>
+)}
+
+<div className="flex justify-end gap-4 mt-6">
+           
+      
             <Button
-              variant="secondary"
+              variant="secondary"   
               onClick={() => router.push(ROUTES.products.list)}
             >
               Cancelar

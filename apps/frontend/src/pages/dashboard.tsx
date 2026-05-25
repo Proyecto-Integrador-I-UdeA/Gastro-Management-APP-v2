@@ -49,12 +49,13 @@ export default function Dashboard() {
   };
 
   // 🎨 estilos
-  const baseCard = `
-    bg-gray-400/20 backdrop-blur-md p-4 rounded-xl border border-white/20
-    shadow-[0_4px_20px_rgba(30,64,175,0.25)]
-    transition-all duration-300 flex flex-col
-  `;
-
+ const baseCard = `
+  bg-gradient-to-r from-[#00122E] to-[#1B2C4A]
+  text-white
+  backdrop-blur-md p-4 rounded-xl border border-white/10
+  shadow-[0_4px_20px_rgba(0,31,63,0.35)]
+  transition-all duration-300 flex flex-col
+`;
   const activeCard = `
     hover:scale-110 hover:-translate-y-2
     hover:shadow-[0_6px_25px_rgba(30,64,175,0.35)]

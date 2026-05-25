@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import Button from "@/components/Button";
@@ -15,16 +15,41 @@ export default function RecipeDetail() {
   const [recipe, setRecipe] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [processes, setProcesses] = useState<any[]>([]);
-  const [viewMode, setViewMode] = useState<"ingredients" | "preparation">("ingredients");
+  const [viewMode, setViewMode] = useState<"ingredients" | "preparation">(
+    "ingredients"
+  );
   const [editIngredients, setEditIngredients] = useState(false);
   const [products, setProducts] = useState<any[]>([]);
+  const [recipes, setRecipes] = useState<any[]>([]);
 
   const fetchRecipe = async () => {
     if (!recipeId) return;
+   
     try {
-      const data = await apiFetch(`/recipes/${recipeId}`);
-      setRecipe(data);
-      setProcesses(data.processes || []);
+    const data = await apiFetch(`/recipes/${recipeId}`);
+console.log("RECIPE DATA:", data);
+
+const normalizedItems = (data.items || []).map(
+  (item: any) => ({
+    itemType: item.subRecipeId
+      ? "recipe"
+      : "product",
+
+    productId: item.productId || "",
+    subRecipeId: item.subRecipeId || "",
+    quantity: Number(item.quantity || 0),
+  })
+);
+
+setRecipe({
+  ...data,
+  items: normalizedItems,
+});
+
+setProcesses(data.processes || []);
+    
+    
+    
     } catch {
       showError("Error cargando receta");
     }
@@ -33,19 +58,32 @@ export default function RecipeDetail() {
   const fetchProducts = async () => {
     try {
       const data = await apiFetch("/products");
-      setProducts(data);
+      setProducts(Array.isArray(data) ? data : []);
     } catch {
       console.error("Error cargando productos");
     }
   };
+  const fetchRecipes = async () => {
+  try {
+    const data = await apiFetch("/recipes");
+    setRecipes(Array.isArray(data) ? data : []);
+  } catch {
+    console.error("Error cargando recetas");
+  }
+};
 
   useEffect(() => {
     if (router.isReady && recipeId) {
       const loadData = async () => {
         setLoading(true);
-        await Promise.all([fetchRecipe(), fetchProducts()]);
+        await Promise.all([
+  fetchRecipe(),
+  fetchProducts(),
+  fetchRecipes(),
+]);
         setLoading(false);
       };
+
       loadData();
     }
   }, [router.isReady, recipeId]);
@@ -53,14 +91,60 @@ export default function RecipeDetail() {
   const addProcess = () => {
     setProcesses([
       ...processes,
-      { name: "", duration: 0, operators: 1, stepDescription: "" }
+      {
+        name: "",
+        duration: 0,
+        operators: 1,
+        stepDescription: "",
+      },
     ]);
   };
 
-  const handleProcessChange = (index: number, field: string, value: any) => {
+  const handleProcessChange = (
+    index: number,
+    field: string,
+    value: any
+  ) => {
     const updated = [...processes];
     updated[index][field] = value;
     setProcesses(updated);
+  };
+
+  const updateRecipeItems = (updatedItems: any[]) => {
+    setRecipe({
+      ...recipe,
+      items: updatedItems,
+    });
+  };
+
+ const addIngredient = () => {
+  updateRecipeItems([
+    ...(recipe.items || []),
+    {
+      itemType: "product",
+      productId: "",
+      subRecipeId: "",
+      quantity: 0,
+    },
+  ]);
+};
+
+  const removeIngredient = (index: number) => {
+    const updated = recipe.items.filter(
+      (_: any, i: number) => i !== index
+    );
+
+    updateRecipeItems(updated);
+  };
+
+  const handleIngredientChange = (
+    index: number,
+    field: string,
+    value: any
+  ) => {
+    const updated = [...recipe.items];
+    updated[index][field] = value;
+    updateRecipeItems(updated);
   };
 
   const saveAll = async () => {
@@ -72,7 +156,7 @@ export default function RecipeDetail() {
           portions: recipe.portions,
           description: recipe.description,
           processes,
-          items: recipe.items
+          items: recipe.items,
         }),
       });
 
@@ -82,20 +166,281 @@ export default function RecipeDetail() {
     }
   };
 
+  const analytics = useMemo(() => {
+  if (!recipe?.items?.length) {
+    return {
+      totalCost: 0,
+      costPerPortion: 0,
+      caloriesPerPortion: 0,
+      fatPerPortion: 0,
+      carbsPerPortion: 0,
+      proteinPerPortion: 0,
+      sodiumPerPortion: 0,
+      sugarPerPortion: 0,
+      macroPercentages: {
+        fat: 0,
+        carbs: 0,
+        protein: 0,
+      },
+      nutritionScore: 100,
+      alerts: [],
+    };
+  }
+
+  let totalCost = 0;
+  let totalCalories = 0;
+  let totalFat = 0;
+  let totalCarbs = 0;
+  let totalProtein = 0;
+  let totalSodium = 0;
+  let totalSugar = 0;
+
+  const detailed = recipe.items.map((item: any) => {
+    // PRODUCTO
+    if (item.itemType === "product") {
+      const product = products.find(
+        (p) => p.id === Number(item.productId)
+      );
+
+      if (!product) {
+        return {
+          cost: 0,
+          itemName: "",
+        };
+      }
+
+      const quantity = Number(item.quantity || 0);
+      const unitCost = Number(product.unitCost || 0);
+      const cost = unitCost * quantity;
+
+      totalCost += cost;
+
+      const calories =
+        ((product.caloriesPer100g || 0) * quantity) / 100;
+
+      const fat =
+        ((product.fatPer100g || 0) * quantity) / 100;
+
+      const carbs =
+        ((product.carbsPer100g || 0) * quantity) / 100;
+
+      const protein =
+        ((product.proteinPer100g || 0) * quantity) / 100;
+
+      const sodium =
+        ((product.sodiumPer100g || 0) * quantity) / 100;
+
+      const sugar =
+        ((product.sugarPer100g || 0) * quantity) / 100;
+
+      totalCalories += calories;
+      totalFat += fat;
+      totalCarbs += carbs;
+      totalProtein += protein;
+      totalSodium += sodium;
+      totalSugar += sugar;
+
+      return {
+        cost,
+        itemName: product.name,
+      };
+    }
+
+    // SUB-RECETA
+    if (item.itemType === "recipe") {
+      const subRecipe = recipes.find(
+        (r) => r.id === Number(item.subRecipeId)
+      );
+
+      if (!subRecipe) {
+        return {
+          cost: 0,
+          itemName: "",
+        };
+      }
+
+      const quantity = Number(item.quantity || 0);
+
+      const costPerPortion =
+        Number(subRecipe.totalCost || 0) /
+        Math.max(Number(subRecipe.portions || 1), 1);
+
+      const cost = costPerPortion * quantity;
+
+      totalCost += cost;
+
+      totalCalories +=
+        Number(subRecipe.caloriesPerPortion || 0) * quantity;
+
+      totalFat +=
+        Number(subRecipe.fatPerPortion || 0) * quantity;
+
+      totalCarbs +=
+        Number(subRecipe.carbsPerPortion || 0) * quantity;
+
+      totalProtein +=
+        Number(subRecipe.proteinPerPortion || 0) * quantity;
+
+      totalSodium +=
+        Number(subRecipe.sodiumPerPortion || 0) * quantity;
+
+      totalSugar +=
+        Number(subRecipe.sugarPerPortion || 0) * quantity;
+
+      return {
+        cost,
+        itemName: subRecipe.name,
+      };
+    }
+
+    return {
+      cost: 0,
+      itemName: "",
+    };
+  });
+
+  const safePortions =
+    recipe.portions > 0 ? recipe.portions : 1;
+
+  const costPerPortion = totalCost / safePortions;
+  const caloriesPerPortion = totalCalories / safePortions;
+  const fatPerPortion = totalFat / safePortions;
+  const carbsPerPortion = totalCarbs / safePortions;
+  const proteinPerPortion = totalProtein / safePortions;
+  const sodiumPerPortion = totalSodium / safePortions;
+  const sugarPerPortion = totalSugar / safePortions;
+
+  const fatCalories = fatPerPortion * 9;
+  const carbCalories = carbsPerPortion * 4;
+  const proteinCalories = proteinPerPortion * 4;
+
+  const macroEnergyTotal =
+    fatCalories + carbCalories + proteinCalories;
+
+  const macroPercentages = {
+    fat: macroEnergyTotal
+      ? (fatCalories / macroEnergyTotal) * 100
+      : 0,
+    carbs: macroEnergyTotal
+      ? (carbCalories / macroEnergyTotal) * 100
+      : 0,
+    protein: macroEnergyTotal
+      ? (proteinCalories / macroEnergyTotal) * 100
+      : 0,
+  };
+
+ const alerts: string[] = [];
+
+if (recipe?.nutritionRole === "CARB_BASE") {
+  if (caloriesPerPortion > 500) {
+    alerts.push("Calorías elevadas para acompañamiento carbohidrato");
+  }
+
+  if (macroPercentages.fat > 30) {
+    alerts.push("Exceso de grasa para base carbohidrato");
+  }
+
+  if (sodiumPerPortion > 700) {
+    alerts.push("Sodio elevado para acompañamiento");
+  }
+
+  if (costPerPortion > 7000) {
+    alerts.push("Costo alto para base carbohidrato");
+  }
+}
+
+else if (recipe?.nutritionRole === "PROTEIN_BASE") {
+  if (macroPercentages.protein < 30) {
+    alerts.push("Proteína insuficiente para proteína principal");
+  }
+
+  if (caloriesPerPortion > 700) {
+    alerts.push("Carga calórica elevada");
+  }
+
+  if (macroPercentages.fat > 45) {
+    alerts.push("Exceso de grasa en proteína principal");
+  }
+
+  if (sodiumPerPortion > 900) {
+    alerts.push("Sodio elevado");
+  }
+
+  if (costPerPortion > 15000) {
+    alerts.push("Costo premium");
+  }
+}
+
+else if (recipe?.nutritionRole === "FAT_BASE") {
+  if (caloriesPerPortion > 600) {
+    alerts.push("Densidad calórica muy alta");
+  }
+
+  if (sodiumPerPortion > 800) {
+    alerts.push("Sodio elevado");
+  }
+
+  if (sugarPerPortion > 15) {
+    alerts.push("Azúcar elevada");
+  }
+}
+
+else {
+  if (caloriesPerPortion > 650) {
+    alerts.push("Carga calórica elevada");
+  }
+
+  if (sodiumPerPortion > 850) {
+    alerts.push("Sodio elevado");
+  }
+
+  if (sugarPerPortion > 20) {
+    alerts.push("Azúcar elevada");
+  }
+}
+
+
+  let nutritionScore = 100 - alerts.length * 8;
+
+  if (nutritionScore < 0) {
+    nutritionScore = 0;
+  }
+
+  return {
+    totalCost,
+    costPerPortion,
+    caloriesPerPortion,
+    fatPerPortion,
+    carbsPerPortion,
+    proteinPerPortion,
+    sodiumPerPortion,
+    sugarPerPortion,
+    macroPercentages,
+    nutritionScore,
+    alerts,
+  };
+}, [recipe, products, recipes]);
+
+
+
+
   if (loading) return <div>Cargando...</div>;
   if (!recipe) return <div>Error cargando receta</div>;
 
   return (
     <DashboardLayout>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
         {/* IZQUIERDA */}
         <div className="lg:col-span-2">
-
           <div className="mb-6 space-y-4">
             <input
               value={recipe.name}
-              onChange={(e) => setRecipe({ ...recipe, name: e.target.value })}
+              onChange={(e) =>
+                setRecipe({
+                  ...recipe,
+                  name: e.target.value,
+                })
+              }
               className="text-2xl font-bold border p-2 rounded w-full"
             />
 
@@ -106,7 +451,7 @@ export default function RecipeDetail() {
               onChange={(e) =>
                 setRecipe({
                   ...recipe,
-                  portions: Math.max(1, Number(e.target.value))
+                  portions: Math.max(1, Number(e.target.value)),
                 })
               }
               className="border p-2 rounded w-40"
@@ -114,123 +459,198 @@ export default function RecipeDetail() {
           </div>
 
           <div className="flex gap-4 mb-6">
-            <button
+            <Button
+              type="button"
               onClick={() => {
                 setViewMode("ingredients");
                 setEditIngredients(true);
               }}
-              className="px-4 py-2 bg-blue-600 text-white rounded"
             >
               Ingredientes
-            </button>
+            </Button>
 
-            <button
+            <Button
+              type="button"
+              variant="secondary"
               onClick={() => {
                 setViewMode("preparation");
                 setEditIngredients(false);
               }}
-              className="px-4 py-2 bg-gray-200 rounded"
             >
               Procesos
-            </button>
+            </Button>
           </div>
 
           <div className="p-6 bg-white rounded shadow">
-
-            {/* 🔥 INGREDIENTES */}
+            {/* INGREDIENTES */}
             {viewMode === "ingredients" && editIngredients && (
               <div>
-                <button
-                  onClick={() =>
-                    setRecipe({
-                      ...recipe,
-                      items: [...recipe.items, { productId: "", quantity: 0 }]
-                    })
-                  }
-                  className="mb-3 bg-green-500 text-white px-3 py-1 rounded"
-                >
-                  + Agregar ingrediente
-                </button>
+                <div className="flex justify-between items-center mb-6">
+                  <Button type="button" onClick={addIngredient}>
+                    + Agregar ingrediente
+                  </Button>
 
-                {recipe.items.map((item: any, index: number) => {
-                  const selectedProduct = products.find(
-                    (p) => p.id === Number(item.productId)
-                  );
+                  <Button type="button" onClick={saveAll}>
+                    Guardar receta completa
+                  </Button>
+                </div>
+        {recipe.items.map((item: any, index: number) => {
+  const selectedProduct = products.find(
+    (p) => p.id === Number(item.productId)
+  );
 
-                  return (
-                    <div key={index} className="mb-2">
-                      <div className="flex gap-2 items-center">
+  return (
+    <div
+      key={index}
+      className="mb-4 border rounded-xl p-4 bg-gray-50"
+    >
+      <div className="flex gap-2 items-center">
+        <select
+          className="border p-2 rounded w-1/4"
+          value={item.itemType || "product"}
+          onChange={(e) => {
+            handleIngredientChange(
+              index,
+              "itemType",
+              e.target.value
+            );
 
-                        <select
-                          className="border p-2 rounded w-1/2"
-                          value={item.productId || ""}
-                          onChange={(e) => {
-                            const updated = [...recipe.items];
-                            updated[index].productId = Number(e.target.value);
-                            setRecipe({ ...recipe, items: updated });
-                          }}
-                        >
-                          <option value="">Seleccionar producto</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
+            handleIngredientChange(
+              index,
+              "productId",
+              ""
+            );
 
-                        <input
-                          type="number"
-                          className="border p-2 rounded w-1/4 text-right"
-                          value={item.quantity}
-                          onChange={(e) => {
-                            const updated = [...recipe.items];
-                            updated[index].quantity = Number(e.target.value);
-                            setRecipe({ ...recipe, items: updated });
-                          }}
-                        />
+            handleIngredientChange(
+              index,
+              "subRecipeId",
+              ""
+            );
+          }}
+        >
+          <option value="product">
+            Ingrediente
+          </option>
+          <option value="recipe">
+            Sub-receta
+          </option>
+        </select>
 
-                        <button
-                          onClick={() => {
-                            const updated = recipe.items.filter((_: any, i: number) => i !== index);
-                            setRecipe({ ...recipe, items: updated });
-                          }}
-                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded"
-                        >
-                          ✕
-                        </button>
+        {item.itemType === "recipe" ? (
+          <select
+            className="border p-2 rounded w-2/4"
+            value={item.subRecipeId || ""}
+            onChange={(e) =>
+              handleIngredientChange(
+                index,
+                "subRecipeId",
+                Number(e.target.value)
+              )
+            }
+          >
+            <option value="">
+              Seleccionar sub-receta
+            </option>
 
-                      </div>
+            {recipes.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <select
+            className="border p-2 rounded w-2/4"
+            value={item.productId || ""}
+            onChange={(e) =>
+              handleIngredientChange(
+                index,
+                "productId",
+                Number(e.target.value)
+              )
+            }
+          >
+            <option value="">
+              Seleccionar producto
+            </option>
 
-                      {selectedProduct && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Unidad: {selectedProduct.unitOfMeasure}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        )}
+
+        <input
+          type="number"
+          className="border p-2 rounded w-1/4 text-right"
+          value={item.quantity}
+          onChange={(e) =>
+            handleIngredientChange(
+              index,
+              "quantity",
+              Number(e.target.value)
+            )
+          }
+        />
+
+        <button
+          onClick={() => removeIngredient(index)}
+          className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg"
+        >
+          ✕
+        </button>
+      </div>
+    {item.itemType === "product" && selectedProduct && (
+  <p className="text-xs text-gray-500 mt-2">
+    Unidad: {selectedProduct.unitOfMeasure}
+  </p>
+)}
+
+{item.itemType === "recipe" && (
+  <p className="text-xs text-gray-500 mt-2">
+    Unidad: porciones
+  </p>
+)}
+  
+  
+  
+  
+  
+  
+    </div>
+  );
+})}
+
               </div>
             )}
 
-            {/* 🔥 PROCESOS */}
+            {/* PROCESOS */}
             {viewMode === "preparation" && (
               <div>
-                <button
+                <Button
+                  type="button"
                   onClick={addProcess}
-                  className="mb-4 bg-blue-500 text-white px-4 py-2 rounded"
+                  className="mb-4"
                 >
                   + Agregar proceso
-                </button>
+                </Button>
 
                 {processes.map((p, index) => (
-                  <div key={index} className="mb-4 p-4 border rounded relative">
-
+                  <div
+                    key={index}
+                    className="mb-4 p-4 border rounded relative"
+                  >
                     <button
                       onClick={() => {
-                        const updated = processes.filter((_: any, i: number) => i !== index);
+                        const updated = processes.filter(
+                          (_: any, i: number) => i !== index
+                        );
+
                         setProcesses(updated);
                       }}
-                      className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs"
+                      className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs"
                     >
                       ✕
                     </button>
@@ -238,7 +658,11 @@ export default function RecipeDetail() {
                     <input
                       value={p.name}
                       onChange={(e) =>
-                        handleProcessChange(index, "name", e.target.value)
+                        handleProcessChange(
+                          index,
+                          "name",
+                          e.target.value
+                        )
                       }
                       className="border p-2 rounded w-full mb-2"
                     />
@@ -247,160 +671,193 @@ export default function RecipeDetail() {
                       type="number"
                       value={p.duration}
                       onChange={(e) =>
-                        handleProcessChange(index, "duration", Number(e.target.value))
+                        handleProcessChange(
+                          index,
+                          "duration",
+                          Number(e.target.value)
+                        )
                       }
                       className="border p-2 rounded w-full mb-2"
                     />
 
-                    {/* 🔥 AQUÍ ESTABA LO QUE FALTABA */}
                     <textarea
                       placeholder="Descripción del proceso"
                       value={p.stepDescription || ""}
                       onChange={(e) =>
-                        handleProcessChange(index, "stepDescription", e.target.value)
+                        handleProcessChange(
+                          index,
+                          "stepDescription",
+                          e.target.value
+                        )
                       }
                       className="border p-2 rounded w-full"
                     />
-
                   </div>
                 ))}
+
+                <Button onClick={saveAll}>
+                  Guardar receta completa
+                </Button>
               </div>
             )}
-
-            <Button onClick={saveAll}>
-              Guardar receta completa
-            </Button>
-
           </div>
         </div>
-        
 
-        <SmartPanel recipe={recipe} products={products} />
+        {/* PANEL */}
+        <div className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white rounded-2xl p-6 shadow-xl space-y-5">
+          <div className="flex justify-between">
+            <span>Costo / porción</span>
+            <span className="font-bold text-green-300">
+              {new Intl.NumberFormat("es-CO", {
+                style: "currency",
+                currency: "COP",
+                minimumFractionDigits: 0,
+              }).format(analytics.costPerPortion)}
+            </span>
+          </div>
+
+          <div className="flex justify-between">
+            <span>Calorías</span>
+            <span className="font-bold">
+              {analytics.caloriesPerPortion.toFixed(0)} kcal
+            </span>
+          </div>
+
+          <div className="flex justify-between">
+            <span>Proteína</span>
+            <span className="font-bold text-green-300">
+              {analytics.proteinPerPortion.toFixed(1)} g
+            </span>
+          </div>
+
+          <div className="flex justify-between">
+            <span>Carbohidratos</span>
+            <span className="font-bold text-blue-300">
+              {analytics.carbsPerPortion.toFixed(1)} g
+            </span>
+          </div>
+
+          <div className="flex justify-between">
+            <span>Grasas</span>
+            <span className="font-bold">
+              {analytics.fatPerPortion.toFixed(1)} g
+            </span>
+          </div>
+
+          <div className="flex justify-between">
+            <span>Sodio</span>
+            <span className="font-bold">
+              {analytics.sodiumPerPortion.toFixed(0)} mg
+            </span>
+          </div>
+
+          <div className="flex justify-between">
+            <span>Azúcar</span>
+            <span className="font-bold">
+              {analytics.sugarPerPortion.toFixed(1)} g
+            </span>
+          </div>
+
+          <hr className="border-white/20" />
+
+          <div>
+            <h3 className="font-semibold mb-3">
+              Balance Nutricional
+            </h3>
+
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Proteína</span>
+                <span>
+                  {analytics.macroPercentages.protein.toFixed(1)}%
+                </span>
+              </div>
+
+              <div className="flex justify-between">
+                <span>Carbohidratos</span>
+                <span>
+                  {analytics.macroPercentages.carbs.toFixed(1)}%
+                </span>
+              </div>
+
+              <div className="flex justify-between">
+                <span>Grasas</span>
+                <span>
+                  {analytics.macroPercentages.fat.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <hr className="border-white/20" />
+
+<div>
+  <h3 className="font-semibold mb-3">
+    Clasificación nutricional
+  </h3>
+
+  <div className="space-y-2 text-sm">
+    <div className="flex justify-between">
+      <span>Macro dominante</span>
+      <span className="font-bold text-blue-300">
+        {recipe?.macroDominance === "CARBS"
+          ? "Carbohidratos"
+          : recipe?.macroDominance === "PROTEIN"
+          ? "Proteína"
+          : recipe?.macroDominance === "FAT"
+          ? "Grasas"
+          : "Balanceado"}
+      </span>
+    </div>
+
+    <div className="flex justify-between">
+      <span>Rol nutricional</span>
+      <span className="font-bold text-green-300">
+        {recipe?.nutritionRole === "CARB_BASE"
+          ? "Base de carbohidratos"
+          : recipe?.nutritionRole === "PROTEIN_BASE"
+          ? "Proteína principal"
+          : recipe?.nutritionRole === "FAT_BASE"
+          ? "Base grasa"
+          : "Balanceado"}
+      </span>
+    </div>
+
+    <div className="flex justify-between">
+      <span>Clasificación costo</span>
+      <span className="font-bold text-yellow-300">
+        {recipe?.costClassification === "LOW"
+          ? "Bajo"
+          : recipe?.costClassification === "MEDIUM"
+          ? "Medio"
+          : recipe?.costClassification === "HIGH"
+          ? "Alto"
+          : recipe?.costClassification === "PREMIUM"
+          ? "Premium"
+          : "Sin clasificar"}
+      </span>
+    </div>
+  </div>
+</div>
+
+          <hr className="border-white/20" />
+
+          <div className="flex justify-between items-center">
+            <span>Score nutricional</span>
+            <span className="text-xl font-bold text-green-300">
+              {analytics.nutritionScore}/100
+            </span>
+          </div>
+
+          {analytics.alerts.length > 0 && (
+            <div className="bg-yellow-500/10 border border-yellow-400/30 p-3 rounded text-sm space-y-2">
+              {analytics.alerts.map((a: string, i: number) => (
+                <div key={i}>⚠️ {a}</div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </DashboardLayout>
   );
 }
-
-function SmartPanel({ recipe, products }: any) {
-  if (!recipe) return null;
-
-  let totalCost = 0;
-  let calories = 0;
-  let fat = 0;
-  let sodium = 0;
-  let sugar = 0;
-
-  recipe.items?.forEach((item: any) => {
-    const product = products.find((p: any) => p.id === Number(item.productId));
-    if (!product) return;
-
-    const qty = item.quantity || 0;
-
-    totalCost += (product.unitCost || 0) * qty;
-
-    // 🔥 NUTRICIÓN (si no existen en tu producto, queda en 0)
-    calories += (product.calories || 0) * qty;
-    fat += (product.fat || 0) * qty;
-    sodium += (product.sodium || 0) * qty;
-    sugar += (product.sugar || 0) * qty;
-  });
-
-  const portions = recipe.portions || 1;
-
-  const analytics = {
-    costPerPortion: totalCost / portions,
-    caloriesPerPortion: calories / portions,
-    fatPerPortion: fat / portions,
-    sodiumPerPortion: sodium / portions,
-    sugarPerPortion: sugar / portions,
-  };
-
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("es-CO", {
-      style: "currency",
-      currency: "COP",
-    }).format(value || 0);
-
-  const formatNumber = (value: number) =>
-    new Intl.NumberFormat("es-CO").format(value || 0);
-
-  const getColor = (value: number, min: number, max: number) => {
-    if (value < min) return "text-yellow-400";
-    if (value > max) return "text-red-400";
-    return "text-green-400";
-  };
-
-  const LIMITS = {
-    cost: { min: 8000, max: 12000 },
-    calories: { min: 700, max: 1000 },
-    fat: { min: 35, max: 50 },
-    sodium: { min: 800, max: 1200 },
-    sugar: { min: 25, max: 40 },
-  };
-
-  return (
-    <div className="bg-gradient-to-br from-[#0B1C39] to-[#1B2A4A] text-white rounded-2xl p-6 shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
-
-      {/* COSTO */}
-      <div className="flex justify-between items-center mb-4">
-        <span className="text-gray-300">Costo por porción</span>
-        <span className={`font-bold text-lg ${getColor(analytics.costPerPortion, LIMITS.cost.min, LIMITS.cost.max)}`}>
-          {formatCurrency(analytics.costPerPortion)}
-        </span>
-      </div>
-
-      {/* CALORÍAS */}
-      <div className="flex justify-between items-center mb-4">
-        <span className="text-gray-300">Calorías</span>
-        <span className={`font-bold ${getColor(analytics.caloriesPerPortion, LIMITS.calories.min, LIMITS.calories.max)}`}>
-          {formatNumber(analytics.caloriesPerPortion)} kcal
-        </span>
-      </div>
-
-      {/* GRASA */}
-      <div className="flex justify-between items-center mb-4">
-        <span className="text-gray-300">Grasa</span>
-        <span className={`font-bold ${getColor(analytics.fatPerPortion, LIMITS.fat.min, LIMITS.fat.max)}`}>
-          {analytics.fatPerPortion.toFixed(1)}%
-        </span>
-      </div>
-
-      {/* SODIO */}
-      <div className="flex justify-between items-center mb-4">
-        <span className="text-gray-300">Sodio</span>
-        <span className={`font-bold ${getColor(analytics.sodiumPerPortion, LIMITS.sodium.min, LIMITS.sodium.max)}`}>
-          {formatNumber(analytics.sodiumPerPortion)} mg
-        </span>
-      </div>
-
-      {/* AZÚCAR */}
-      <div className="flex justify-between items-center">
-        <span className="text-gray-300">Azúcar</span>
-        <span className={`font-bold ${getColor(analytics.sugarPerPortion, LIMITS.sugar.min, LIMITS.sugar.max)}`}>
-          {formatNumber(analytics.sugarPerPortion)} g
-        </span>
-      </div>
-
-    </div>
-  );
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

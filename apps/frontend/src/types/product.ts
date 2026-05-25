@@ -9,27 +9,45 @@ export type ProductSupplier = Supplier;
 export interface Product {
   id: number;
   internalCode?: string;
+
   name: string;
   category: string;
+
   isIngredient: boolean;
   isSupply: boolean;
   isFinishedProduct: boolean;
+  isSeedProduct?: boolean;
+
   presentation: string;
-  unitCost: number; 
+  unitCost: number;
+
   /** Unidad base en Kardex: g, ml o und */
   unitOfMeasure: string;
   inputUnit: string;
   inputUnitQuantity: number;
+
   expirationDate: string | null;
+
   minStock: number;
   maxStock: number;
   currentStock: number;
+
   supplierId: number;
+
   /** Catálogo Kardex: producto activo en sistema */
   active?: boolean;
-  supplier?: ProductSupplier;
-}
 
+  supplier?: ProductSupplier;
+
+  catalogId?: number | null;
+
+  caloriesPer100g?: number | null;
+  carbsPer100g?: number | null;
+  fatPer100g?: number | null;
+  proteinPer100g?: number | null;
+  sugarPer100g?: number | null;
+  sodiumPer100g?: number | null;
+}
 /** Etiquetas según los flags del producto (puede haber varias). */
 export function productTypeLabels(p: Product): string[] {
   const labels: string[] = [];

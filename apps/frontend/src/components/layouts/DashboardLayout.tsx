@@ -91,7 +91,7 @@ export default function DashboardLayout({
         <Header />
 
         {/* Contenido dinámico */}
-        <main className="p-4">
+        <main className="p-1">
 
           <Breadcrumb />
 
@@ -99,7 +99,7 @@ export default function DashboardLayout({
           {parentRoute && (
             <button
               onClick={() => router.push(parentRoute)}
-              className="mb-4 text-sm text-blue-600 hover:underline"
+              className="mb-0 text-sm text-blue-600 hover:underline"
             >
               ← Volver a {parentLabel}
             </button>

@@ -12,6 +12,7 @@ import costRoutes from './routes/costs';
 import configRoutes from './routes/config';
 import reportRoutes from './routes/reports';
 import menuRoutes from "./routes/menu";
+import ingredientCatalogRoutes from "./routes/catalog/ingredientCatalog.routes";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -70,6 +71,7 @@ app.use('/costs', costRoutes);
 app.use('/config', configRoutes);
 app.use('/reports', reportRoutes);
 app.use('/menu-items', menuRoutes);
+app.use("/ingredient-catalog", ingredientCatalogRoutes);
 
 // 🔥 HEALTH CHECK
 app.get('/', (req, res) => {

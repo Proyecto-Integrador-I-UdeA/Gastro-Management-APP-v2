@@ -17,41 +17,66 @@ model Supplier {
   address       String
   contactPerson String
   active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now())
   products      Product[]
 
   @@map("suppliers")
 }
 
+model IngredientCatalog {
+  id       Int     @id @default(autoincrement())
+  name     String  @unique
+  category String?
+
+  caloriesPer100g Float?
+  carbsPer100g    Float?
+  fatPer100g      Float?
+  proteinPer100g  Float?
+  sugarPer100g    Float?
+  sodiumPer100g   Float?
+
+  isSystem Boolean @default(false)
+
+  products Product[]
+}
+
 model Product {
-  id                 Int                 @id @default(autoincrement())
-  internalCode       String              @unique
-  name               String
-  category           String              @default("")
-  isIngredient       Boolean             @default(false)
-  isSupply           Boolean             @default(false)
-  isFinishedProduct  Boolean             @default(false)
-  presentation       String
-  unitOfMeasure      String
-  inputUnit          String              @default("g")
-  inputUnitQuantity  Float               @default(1)
-  minStock           Float
-  maxStock           Float
-  currentStock       Float               @default(0)
-  unitCost           Float               @default(0)
-  // 🔥 INFORMACIÓN NUTRICIONAL (por 100g / 100ml)
-caloriesPer100g Float?  // kcal
-fatPer100g      Float?  // g
-carbsPer100g    Float?  // g
-proteinPer100g  Float?  // g
-sodiumPer100g   Float?  // mg
-sugarPer100g    Float?  // g
-  active             Boolean             @default(true)
-  supplierId         Int
+  id                Int     @id @default(autoincrement())
+  internalCode      String  @unique
+  name              String
+  category          String  @default("")
+  isIngredient      Boolean @default(false)
+  isSupply          Boolean @default(false)
+  isFinishedProduct Boolean @default(false)
+  presentation      String
+  inputUnit         String  @default("g")
+  inputUnitQuantity Float   @default(1)
+  minStock          Float
+  maxStock          Float
+  currentStock      Float   @default(0)
+  unitCost          Float   @default(0)
+  active            Boolean @default(true)
+  supplierId        Int
+
+  catalogId Int?
+  catalog   IngredientCatalog? @relation(fields: [catalogId], references: [id])
+
+  caloriesPer100g    Float?
+  carbsPer100g       Float?
+  fatPer100g         Float?
+  proteinPer100g     Float?
+  sodiumPer100g      Float?
+  sugarPer100g       Float?
+  isSeedProduct      Boolean             @default(false)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @default(now())
+  unitOfMeasure      ProductBaseUnit     @default(g)
+  MenuItemComponent  MenuItemComponent[]
   inventories        Inventory[]
   inventoryMovements InventoryMovement[]
   supplier           Supplier            @relation(fields: [supplierId], references: [id])
-  recipeItems        RecipeItem[]
-  MenuItemComponent  MenuItemComponent[]
+  recipeItems        RecipeItem[]        @relation("ProductRecipeItems")
 
   @@map("products")
 }
@@ -64,7 +89,7 @@ model Warehouse {
   isMain            Boolean             @default(false)
   active            Boolean             @default(true)
   createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  updatedAt         DateTime            @default(now()) @updatedAt
   inventories       Inventory[]
   movementsAsDest   InventoryMovement[] @relation("DestinationWarehouse")
   movementsAsSource InventoryMovement[] @relation("SourceWarehouse")
@@ -78,7 +103,7 @@ model Inventory {
   productId   Int
   warehouseId Int
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  updatedAt   DateTime  @default(now()) @updatedAt
   product     Product   @relation(fields: [productId], references: [id])
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
 
@@ -98,7 +123,7 @@ model InventoryMovement {
   destinationWarehouseId Int?
   userId                 Int
   createdAt              DateTime     @default(now())
-  updatedAt              DateTime     @updatedAt
+  updatedAt              DateTime     @default(now()) @updatedAt
   destinationWarehouse   Warehouse?   @relation("DestinationWarehouse", fields: [destinationWarehouseId], references: [id])
   product                Product      @relation(fields: [productId], references: [id])
   sourceWarehouse        Warehouse?   @relation("SourceWarehouse", fields: [sourceWarehouseId], references: [id])
@@ -114,7 +139,7 @@ model User {
   fullName     String?
   roleId       Int?
   createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  updatedAt    DateTime            @default(now()) @updatedAt
   active       Boolean             @default(true)
   movements    InventoryMovement[]
   role         Role?               @relation(fields: [roleId], references: [id])
@@ -127,7 +152,7 @@ model Role {
   name        String           @unique
   description String?
   createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  updatedAt   DateTime         @default(now()) @updatedAt
   permissions RolePermission[]
   users       User[]
 
@@ -138,6 +163,8 @@ model Permission {
   id          Int              @id @default(autoincrement())
   name        String           @unique
   description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @default(now())
   roles       RolePermission[]
 
   @@map("permissions")
@@ -147,6 +174,8 @@ model RolePermission {
   id           Int        @id @default(autoincrement())
   roleId       Int
   permissionId Int
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @default(now())
   permission   Permission @relation(fields: [permissionId], references: [id])
   role         Role       @relation(fields: [roleId], references: [id])
 
@@ -155,31 +184,53 @@ model RolePermission {
 }
 
 model Recipe {
-  id                Int                 @id @default(autoincrement())
-  internalCode      String              @unique
-  active            Boolean             @default(true)
-  name              String
-  description       String?
-  batchQuantity     Float
-  portions          Int
-  totalCost         Decimal?            @db.Decimal(10, 2)
+  id            Int      @id @default(autoincrement())
+  internalCode  String   @unique
+  active        Boolean  @default(true)
+  name          String
+  description   String?
+  batchQuantity Float
+  portions      Int
+  totalCost     Decimal? @db.Decimal(10, 2)
+
+  caloriesPerPortion Float?
+  proteinPerPortion  Float?
+  carbsPerPortion    Float?
+  fatPerPortion      Float?
+  sodiumPerPortion   Float?
+  sugarPerPortion    Float?
+  nutritionScore     Float?
+
+  macroDominance     String?
+  nutritionRole      String?
+  costClassification String?
+
   createdAt         DateTime            @default(now())
-  items             RecipeItem[]
-  processes         RecipeProcess[]
   MenuItemComponent MenuItemComponent[]
+
+  items           RecipeItem[] @relation("ParentRecipe")
+  usedAsSubRecipe RecipeItem[] @relation("SubRecipeReference")
+
+  processes RecipeProcess[]
 
   @@map("recipes")
 }
 
 model RecipeItem {
-  id        Int     @id @default(autoincrement())
-  recipeId  Int
-  productId Int
+  id          Int  @id @default(autoincrement())
+  recipeId    Int
+  productId   Int?
+  subRecipeId Int?
+
   quantity  Float
   unitCost  Decimal @db.Decimal(10, 2)
   totalCost Decimal @db.Decimal(10, 2)
-  product   Product @relation(fields: [productId], references: [id])
-  recipe    Recipe  @relation(fields: [recipeId], references: [id])
+
+  product Product? @relation("ProductRecipeItems", fields: [productId], references: [id])
+
+  recipe Recipe @relation("ParentRecipe", fields: [recipeId], references: [id])
+
+  subRecipe Recipe? @relation("SubRecipeReference", fields: [subRecipeId], references: [id])
 
   @@map("recipe_items")
 }
@@ -227,6 +278,40 @@ model OtherCosts {
   @@map("other_costs")
 }
 
+model MenuItem {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+  hasDrink    Boolean @default(false)
+  hasDessert  Boolean @default(false)
+  active      Boolean @default(true)
+
+  totalCost Decimal? @db.Decimal(10, 2)
+
+  caloriesPerPortion Float?
+  proteinPerPortion  Float?
+  carbsPerPortion    Float?
+  fatPerPortion      Float?
+  sodiumPerPortion   Float?
+  sugarPerPortion    Float?
+
+  nutritionScore Float?
+
+  createdAt  DateTime            @default(now())
+  components MenuItemComponent[]
+}
+
+model MenuItemComponent {
+  id         Int      @id @default(autoincrement())
+  menuItemId Int
+  productId  Int?
+  recipeId   Int?
+  quantity   Float
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+  product    Product? @relation(fields: [productId], references: [id])
+  recipe     Recipe?  @relation(fields: [recipeId], references: [id])
+}
+
 enum MovementType {
   PURCHASE
   TRANSFER
@@ -236,38 +321,6 @@ enum MovementType {
 
 enum ProductBaseUnit {
   g
-  kg
   ml
-  l
-  unit
-}
-
-model MenuItem {
-  id          Int     @id @default(autoincrement())
-  name        String // nombre del plato (ej: "Hamburguesa Especial")
-  description String? // acompañantes (texto libre)
-
-  hasDrink   Boolean @default(false)
-  hasDessert Boolean @default(false)
-
-  active Boolean @default(true)
-
-  createdAt DateTime @default(now())
-
-  components MenuItemComponent[]
-}
-
-model MenuItemComponent {
-  id Int @id @default(autoincrement())
-
-  menuItemId Int
-  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
-
-  productId Int?
-  product   Product? @relation(fields: [productId], references: [id])
-
-  recipeId Int?
-  recipe   Recipe? @relation(fields: [recipeId], references: [id])
-
-  quantity Float
+  und
 }
