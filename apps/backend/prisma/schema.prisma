@@ -9,17 +9,19 @@ datasource db {
 }
 
 model Supplier {
-  id            Int       @id @default(autoincrement())
-  internalCode  String    @unique
+  id            Int      @id @default(autoincrement())
+  internalCode  String   @unique
   name          String
   taxId         String
   phone         String
   address       String
   contactPerson String
-  active        Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @default(now())
-  products      Product[]
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  updatedAt DateTime @default(now()) @updatedAt
+
+  products Product[]
 
   @@map("suppliers")
 }
@@ -50,29 +52,35 @@ model Product {
   isSupply          Boolean @default(false)
   isFinishedProduct Boolean @default(false)
   presentation      String
-  inputUnit         String  @default("g")
-  inputUnitQuantity Float   @default(1)
-  minStock          Float
-  maxStock          Float
-  currentStock      Float   @default(0)
-  unitCost          Float   @default(0)
-  active            Boolean @default(true)
-  supplierId        Int
 
-  catalogId Int?
-  catalog   IngredientCatalog? @relation(fields: [catalogId], references: [id])
+  unitOfMeasure     ProductBaseUnit @default(g)
+  inputUnit         String          @default("g")
+  inputUnitQuantity Float           @default(1)
 
-  caloriesPer100g    Float?
-  carbsPer100g       Float?
-  fatPer100g         Float?
-  proteinPer100g     Float?
-  sodiumPer100g      Float?
-  sugarPer100g       Float?
-  isSeedProduct      Boolean             @default(false)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @default(now())
-  unitOfMeasure      ProductBaseUnit     @default(g)
-  MenuItemComponent  MenuItemComponent[]
+  minStock     Float
+  maxStock     Float
+  currentStock Float @default(0)
+  unitCost     Float @default(0)
+
+  caloriesPer100g Float?
+  fatPer100g      Float?
+  carbsPer100g    Float?
+  proteinPer100g  Float?
+  sodiumPer100g   Float?
+  sugarPer100g    Float?
+
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  supplierId    Int
+  catalogId     Int?
+  isSeedProduct Boolean @default(false)
+
+  catalog IngredientCatalog? @relation(fields: [catalogId], references: [id])
+
+  MenuItemComponent MenuItemComponent[]
+
   inventories        Inventory[]
   inventoryMovements InventoryMovement[]
   supplier           Supplier            @relation(fields: [supplierId], references: [id])
@@ -160,24 +168,28 @@ model Role {
 }
 
 model Permission {
-  id          Int              @id @default(autoincrement())
-  name        String           @unique
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
   description String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @default(now())
-  roles       RolePermission[]
+  createdAt   DateTime @default(now())
+
+  updatedAt DateTime @default(now()) @updatedAt
+
+  roles RolePermission[]
 
   @@map("permissions")
 }
 
 model RolePermission {
-  id           Int        @id @default(autoincrement())
+  id           Int      @id @default(autoincrement())
   roleId       Int
   permissionId Int
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @default(now())
-  permission   Permission @relation(fields: [permissionId], references: [id])
-  role         Role       @relation(fields: [roleId], references: [id])
+  createdAt    DateTime @default(now())
+
+  updatedAt DateTime @default(now()) @updatedAt
+
+  permission Permission @relation(fields: [permissionId], references: [id])
+  role       Role       @relation(fields: [roleId], references: [id])
 
   @@unique([roleId, permissionId])
   @@map("role_permissions")
@@ -319,6 +331,7 @@ enum MovementType {
   CONSUMPTION
 }
 
+/// Coincide con el tipo PostgreSQL `ProductBaseUnit` creado en `20260326160000_product_unit_base_enum`.
 enum ProductBaseUnit {
   g
   ml
