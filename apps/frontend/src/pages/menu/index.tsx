@@ -9,13 +9,46 @@ export default function MenuListPage() {
   const router = useRouter();
   const [menuItems, setMenuItems] = useState<any[]>([]);
 
+
+  const getNutritionInsight = (item: any) => {
+  const calories = Number(item.caloriesPerPortion || 0);
+  const protein = Number(item.proteinPerPortion || 0);
+  const sodium = Number(item.sodiumPerPortion || 0);
+  const fat = Number(item.fatPerPortion || 0);
+  const score = Number(item.nutritionScore || 0);
+
+  if (calories >= 900 || fat >= 35) {
+    return "😄 Un gustico contundente… porque disfrutar también cuenta.";
+  }
+
+  if (calories >= 650) {
+    return "🔥 Plato energético para jornadas exigentes.";
+  }
+
+  if (protein >= 30) {
+    return "💪 Buena fuente de proteína para mantener energía.";
+  }
+
+  if (sodium >= 1500) {
+    return "🧂 Sabor intenso para quienes disfrutan platos con carácter.";
+  }
+
+  if (calories <= 500) {
+    return "🥗 Opción ligera para un almuerzo balanceado.";
+  }
+
+  if (score >= 85) {
+    return "✨ Una opción equilibrada para el día a día.";
+  }
+
+  return "🍽️ Una opción pensada para disfrutar.";
+};
+
   const fetchMenu = async () => {
     try {
       const data = await apiFetch("/menu-items");
 
-      // 🔥 SOLO ACTIVOS
       setMenuItems(data.filter((item: any) => item.active));
-
     } catch (error) {
       console.error("Error cargando menú:", error);
     }
@@ -25,7 +58,6 @@ export default function MenuListPage() {
     fetchMenu();
   }, []);
 
-  // 🔥 TOGGLE ACTIVO / INACTIVO
   const toggleActive = async (e: any, item: any) => {
     e.stopPropagation();
 
@@ -42,7 +74,6 @@ export default function MenuListPage() {
           m.id === item.id ? { ...m, active: !item.active } : m
         )
       );
-
     } catch (error) {
       console.error("Error actualizando estado:", error);
     }
@@ -54,9 +85,7 @@ export default function MenuListPage() {
         Menú del Restaurante
       </h1>
 
-      {/* 🔥 GRID PROFESIONAL */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-
         {menuItems.map((item) => (
           <div
             key={item.id}
@@ -69,8 +98,6 @@ export default function MenuListPage() {
                 : "bg-gray-300 text-gray-600 border-gray-400 opacity-70"
             }`}
           >
-
-            {/* INFO */}
             <div>
               <div className="text-xs mb-1">
                 PL-{item.id}
@@ -80,14 +107,19 @@ export default function MenuListPage() {
                 {item.name}
               </h2>
 
-              {/* DESCRIPCIÓN */}
               {item.description && (
                 <p className="text-sm text-gray-300 italic mb-3">
-                  Acompañado con: {item.description}
+                   {item.description}
                 </p>
               )}
 
-              {/* OPCIONES */}
+              {/* NUEVO INSIGHT */}
+              <p className="text-lg italic font-semibold text-amber-200 mb-5 leading-relaxed tracking-wide drop-shadow-sm">
+               {getNutritionInsight(item)}
+              </p>
+              
+              
+
               <div className="text-sm space-y-1">
                 {item.hasDrink && (
                   <p>🍹 Incluye bebida</p>
@@ -99,10 +131,7 @@ export default function MenuListPage() {
               </div>
             </div>
 
-            {/* ACCIONES */}
             <div className="mt-6 pt-4 border-t border-white/10 flex justify-between items-center">
-
-              {/* 🔥 ACTIVAR / INACTIVAR */}
               <button
                 onClick={(e) => toggleActive(e, item)}
                 className={`text-xs px-3 py-1 rounded font-semibold ${
@@ -113,12 +142,9 @@ export default function MenuListPage() {
               >
                 {item.active ? "Inactivar" : "Activar"}
               </button>
-
             </div>
-
           </div>
         ))}
-
       </div>
     </DashboardLayout>
   );
