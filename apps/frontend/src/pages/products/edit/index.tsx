@@ -301,6 +301,7 @@ const handleUpdate = async (e: React.FormEvent) => {
      proteinPer100g,
      sugarPer100g,
      sodiumPer100g,
+     
       
     } as any);
 
@@ -414,6 +415,8 @@ const handleDuplicateProduct = async () => {
     setDuplicating(false);
   }
 };
+const isProtectedProduct =
+  Boolean(selectedCatalogId) || isSeedProduct;
 
 return (
   <DashboardLayout>
@@ -540,19 +543,19 @@ return (
     <p className="text-sm text-gray-600 mb-6">
       Los valores nutricionales se expresan por cada 100 gramos o 100 ml.
     </p>
-    {selectedCatalogId && (
-  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-    Este producto utiliza información nutricional del catálogo base del
-    sistema y no puede modificarse.
-  </div>
-)}
+    {isProtectedProduct && (
+      <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+        Este producto utiliza información nutricional del catálogo base del
+        sistema y no puede modificarse.
+      </div>
+    )}
 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
   <Input
     label="Calorías (kcal /100g)"
     type="number"
     value={String(caloriesPer100g)}
-  disabled={Boolean(selectedCatalogId)}
+  disabled={isProtectedProduct}
   onChange={(e) =>
   setCaloriesPer100g(Number(e.target.value))
 }
@@ -562,7 +565,7 @@ return (
         label="Carbohidratos (g /100g)"
         type="number"
         value={String(carbsPer100g)}
-        disabled={Boolean(selectedCatalogId)}
+        disabled={isProtectedProduct} 
 
 onChange={(e) =>
   setCarbsPer100g(Number(e.target.value))
@@ -575,8 +578,8 @@ onChange={(e) =>
         label="Grasas (g /100g)"
         type="number"
         value={String(fatPer100g)}
-        disabled={Boolean(selectedCatalogId)}
-     onChange={(e) =>
+        disabled={isProtectedProduct}
+      onChange={(e) =>
   setFatPer100g(Number(e.target.value))
 }
 
@@ -586,7 +589,7 @@ onChange={(e) =>
         label="Proteína (g /100g)"
         type="number"
         value={String(proteinPer100g)}
-        disabled={Boolean(selectedCatalogId)}
+      disabled={isProtectedProduct}
       onChange={(e) =>
   setProteinPer100g(Number(e.target.value))
 }
@@ -596,7 +599,7 @@ onChange={(e) =>
         label="Azúcares (g /100g)"
         type="number"
         value={String(sugarPer100g)}
-        disabled={Boolean(selectedCatalogId)}
+        disabled={isProtectedProduct}
       onChange={(e) =>
   setSugarPer100g(Number(e.target.value))
 }
@@ -606,7 +609,7 @@ onChange={(e) =>
         label="Sodio (mg /100g)"
         type="number"
         value={String(sodiumPer100g)}
-        disabled={Boolean(selectedCatalogId)}
+        disabled={isProtectedProduct}
       onChange={(e) =>
   setSodiumPer100g(Number(e.target.value))
 }

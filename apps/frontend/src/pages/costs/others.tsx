@@ -4,46 +4,96 @@ import { useEffect, useState, useMemo } from "react";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import Button from "@/components/Button";
 import { showError, showSuccess } from "@/utils/toast";
-import { apiFetch } from "@/lib/api"; // 🔥 IMPORTANTE
+import { apiFetch } from "@/lib/api";
 
 export default function OtherCostsPage() {
-
   const [month, setMonth] = useState("");
-  const [fixedCosts, setFixedCosts] = useState(0);
-  const [variableCosts, setVariableCosts] = useState(0);
-  const [payroll, setPayroll] = useState(0);
-  const [monthlyProduction, setMonthlyProduction] = useState(0);
+
+  // NUEVO NAMING INTERNO
+  const [structuralCosts, setStructuralCosts] = useState(0);
+  const [utilityCosts, setUtilityCosts] = useState(0);
+  const [payrollCosts, setPayrollCosts] = useState(0);
+  const [projectedProduction, setProjectedProduction] = useState(0);
 
   const [costsList, setCostsList] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showHistory, setShowHistory] = useState(false);
-  const formatCurrency = (value: number) => {
+ const [activeConfig, setActiveConfig] = useState<any | null>(null);
 
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-  }).format(value || 0);
-};
-const analytics = useMemo(() => {
-  const totalMonthly =
-    Number(fixedCosts || 0) +
-    Number(variableCosts || 0) +
-    Number(payroll || 0);
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency: "COP",
+      minimumFractionDigits: 0,
+    }).format(value || 0);
+  };
+
+  const analytics = useMemo(() => {
+    const totalMonthly =
+      Number(structuralCosts || 0) +
+      Number(utilityCosts || 0) +
+      Number(payrollCosts || 0);
+
+    const perPlate =
+      projectedProduction > 0
+        ? totalMonthly / projectedProduction
+        : 0;
+
+    let status = {
+    label: "Ingresa datos para simular",
+      color: "text-gray-300",
+    };
+
+    if (perPlate > 5000) {
+      status = {
+        label: "🔴 Overhead operativo elevado",
+        color: "text-red-400",
+      };
+    } else if (perPlate >= 2000) {
+      status = {
+        label: "🟡 Revisar eficiencia operativa",
+        color: "text-yellow-400",
+      };
+    } else if (perPlate > 0) {
+      status = {
+        label: "🟢 Estructura operativa saludable",
+        color: "text-green-400",
+      };
+    }
+
+    return {
+      totalMonthly,
+      perPlate,
+      status,
+    };
+  }, [
+    structuralCosts,
+    utilityCosts,
+    payrollCosts,
+    projectedProduction,
+  ]);
+
+  const activeAnalytics = useMemo(() => {
+  if (!activeConfig) return null;
+
+  const total =
+    Number(activeConfig.fixedCosts || 0) +
+    Number(activeConfig.variableCosts || 0) +
+    Number(activeConfig.payroll || 0);
 
   const perPlate =
-    monthlyProduction > 0
-      ? totalMonthly / monthlyProduction
+    Number(activeConfig.monthlyProduction || 0) > 0
+      ? total / Number(activeConfig.monthlyProduction)
       : 0;
 
   let status = {
-    label: "Sin datos suficientes",
+    label: "Sin configuración activa",
     color: "text-gray-300",
   };
 
   if (perPlate > 5000) {
     status = {
-      label: "🔴 Costos operativos elevados",
+      label: "🔴 Overhead operativo elevado",
       color: "text-red-400",
     };
   } else if (perPlate >= 2000) {
@@ -59,13 +109,13 @@ const analytics = useMemo(() => {
   }
 
   return {
-    totalMonthly,
+    total,
     perPlate,
     status,
   };
-}, [fixedCosts, variableCosts, payroll, monthlyProduction]);
+}, [activeConfig]);
 
-  // 🔥 TRAER COSTOS
+  // TRAER COSTOS
   const fetchCosts = async () => {
     try {
       const data = await apiFetch("/costs/others");
@@ -74,8 +124,17 @@ const analytics = useMemo(() => {
         ? data
         : data.data || data.costs || [];
 
-      setCostsList(list);
+    setCostsList(list);
 
+if (list.length > 0) {
+  const sorted = [...list].sort(
+    (a, b) =>
+      new Date(b.createdAt).getTime() -
+      new Date(a.createdAt).getTime()
+  );
+
+  setActiveConfig(sorted[0]);
+} 
     } catch (error) {
       console.error("Error cargando costos:", error);
     }
@@ -85,7 +144,7 @@ const analytics = useMemo(() => {
     fetchCosts();
   }, []);
 
-  // 🔥 GUARDAR / EDITAR
+  // GUARDAR / EDITAR
   const handleSave = async () => {
     try {
       const endpoint = editingId
@@ -94,46 +153,51 @@ const analytics = useMemo(() => {
 
       const method = editingId ? "PUT" : "POST";
 
+      // BACKEND COMPATIBLE
       await apiFetch(endpoint, {
         method,
         body: JSON.stringify({
           month,
-          fixedCosts,
-          variableCosts,
-          payroll,
-          monthlyProduction,
+          fixedCosts: structuralCosts,
+          variableCosts: utilityCosts,
+          payroll: payrollCosts,
+          monthlyProduction: projectedProduction,
         }),
       });
 
-      showSuccess(editingId ? "Costos actualizados" : "Costos guardados");
-
-      // reset
+      showSuccess(
+        editingId
+          ? "Costos operativos actualizados"
+          : "Costos operativos guardados"
+      );
+     await fetchCosts();
       setEditingId(null);
       setMonth("");
-      setFixedCosts(0);
-      setVariableCosts(0);
-      setPayroll(0);
-      setMonthlyProduction(0);
+      setStructuralCosts(0);
+      setUtilityCosts(0);
+      setPayrollCosts(0);
+      setProjectedProduction(0);
 
       fetchCosts();
-
     } catch (error) {
       console.error(error);
       showError("Error al guardar costos");
     }
   };
 
-  // 🔥 EDITAR
+  // EDITAR
   const handleEdit = (cost: any) => {
     setEditingId(cost.id);
     setMonth(cost.month);
-    setFixedCosts(cost.fixedCosts);
-    setVariableCosts(cost.variableCosts);
-    setPayroll(cost.payroll);
-    setMonthlyProduction(cost.monthlyProduction);
+
+    // MAPEO DESDE BACKEND LEGACY
+    setStructuralCosts(Number(cost.fixedCosts || 0));
+    setUtilityCosts(Number(cost.variableCosts || 0));
+    setPayrollCosts(Number(cost.payroll || 0));
+    setProjectedProduction(Number(cost.monthlyProduction || 0));
   };
 
-  // 🔥 ELIMINAR
+  // ELIMINAR
   const handleDelete = async (id: number) => {
     if (!confirm("¿Eliminar este registro?")) return;
 
@@ -147,152 +211,202 @@ const analytics = useMemo(() => {
       console.error(error);
     }
   };
+
   return (
-  <DashboardLayout>
+    <DashboardLayout>
+      <h1 className="text-3xl font-bold text-[#001F3F] mb-6">
+        Costos Operativos
+      </h1>
 
-    <h1 className="text-3xl font-bold text-[#001F3F] mb-6">
-      Costos Operativos
-    </h1>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* FORMULARIO */}
+        <div className="lg:col-span-2 bg-gray-400/20 backdrop-blur-md border border-white/20 rounded-2xl p-6 shadow-[0_8px_30px_rgba(0,0,0,0.25)] space-y-6">
+          {/* PERIODO */}
+          <div>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">
+              Periodo contable
+            </h2>
 
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <p className="text-sm text-gray-600 mb-3">
+              Selecciona el mes al que corresponden estos costos operativos.
+            </p>
 
-      {/* FORMULARIO */}
-      <div className="lg:col-span-2 bg-gray-400/20 backdrop-blur-md border border-white/20 rounded-2xl p-6 shadow-[0_8px_30px_rgba(0,0,0,0.25)] space-y-6">
+            <input
+              type="month"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              className="border p-3 rounded-xl w-64"
+            />
+          </div>
 
-        {/* PERIODO */}
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Periodo contable
-          </h2>
+          {/* ESTRUCTURALES */}
+          <div>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">
+              Costos estructurales
+            </h2>
 
-          <p className="text-sm text-gray-600 mb-3">
-            Selecciona el mes al que corresponden estos costos operativos.
-          </p>
+            <p className="text-sm text-gray-600 mb-3">
+              Arriendo, software, internet, seguros, contabilidad,
+              licencias y mantenimiento locativo.
+            </p>
 
-          <input
-            type="month"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="border p-3 rounded-xl w-64"
-          />
+            <input
+              type="number"
+              min="0"
+              value={structuralCosts}
+              onChange={(e) =>
+                setStructuralCosts(Number(e.target.value))
+              }
+              className="border p-3 rounded-xl w-full text-right"
+            />
+          </div>
+
+          {/* OPERATIVOS */}
+          <div>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">
+              Servicios operativos
+            </h2>
+
+            <p className="text-sm text-gray-600 mb-3">
+              Agua, gas, electricidad, limpieza, control de plagas
+              e insumos operativos generales.
+            </p>
+
+            <input
+              type="number"
+              min="0"
+              value={utilityCosts}
+              onChange={(e) =>
+                setUtilityCosts(Number(e.target.value))
+              }
+              className="border p-3 rounded-xl w-full text-right"
+            />
+          </div>
+
+          {/* NOMINA */}
+          <div>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">
+              Nómina total mensual
+            </h2>
+
+            <p className="text-sm text-gray-600 mb-3">
+              Personal operativo y administrativo mientras no exista
+              costeo basado en ventas reales.
+            </p>
+
+            <input
+              type="number"
+              min="0"
+              value={payrollCosts}
+              onChange={(e) =>
+                setPayrollCosts(Number(e.target.value))
+              }
+              className="border p-3 rounded-xl w-full text-right"
+            />
+          </div>
+
+          {/* PRODUCCION */}
+          <div>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">
+              Producción mensual proyectada
+            </h2>
+
+            <p className="text-sm text-gray-600 mb-3">
+              Número total estimado de platos vendidos durante el mes
+              con base en histórico o proyección operativa.
+            </p>
+
+            <input
+              type="number"
+              min="1"
+              value={projectedProduction}
+              onChange={(e) =>
+                setProjectedProduction(Number(e.target.value))
+              }
+              className="border p-3 rounded-xl w-full text-right"
+            />
+          </div>
+
+          <Button onClick={handleSave}>
+            {editingId
+              ? "Actualizar costos operativos"
+              : "Guardar costos operativos"}
+          </Button>
         </div>
+    
+   {/* PANELES */}
+<div className="space-y-6">
+  {/* SIMULADOR */}
+  <div className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white rounded-2xl p-6 shadow-xl space-y-6">
+    <h2 className="text-xl font-semibold">
+      Simulación operativa
+    </h2>
 
-        {/* COSTOS FIJOS */}
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Costos fijos mensuales
-          </h2>
-
-          <p className="text-sm text-gray-600 mb-3">
-            Gastos que debes cubrir independientemente del volumen de ventas
-            (arriendo, internet, software, servicios, seguros, depreciación).
-          </p>
-
-          <input
-            type="number"
-            min="0"
-            value={fixedCosts}
-            onChange={(e) => setFixedCosts(Number(e.target.value))}
-            className="border p-3 rounded-xl w-full text-right"
-          />
-        </div>
-
-        {/* VARIABLES */}
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Costos variables operativos
-          </h2>
-
-          <p className="text-sm text-gray-600 mb-3">
-            Gastos que cambian según la operación del restaurante
-            (gas, empaques, limpieza, desperdicio, comisiones).
-          </p>
-
-          <input
-            type="number"
-            min="0"
-            value={variableCosts}
-            onChange={(e) => setVariableCosts(Number(e.target.value))}
-            className="border p-3 rounded-xl w-full text-right"
-          />
-        </div>
-
-        {/* NOMINA */}
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Nómina mensual
-          </h2>
-
-          <p className="text-sm text-gray-600 mb-3">
-            Personal operativo y administrativo asociado al funcionamiento
-            del negocio (chef, auxiliares, caja, administración).
-          </p>
-
-          <input
-            type="number"
-            min="0"
-            value={payroll}
-            onChange={(e) => setPayroll(Number(e.target.value))}
-            className="border p-3 rounded-xl w-full text-right"
-          />
-        </div>
-
-        {/* PRODUCCION */}
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Producción mensual estimada
-          </h2>
-
-          <p className="text-sm text-gray-600 mb-3">
-            Número total estimado de platos vendidos durante el mes.
-          </p>
-
-          <input
-            type="number"
-            min="1"
-            value={monthlyProduction}
-            onChange={(e) => setMonthlyProduction(Number(e.target.value))}
-            className="border p-3 rounded-xl w-full text-right"
-          />
-        </div>
-
-        <Button onClick={handleSave}>
-          {editingId ? "Actualizar costos" : "Guardar costos"}
-        </Button>
-
-      </div>
-
-      {/* PANEL */}
-      <div className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white rounded-2xl p-6 shadow-xl space-y-6">
-
-        <h2 className="text-xl font-semibold">
-          Panel Inteligente
-        </h2>
-
-        <div className="flex justify-between">
-          <span>Costo mensual total</span>
-          <span className="text-green-400 font-bold">
-            {formatCurrency(analytics.totalMonthly)}
-          </span>
-        </div>
-
-        <div className="flex justify-between">
-          <span>Costo indirecto por plato</span>
-          <span className="text-green-400 font-bold">
-            {formatCurrency(analytics.perPlate)}
-          </span>
-        </div>
-
-        <div>
-          <span className={`font-semibold ${analytics.status.color}`}>
-            {analytics.status.label}
-          </span>
-        </div>
-
-      </div>
-
+    <div className="flex justify-between">
+      <span>Overhead mensual total</span>
+      <span className="text-green-400 font-bold">
+        {formatCurrency(analytics.totalMonthly)}
+      </span>
     </div>
-          {/* HISTORIAL */}
+
+    <div className="flex justify-between">
+      <span>Overhead operativo por plato</span>
+      <span className="text-green-400 font-bold">
+        {formatCurrency(analytics.perPlate)}
+      </span>
+    </div>
+
+    <div>
+      <span
+        className={`font-semibold ${analytics.status.color}`}
+      >
+        {analytics.status.label}
+      </span>
+    </div>
+  </div>
+
+  {/* CONFIGURACION VIGENTE */}
+  {activeAnalytics && (
+    <div className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white rounded-2xl p-6 shadow-xl space-y-4">
+      <h2 className="text-xl font-semibold">
+        Configuración operativa vigente
+      </h2>
+
+      <div className="text-sm text-gray-300">
+        Periodo: {activeConfig.month}
+      </div>
+
+      <div className="flex justify-between">
+        <span>Overhead mensual</span>
+        <span className="text-green-400 font-bold">
+          {formatCurrency(activeAnalytics.total)}
+        </span>
+      </div>
+
+      <div className="flex justify-between">
+        <span>Producción proyectada</span>
+        <span className="font-bold">
+          {activeConfig.monthlyProduction}
+        </span>
+      </div>
+
+      <div className="flex justify-between">
+        <span>Overhead por plato</span>
+        <span className="text-green-400 font-bold">
+          {formatCurrency(activeAnalytics.perPlate)}
+        </span>
+      </div>
+
+      <div>
+        <span
+          className={`font-semibold ${activeAnalytics.status.color}`}
+        >
+          {activeAnalytics.status.label}
+        </span>
+      </div>
+    </div>
+  )}
+      {/* HISTORIAL */}
       <div className="mt-10">
         <button
           onClick={() => setShowHistory(!showHistory)}
@@ -312,7 +426,6 @@ const analytics = useMemo(() => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-
               {costsList.map((c) => {
                 const total =
                   Number(c.fixedCosts || 0) +
@@ -329,7 +442,6 @@ const analytics = useMemo(() => {
                     key={c.id}
                     className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white rounded-2xl p-5 shadow-xl hover:scale-[1.02] hover:shadow-2xl transition-all duration-300"
                   >
-
                     <div className="text-xs text-gray-400 mb-2">
                       {c.month}
                     </div>
@@ -339,37 +451,35 @@ const analytics = useMemo(() => {
                     </h3>
 
                     <div className="space-y-2 text-sm">
-
                       <div className="flex justify-between">
-                        <span>Costos fijos</span>
+                        <span>Estructurales</span>
                         <span className="text-green-400 font-semibold">
                           {formatCurrency(c.fixedCosts)}
                         </span>
                       </div>
 
                       <div className="flex justify-between">
-                        <span>Variables</span>
+                        <span>Servicios operativos</span>
                         <span className="text-green-400 font-semibold">
                           {formatCurrency(c.variableCosts)}
                         </span>
                       </div>
 
                       <div className="flex justify-between">
-                        <span>Nómina</span>
+                        <span>Nómina total</span>
                         <span className="text-green-400 font-semibold">
                           {formatCurrency(c.payroll)}
                         </span>
                       </div>
 
                       <div className="flex justify-between">
-                        <span>Producción</span>
+                        <span>Producción proyectada</span>
                         <span className="font-semibold">
                           {c.monthlyProduction}
                         </span>
                       </div>
 
                       <div className="border-t border-white/10 pt-3 mt-3">
-
                         <div className="flex justify-between">
                           <span>Total mensual</span>
                           <span className="text-green-400 font-bold">
@@ -378,18 +488,15 @@ const analytics = useMemo(() => {
                         </div>
 
                         <div className="flex justify-between mt-2">
-                          <span>Costo/plato</span>
+                          <span>Overhead / plato</span>
                           <span className="text-green-400 font-bold">
                             {formatCurrency(perPlate)}
                           </span>
                         </div>
-
                       </div>
-
                     </div>
 
                     <div className="mt-6 pt-4 border-t border-white/10 flex justify-between">
-
                       <button
                         onClick={() => handleEdit(c)}
                         className="text-blue-400 hover:underline text-sm"
@@ -403,18 +510,16 @@ const analytics = useMemo(() => {
                       >
                         Eliminar
                       </button>
-
                     </div>
-
                   </div>
                 );
               })}
-
             </div>
           )}
         </div>
       )}
-        </DashboardLayout>
-)}
-
-
+       </div>
+       </div>
+    </DashboardLayout>
+  );
+}

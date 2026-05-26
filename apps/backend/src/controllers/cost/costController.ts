@@ -137,7 +137,7 @@ export const calculateMenuItemCost = async (req: Request, res: Response) => {
 
 
     // 🔥 COSTOS INDIRECTOS (SOLO AQUÍ)
-    const latestCosts = await prisma.otherCosts.findFirst({
+    const latestCosts = await prisma.operationalCostConfig .findFirst({
       orderBy: { createdAt: 'desc' }
     });
 
@@ -181,7 +181,7 @@ export const createOtherCosts = async (req: Request, res: Response) => {
   try {
     const { month, fixedCosts, variableCosts, payroll, monthlyProduction } = req.body;
 
-    const data = await prisma.otherCosts.create({
+    const data = await prisma.operationalCostConfig.create({
       data: {
         month,
         fixedCosts: Number(fixedCosts),
@@ -202,7 +202,7 @@ export const createOtherCosts = async (req: Request, res: Response) => {
 // 🔥 LISTAR OTROS COSTOS
 export const getOtherCosts = async (req: Request, res: Response) => {
   try {
-    const data = await prisma.otherCosts.findMany({
+    const data = await prisma.operationalCostConfig.findMany({
       orderBy: { createdAt: 'desc' }
     });
 
@@ -219,7 +219,7 @@ export const updateOtherCosts = async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const { month, fixedCosts, variableCosts, payroll, monthlyProduction } = req.body;
 
-    const data = await prisma.otherCosts.update({
+    const data = await prisma.operationalCostConfig.update({
       where: { id },
       data: {
         month,
@@ -242,7 +242,7 @@ export const deleteOtherCosts = async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
 
-    await prisma.otherCosts.delete({
+    await prisma.operationalCostConfig.delete({
       where: { id }
     });
 

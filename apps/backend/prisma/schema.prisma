@@ -9,80 +9,67 @@ datasource db {
 }
 
 model Supplier {
-  id            Int      @id @default(autoincrement())
-  internalCode  String   @unique
+  id            Int       @id @default(autoincrement())
+  internalCode  String    @unique
   name          String
   taxId         String
   phone         String
   address       String
   contactPerson String
-  active        Boolean  @default(true)
-  createdAt     DateTime @default(now())
-
-  updatedAt DateTime @default(now()) @updatedAt
-
-  products Product[]
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+  products      Product[]
 
   @@map("suppliers")
 }
 
 model IngredientCatalog {
-  id       Int     @id @default(autoincrement())
-  name     String  @unique
-  category String?
-
+  id              Int       @id @default(autoincrement())
+  name            String    @unique
+  category        String?
   caloriesPer100g Float?
   carbsPer100g    Float?
   fatPer100g      Float?
   proteinPer100g  Float?
   sugarPer100g    Float?
   sodiumPer100g   Float?
-
-  isSystem Boolean @default(false)
-
-  products Product[]
+  isSystem        Boolean   @default(false)
+  products        Product[]
 }
 
 model Product {
-  id                Int     @id @default(autoincrement())
-  internalCode      String  @unique
-  name              String
-  category          String  @default("")
-  isIngredient      Boolean @default(false)
-  isSupply          Boolean @default(false)
-  isFinishedProduct Boolean @default(false)
-  presentation      String
-
-  unitOfMeasure     ProductBaseUnit @default(g)
-  inputUnit         String          @default("g")
-  inputUnitQuantity Float           @default(1)
-
-  minStock     Float
-  maxStock     Float
-  currentStock Float @default(0)
-  unitCost     Float @default(0)
-
-  caloriesPer100g Float?
-  fatPer100g      Float?
-  carbsPer100g    Float?
-  proteinPer100g  Float?
-  sodiumPer100g   Float?
-  sugarPer100g    Float?
-
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
-
-  supplierId    Int
-  catalogId     Int?
-  isSeedProduct Boolean @default(false)
-
-  catalog IngredientCatalog? @relation(fields: [catalogId], references: [id])
-
-  MenuItemComponent MenuItemComponent[]
-
+  id                 Int                 @id @default(autoincrement())
+  internalCode       String              @unique
+  name               String
+  category           String              @default("")
+  isIngredient       Boolean             @default(false)
+  isSupply           Boolean             @default(false)
+  isFinishedProduct  Boolean             @default(false)
+  presentation       String
+  inputUnit          String              @default("g")
+  inputUnitQuantity  Float               @default(1)
+  minStock           Float
+  maxStock           Float
+  currentStock       Float               @default(0)
+  unitCost           Float               @default(0)
+  active             Boolean             @default(true)
+  supplierId         Int
+  caloriesPer100g    Float?
+  carbsPer100g       Float?
+  fatPer100g         Float?
+  proteinPer100g     Float?
+  sodiumPer100g      Float?
+  sugarPer100g       Float?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @default(now()) @updatedAt
+  unitOfMeasure      ProductBaseUnit     @default(g)
+  catalogId          Int?
+  isSeedProduct      Boolean             @default(false)
+  MenuItemComponent  MenuItemComponent[]
   inventories        Inventory[]
   inventoryMovements InventoryMovement[]
+  catalog            IngredientCatalog?  @relation(fields: [catalogId], references: [id])
   supplier           Supplier            @relation(fields: [supplierId], references: [id])
   recipeItems        RecipeItem[]        @relation("ProductRecipeItems")
 
@@ -168,81 +155,68 @@ model Role {
 }
 
 model Permission {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
   description String?
-  createdAt   DateTime @default(now())
-
-  updatedAt DateTime @default(now()) @updatedAt
-
-  roles RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @default(now()) @updatedAt
+  roles       RolePermission[]
 
   @@map("permissions")
 }
 
 model RolePermission {
-  id           Int      @id @default(autoincrement())
+  id           Int        @id @default(autoincrement())
   roleId       Int
   permissionId Int
-  createdAt    DateTime @default(now())
-
-  updatedAt DateTime @default(now()) @updatedAt
-
-  permission Permission @relation(fields: [permissionId], references: [id])
-  role       Role       @relation(fields: [roleId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @default(now()) @updatedAt
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  role         Role       @relation(fields: [roleId], references: [id])
 
   @@unique([roleId, permissionId])
   @@map("role_permissions")
 }
 
 model Recipe {
-  id            Int      @id @default(autoincrement())
-  internalCode  String   @unique
-  active        Boolean  @default(true)
-  name          String
-  description   String?
-  batchQuantity Float
-  portions      Int
-  totalCost     Decimal? @db.Decimal(10, 2)
-
+  id                 Int                 @id @default(autoincrement())
+  internalCode       String              @unique
+  active             Boolean             @default(true)
+  name               String
+  description        String?
+  batchQuantity      Float
+  portions           Int
+  totalCost          Decimal?            @db.Decimal(10, 2)
+  createdAt          DateTime            @default(now())
   caloriesPerPortion Float?
-  proteinPerPortion  Float?
   carbsPerPortion    Float?
   fatPerPortion      Float?
+  nutritionScore     Float?
+  proteinPerPortion  Float?
   sodiumPerPortion   Float?
   sugarPerPortion    Float?
-  nutritionScore     Float?
-
+  costClassification String?
   macroDominance     String?
   nutritionRole      String?
-  costClassification String?
-
-  createdAt         DateTime            @default(now())
-  MenuItemComponent MenuItemComponent[]
-
-  items           RecipeItem[] @relation("ParentRecipe")
-  usedAsSubRecipe RecipeItem[] @relation("SubRecipeReference")
-
-  processes RecipeProcess[]
+  MenuItemComponent  MenuItemComponent[]
+  items              RecipeItem[]        @relation("ParentRecipe")
+  usedAsSubRecipe    RecipeItem[]        @relation("SubRecipeReference")
+  processes          RecipeProcess[]
 
   @@map("recipes")
 }
 
 model RecipeItem {
-  id          Int  @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   recipeId    Int
   productId   Int?
+  quantity    Float
+  unitCost    Decimal  @db.Decimal(10, 2)
+  totalCost   Decimal  @db.Decimal(10, 2)
   subRecipeId Int?
-
-  quantity  Float
-  unitCost  Decimal @db.Decimal(10, 2)
-  totalCost Decimal @db.Decimal(10, 2)
-
-  product Product? @relation("ProductRecipeItems", fields: [productId], references: [id])
-
-  recipe Recipe @relation("ParentRecipe", fields: [recipeId], references: [id])
-
-  subRecipe Recipe? @relation("SubRecipeReference", fields: [subRecipeId], references: [id])
+  product     Product? @relation("ProductRecipeItems", fields: [productId], references: [id])
+  recipe      Recipe   @relation("ParentRecipe", fields: [recipeId], references: [id])
+  subRecipe   Recipe?  @relation("SubRecipeReference", fields: [subRecipeId], references: [id])
 
   @@map("recipe_items")
 }
@@ -278,7 +252,7 @@ model Config {
   @@map("config")
 }
 
-model OtherCosts {
+model OperationalCostConfig {
   id                Int      @id @default(autoincrement())
   month             String
   fixedCosts        Float
@@ -291,26 +265,22 @@ model OtherCosts {
 }
 
 model MenuItem {
-  id          Int     @id @default(autoincrement())
-  name        String
-  description String?
-  hasDrink    Boolean @default(false)
-  hasDessert  Boolean @default(false)
-  active      Boolean @default(true)
-
-  totalCost Decimal? @db.Decimal(10, 2)
-
+  id                 Int                 @id @default(autoincrement())
+  name               String
+  description        String?
+  hasDrink           Boolean             @default(false)
+  hasDessert         Boolean             @default(false)
+  active             Boolean             @default(true)
+  createdAt          DateTime            @default(now())
   caloriesPerPortion Float?
-  proteinPerPortion  Float?
   carbsPerPortion    Float?
   fatPerPortion      Float?
+  nutritionScore     Float?
+  proteinPerPortion  Float?
   sodiumPerPortion   Float?
   sugarPerPortion    Float?
-
-  nutritionScore Float?
-
-  createdAt  DateTime            @default(now())
-  components MenuItemComponent[]
+  totalCost          Decimal?            @db.Decimal(10, 2)
+  components         MenuItemComponent[]
 }
 
 model MenuItemComponent {
