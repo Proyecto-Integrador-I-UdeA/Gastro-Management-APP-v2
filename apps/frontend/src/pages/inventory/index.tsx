@@ -13,6 +13,7 @@ import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
 import type { InventoryListRow } from '@/types/inventory';
 import type { WarehouseSummary } from '@/types/transfer';
+import { formatInventoryEntryUnitDescriptor } from '@/lib/productUnits';
 
 function rowLowStock(row: InventoryListRow): boolean {
   return row.quantity < row.product.minStock;
@@ -148,7 +149,12 @@ export default function InventoryPage() {
                   <th className="py-2 pr-3">Producto</th>
                   <th className="py-2 pr-3">Proveedor</th>
                   <th className="py-2 pr-3 text-right">Cantidad</th>
-                  <th className="py-2 pr-3">Unidad</th>
+                  <th
+                    className="py-2 pr-3"
+                    title="Cuánto representa cada unidad de la cantidad (catálogo del producto)"
+                  >
+                    Unidad de ingreso
+                  </th>
                   <th className="py-2 pr-3 text-right">Stock mín.</th>
                   <th className="py-2 pr-3 text-right">Stock máx.</th>
                   <th className="py-2">Estado</th>
@@ -176,7 +182,12 @@ export default function InventoryPage() {
                           {r.product.supplier?.name ?? '—'}
                         </td>
                         <td className="py-2 pr-3 text-right tabular-nums">{r.quantity}</td>
-                        <td className="py-2 pr-3">{r.product.unitOfMeasure}</td>
+                        <td className="py-2 pr-3 whitespace-nowrap text-gray-700">
+                          {formatInventoryEntryUnitDescriptor(
+                            r.product.inputUnit,
+                            r.product.inputUnitQuantity
+                          )}
+                        </td>
                         <td className="py-2 pr-3 text-right tabular-nums text-gray-600">
                           {r.product.minStock}
                         </td>

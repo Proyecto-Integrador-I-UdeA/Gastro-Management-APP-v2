@@ -9,6 +9,8 @@ export type InventoryListRow = {
     internalCode: string;
     name: string;
     unitOfMeasure: string;
+    inputUnit?: string;
+    inputUnitQuantity?: number;
     minStock: number;
     maxStock: number;
     active?: boolean;
