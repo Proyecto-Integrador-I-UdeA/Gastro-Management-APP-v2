@@ -84,6 +84,41 @@ export function formatProductInputUnitLabel(unit: string): string {
   return u?.label ?? unit;
 }
 
+const INPUT_UNIT_SHORT: Record<ProductInputUnit, string> = {
+  g: 'g',
+  kg: 'kg',
+  lb: 'lb',
+  oz: 'oz',
+  ml: 'ml',
+  lt: 'L',
+  gal: 'gal',
+  und: 'und',
+  docena: 'docena',
+  paca: 'paca',
+};
+
+/**
+ * Describe cuánto representa cada unidad de la columna Cantidad (unidad de ingreso del catálogo).
+ * Ej.: arroz con 5 kg por saco → "5 kg / u."
+ */
+export function formatInventoryEntryUnitDescriptor(
+  inputUnit: string | undefined,
+  inputUnitQuantity: number | undefined | null
+): string {
+  const unit = isProductInputUnit(inputUnit) ? inputUnit : 'und';
+  const qty =
+    inputUnitQuantity != null &&
+    Number.isFinite(Number(inputUnitQuantity)) &&
+    Number(inputUnitQuantity) > 0
+      ? Number(inputUnitQuantity)
+      : 1;
+  const short = INPUT_UNIT_SHORT[unit];
+  if (qty === 1) {
+    return `1 ${short}`;
+  }
+  return `${qty.toLocaleString('es-CO', { maximumFractionDigits: 6 })} ${short} / u.`;
+}
+
 export function parseBaseUnitFromStored(raw: string): ProductBaseUnit {
   const t = raw.trim().toLowerCase();
   if (t === 'g' || t === 'gramo' || t === 'gramos') return 'g';

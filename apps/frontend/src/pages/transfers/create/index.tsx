@@ -85,6 +85,21 @@ export default function CreateTransferPage() {
     setDestinationWarehouseId(String(principalWarehouse.id));
   }, [mode, principalWarehouse]);
 
+  /** En compra, precargar costo unitario desde el catálogo del producto (unitCost). */
+  useEffect(() => {
+    if (mode !== 'purchase') return;
+    if (!selectedProduct) {
+      setUnitCost('');
+      return;
+    }
+    const cost = selectedProduct.unitCost;
+    if (cost != null && !Number.isNaN(Number(cost))) {
+      setUnitCost(String(cost));
+    } else {
+      setUnitCost('');
+    }
+  }, [mode, selectedProduct]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -234,6 +249,7 @@ export default function CreateTransferPage() {
               setMode('transfer');
               setFormError(null);
               setExpirationDate('');
+              setUnitCost('');
             }}
             className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
               mode === 'transfer'
@@ -438,13 +454,14 @@ export default function CreateTransferPage() {
                   />
                 </div>
                 <Input
-                  label="Costo unitario *"
+                  label="Costo unitario * (catálogo, editable)"
                   type="number"
                   step="any"
                   min="0"
                   value={unitCost}
                   onChange={(e) => setUnitCost(e.target.value)}
                   required
+                  title="Se carga desde unitCost del producto; puedes ajustarlo si la compra tuvo otro precio"
                 />
               </>
             )}
