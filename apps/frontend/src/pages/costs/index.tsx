@@ -8,7 +8,7 @@ export default function CostsModule() {
 
   const leftCards = [
     {
-      title: "Costos Operativos",
+      title: "Costos Operacionales",
       description:
         "Gestiona arriendo, servicios, nómina y otros costos indirectos",
       path: "/costs/others",
@@ -16,14 +16,14 @@ export default function CostsModule() {
     {
       title: "Costos Variables",
       description:
-        "Empaques, delivery, comisiones, desperdicios y costos operativos variables",
-      path: "/costs/others",
+        "Empaques, delivery, comisiones, desperdicios y costos variables",
+      path: "/costs/variables",
     },
     {
       title: "Costos por Categoría",
       description:
         "Organiza y controla los gastos del negocio por tipo de costo",
-      path: "/costs/others",
+      path: "/costs/categories",
     },
   ];
 
@@ -56,7 +56,7 @@ export default function CostsModule() {
 
       <div className="bg-gray-400/20 backdrop-blur-md border border-white/20 rounded-2xl p-6 shadow-[0_8px_30px_rgba(0,0,0,0.25)]">
         <p className="text-gray-800 text-xl mb-6">
-          Gestiona costos operativos, costeo de platos y precios de venta
+          Gestiona costos variables, costeo de platos y precios de venta
         </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -251,3 +251,238 @@ export const deleteOtherCosts = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Error eliminando costos' });
   }
 };
+export const createVariableCosts = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const {
+      month,
+      packagingCost,
+      wastePercent,
+      paymentProcessingPercent,
+      platformCommissionPercent,
+      extraVariableCost,
+    } = req.body;
+
+    const costs = await prisma.variableCosts.create({
+      data: {
+        month,
+        packagingCost,
+        wastePercent,
+        paymentProcessingPercent,
+        platformCommissionPercent,
+        extraVariableCost,
+      },
+    });
+
+    res.status(201).json(costs);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: "Error creando costos variables",
+    });
+  }
+};
+export const createCostCategories = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const {
+      month,
+      production,
+      operation,
+      distribution,
+      commercial,
+      administration,
+    } = req.body;
+
+    const categories =
+      await prisma.costCategory.create({
+        data: {
+          month,
+          production,
+          operation,
+          distribution,
+          commercial,
+          administration,
+        },
+      });
+
+    res.status(201).json(categories);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error:
+        "Error creando categorías de costos",
+    });
+  }
+};
+
+export const getVariableCosts = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const costs = await prisma.variableCosts.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    res.json(costs);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: "Error obteniendo costos variables",
+    });
+  }
+};
+
+
+export const updateVariableCosts = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const id = Number(req.params.id);
+
+    const {
+      month,
+      packagingCost,
+      wastePercent,
+      paymentProcessingPercent,
+      platformCommissionPercent,
+      extraVariableCost,
+    } = req.body;
+
+    const updated = await prisma.variableCosts.update({
+      where: { id },
+      data: {
+        month,
+        packagingCost,
+        wastePercent,
+        paymentProcessingPercent,
+        platformCommissionPercent,
+        extraVariableCost,
+      },
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: "Error actualizando costos variables",
+    });
+  }
+};
+
+export const deleteVariableCosts = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const id = Number(req.params.id);
+
+    await prisma.variableCosts.delete({
+      where: { id },
+    });
+
+    res.json({
+      message: "Costos variables eliminados",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: "Error eliminando costos variables",
+    });
+  }
+};
+export const getCostCategories = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const categories =
+      await prisma.costCategory.findMany({
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+    res.json(categories);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error:
+        "Error obteniendo categorías de costos",
+    });
+  }
+};
+export const updateCostCategories = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const id = Number(req.params.id);
+
+    const {
+      month,
+      production,
+      operation,
+      distribution,
+      commercial,
+      administration,
+    } = req.body;
+
+    const updated =
+      await prisma.costCategory.update({
+        where: { id },
+
+        data: {
+          month,
+          production,
+          operation,
+          distribution,
+          commercial,
+          administration,
+        },
+      });
+
+    res.json(updated);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error:
+        "Error actualizando categorías de costos",
+    });
+  }
+};
+export const deleteCostCategories = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const id = Number(req.params.id);
+
+    await prisma.costCategory.delete({
+      where: { id },
+    });
+
+    res.json({
+      message:
+        "Categoría de costos eliminada",
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error:
+        "Error eliminando categoría de costos",
+    });
+  }
+};

@@ -418,108 +418,131 @@ if (list.length > 0) {
         </button>
       </div>
 
-      {showHistory && (
-        <div className="mt-6">
-          {costsList.length === 0 ? (
-            <div className="bg-gray-400/20 backdrop-blur-md border border-white/20 rounded-2xl p-10 text-center text-gray-700 shadow-xl">
-              No hay registros de costos
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {costsList.map((c) => {
-                const total =
-                  Number(c.fixedCosts || 0) +
-                  Number(c.variableCosts || 0) +
-                  Number(c.payroll || 0);
+     {showHistory && (
+  <div className="mt-6">
+    {costsList.length === 0 ? (
+      <div className="bg-gray-400/30 backdrop-blur-md border border-white/20 rounded-2xl p-10 text-center text-gray-700">
+        No hay registros de costos
+      </div>
+    ) : (
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {costsList.map((c) => {
+          const total =
+            Number(c.fixedCosts || 0) +
+            Number(c.variableCosts || 0) +
+            Number(c.payroll || 0);
 
-                const perPlate =
-                  c.monthlyProduction > 0
-                    ? total / c.monthlyProduction
-                    : 0;
+          const perPlate =
+            c.monthlyProduction > 0
+              ? total / c.monthlyProduction
+              : 0;
 
-                return (
-                  <div
-                    key={c.id}
-                    className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white rounded-2xl p-5 shadow-xl hover:scale-[1.02] hover:shadow-2xl transition-all duration-300"
-                  >
-                    <div className="text-xs text-gray-400 mb-2">
-                      {c.month}
-                    </div>
+          return (
+            <div
+              key={c.id}
+              className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white rounded-2xl p-5 shadow-xl min-h-[460px] flex flex-col justify-between"
+            >
+              <div>
+                <div className="text-xs text-gray-400 mb-4">
+                  {c.month}
+                </div>
 
-                    <h3 className="text-lg font-semibold mb-4">
-                      Registro operativo
-                    </h3>
+                <h3 className="text-lg font-semibold mb-6">
+                  Registro operativo
+                </h3>
 
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span>Estructurales</span>
-                        <span className="text-green-400 font-semibold">
-                          {formatCurrency(c.fixedCosts)}
-                        </span>
-                      </div>
+                <div className="space-y-5">
 
-                      <div className="flex justify-between">
-                        <span>Servicios operativos</span>
-                        <span className="text-green-400 font-semibold">
-                          {formatCurrency(c.variableCosts)}
-                        </span>
-                      </div>
+                  <div className="space-y-1">
+                    <p className="text-gray-300 text-sm">
+                      Estructurales
+                    </p>
 
-                      <div className="flex justify-between">
-                        <span>Nómina total</span>
-                        <span className="text-green-400 font-semibold">
-                          {formatCurrency(c.payroll)}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between">
-                        <span>Producción proyectada</span>
-                        <span className="font-semibold">
-                          {c.monthlyProduction}
-                        </span>
-                      </div>
-
-                      <div className="border-t border-white/10 pt-3 mt-3">
-                        <div className="flex justify-between">
-                          <span>Total mensual</span>
-                          <span className="text-green-400 font-bold">
-                            {formatCurrency(total)}
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between mt-2">
-                          <span>Overhead / plato</span>
-                          <span className="text-green-400 font-bold">
-                            {formatCurrency(perPlate)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-6 pt-4 border-t border-white/10 flex justify-between">
-                      <button
-                        onClick={() => handleEdit(c)}
-                        className="text-blue-400 hover:underline text-sm"
-                      >
-                        Editar
-                      </button>
-
-                      <button
-                        onClick={() => handleDelete(c.id)}
-                        className="text-red-400 hover:underline text-sm"
-                      >
-                        Eliminar
-                      </button>
-                    </div>
+                    <p className="text-green-400 font-bold text-lg break-words">
+                      {formatCurrency(c.fixedCosts)}
+                    </p>
                   </div>
-                );
-              })}
+
+                  <div className="space-y-1">
+                    <p className="text-gray-300 text-sm">
+                      Servicios operativos
+                    </p>
+
+                    <p className="text-green-400 font-bold text-lg break-words">
+                      {formatCurrency(c.variableCosts)}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="text-gray-300 text-sm">
+                      Nómina total
+                    </p>
+
+                    <p className="text-green-400 font-bold text-lg break-words">
+                      {formatCurrency(c.payroll)}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="text-gray-300 text-sm">
+                      Producción proyectada
+                    </p>
+
+                    <p className="font-semibold text-lg">
+                      {c.monthlyProduction}
+                    </p>
+                  </div>
+
+                  <div className="border-t border-white/10 pt-4 space-y-4">
+
+                    <div className="space-y-1">
+                      <p className="text-gray-300 text-sm">
+                        Total mensual
+                      </p>
+
+                      <p className="text-green-400 font-bold text-xl break-words">
+                        {formatCurrency(total)}
+                      </p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-gray-300 text-sm">
+                        Overhead / plato
+                      </p>
+
+                      <p className="text-green-400 font-bold text-xl break-words">
+                        {formatCurrency(perPlate)}
+                      </p>
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-white/10 flex justify-between">
+                <button
+                  onClick={() => handleEdit(c)}
+                  className="text-blue-400 hover:underline text-sm"
+                >
+                  Editar
+                </button>
+
+                <button
+                  onClick={() => handleDelete(c.id)}
+                  className="text-red-400 hover:underline text-sm"
+                >
+                  Eliminar
+                </button>
+              </div>
             </div>
-          )}
-        </div>
-      )}
-       </div>
-       </div>
-    </DashboardLayout>
+          );
+        })}
+      </div>
+    )}
+  </div>
+)}
+</div>
+</div>
+</DashboardLayout>
   );
 }
