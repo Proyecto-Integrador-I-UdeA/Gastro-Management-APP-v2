@@ -42,28 +42,72 @@ No hace falta **PORT** (Railway la inyecta), ni **DB_USER**, **DB_PASSWORD** ni 
 En el servicio del backend:
 
 1. **Settings** (o **Configure**).
-2. **Root Directory**: `apps/backend` (así Railway usa solo la carpeta del backend).
+2. **Root Directory**: `/apps/backend` (así Railway usa solo la carpeta del backend).
 3. **Build Command** (reemplaza el que venga por defecto):
    ```bash
    npm ci && npx prisma generate && npm run build
    ```
-   No ejecutes `prisma migrate deploy` en el build: durante el build la base de datos (`postgres.railway.internal`) no es accesible. Las migraciones se ejecutan al arrancar (ver Start Command).
-4. **Start Command**:
+   El build instala dependencias, genera Prisma Client y compila el backend. No debe aplicar cambios en PostgreSQL.
+4. **Pre-Deploy Command**:
    ```bash
-   npm run start:railway
+   npx prisma migrate deploy
    ```
-   Ese script aplica las migraciones y luego inicia el servidor (la BD sí es accesible en runtime).
-5. **Watch Paths** (opcional): `apps/backend/**` para que solo los cambios en el backend disparen un nuevo deploy.
+   Este paso aplica únicamente las migraciones versionadas antes de iniciar la nueva versión de la aplicación.
+5. **Start Command**:
+   ```bash
+   npm run start
+   ```
+   El proceso Start ejecuta `node dist/app.js` y **no debe modificar el esquema de PostgreSQL**.
+6. **Watch Paths** (opcional): `apps/backend/**` para que solo los cambios en el backend disparen un nuevo deploy.
 
 Guarda los cambios.
+
+### 3.3 Seguridad de la baseline y comandos prohibidos
+
+Una base de datos existente debe adoptar primero la baseline canónica de Prisma antes de habilitar `prisma migrate deploy` en producción. No actives el Pre-Deploy Command contra una base existente hasta completar y verificar ese proceso de adopción.
+
+No deben utilizarse en producción:
+
+```text
+prisma db push
+prisma db push --accept-data-loss
+prisma migrate dev
+prisma migrate reset
+```
+
+`prisma db push` no es un mecanismo productivo de despliegue ni de sincronización del esquema.
 
 ---
 
 ## 4. Primer deploy
 
-1. Si no se ha lanzado solo, en el servicio del backend usa **Deploy** (o haz un push a la rama conectada).
-2. Revisa los **logs**: build (install → prisma generate → build) y al arrancar: migrate deploy → start. Si `prisma migrate deploy` falla al iniciar, revisa `DATABASE_URL` y que el servicio Postgres esté en el mismo proyecto.
-3. Cuando el estado sea **Success** / **Active**, Railway te dará una URL pública (ej. `https://tu-backend-production-xxxx.up.railway.app`).
+1. Antes del primer despliegue contra una base existente, confirma que la base ya adoptó la baseline canónica de Prisma.
+2. Si no se ha lanzado solo, en el servicio del backend usa **Deploy** (o haz un push a la rama conectada).
+3. Verifica en los **logs** que Railway respete este orden:
+
+   ```text
+   BUILD
+   npm ci
+   → npx prisma generate
+   → npm run build
+
+   ↓
+
+   PRE-DEPLOY
+   npx prisma migrate deploy
+
+   ↓
+
+   START
+   npm run start
+
+   ↓
+
+   node dist/app.js
+   ```
+
+   Si `prisma migrate deploy` falla en Pre-Deploy, revisa `DATABASE_URL`, la conectividad con el servicio PostgreSQL y el estado de adopción de la baseline. El proceso Start no debe intentar compensar un fallo de migración.
+4. Cuando el estado sea **Success** / **Active**, Railway te dará una URL pública (ej. `https://tu-backend-production-xxxx.up.railway.app`).
 
 ---
 
@@ -96,11 +140,12 @@ O bien añade un script/step en Railway que ejecute el seed una vez (por ejemplo
 
 ## Resumen de configuración en Railway (backend)
 
-| Campo            | Valor |
-|------------------|--------|
-| Root Directory   | `apps/backend` |
-| Build Command    | `npm ci && npx prisma generate && npm run build` |
-| Start Command    | `npm run start:railway` |
-| Variables        | `DATABASE_URL` (referenciada del servicio Postgres), `JWT_SECRET` |
+| Campo | Valor |
+|-------|-------|
+| Root Directory | `/apps/backend` |
+| Build Command | `npm ci && npx prisma generate && npm run build` |
+| Pre-Deploy Command | `npx prisma migrate deploy` |
+| Start Command | `npm run start` |
+| Variables | `DATABASE_URL` (referenciada del servicio Postgres), `JWT_SECRET` |
 
-La base de datos queda gestionada por Railway (Postgres). Las migraciones se ejecutan al **arrancar** el servicio (no en el build), porque la BD solo es accesible en runtime.
+La base de datos queda gestionada por Railway (PostgreSQL). Las migraciones se ejecutan exclusivamente mediante el **Pre-Deploy Command**, antes de iniciar la aplicación. El proceso Start solo ejecuta la aplicación compilada y no modifica el esquema.
