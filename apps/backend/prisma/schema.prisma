@@ -264,6 +264,34 @@ model OperationalCostConfig {
   @@map("other_costs")
 }
 
+model VariableCosts {
+  id    Int    @id @default(autoincrement())
+  month String
+
+  packagingCost             Float @default(0)
+  wastePercent              Float @default(0)
+  paymentProcessingPercent  Float @default(0)
+  platformCommissionPercent Float @default(0)
+  extraVariableCost         Float @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@map("variable_costs")
+}
+
+model CostCategory {
+  id             Int      @id @default(autoincrement())
+  month          String
+  production     Float
+  operation      Float
+  distribution   Float
+  commercial     Float
+  administration Float
+  createdAt      DateTime @default(now())
+
+  @@map("cost_categories")
+}
+
 model MenuItem {
   id                 Int                 @id @default(autoincrement())
   name               String
