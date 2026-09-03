@@ -30,6 +30,7 @@ export const ROUTES = {
     productsInventory: '/reports/products',
     suppliersCatalog: '/reports/suppliers',
     transfersSummary: '/reports/transfers',
+    productionSummary: '/reports/production',
   },
   transfers: {
     list: '/transfers',
