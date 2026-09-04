@@ -1,10 +1,18 @@
 import { Router } from 'express';
-import { register, login, changePassword } from '../../controllers/auth/authController';
+import {
+  register,
+  login,
+  changePassword,
+  getRegistrationStatus,
+} from '../../controllers/auth/authController';
 import { authenticate } from '../../middlewares/auth'; // importamos authenticate (el middleware que verifica el token)
 
 const router = Router();
 
-// Registro de nuevo usuario (sin autenticación)
+// Estado del onboarding inicial (sin autenticación)
+router.get('/register/status', getRegistrationStatus);
+
+// Onboarding inicial (sin autenticación)
 router.post('/register', register);
 
 // Login (sin autenticación)

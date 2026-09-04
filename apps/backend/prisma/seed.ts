@@ -73,8 +73,8 @@ async function main() {
     super: permissions.map(p => p.name), // TODO
 
     admin: [
-      // SOLO LECTURA DE USUARIOS
-      'users.read',
+      // ADMINISTRACIÓN DE USUARIOS
+      'users.read', 'users.create', 'users.update', 'users.delete',
 
       // FULL PRODUCTOS Y PROVEEDORES
       'products.read', 'products.create', 'products.update', 'products.delete',

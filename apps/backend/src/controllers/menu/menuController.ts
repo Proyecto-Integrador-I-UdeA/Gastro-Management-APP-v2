@@ -103,13 +103,10 @@ export const updateMenuItem = async (req: Request, res: Response) => {
   sugarPerPortion,
   nutritionScore,
 } = req.body;
-   
-    const safeComponents = Array.isArray(components) ? components : [];
 
-    // eliminar componentes actuales
-    await prisma.menuItemComponent.deleteMany({
-      where: { menuItemId: id },
-    });
+    if (components !== undefined && !Array.isArray(components)) {
+      return res.status(400).json({ error: "components debe ser un array" });
+    }
 
     const updated = await prisma.menuItem.update({
       where: { id },
@@ -129,13 +126,16 @@ export const updateMenuItem = async (req: Request, res: Response) => {
   ...(sugarPerPortion !== undefined && { sugarPerPortion }),
   ...(nutritionScore !== undefined && { nutritionScore }),
 
-  components: {
-          create: safeComponents.map((c: any) => ({
-            quantity: Number(c.quantity) || 1,
-            ...(c.productId ? { productId: c.productId } : {}),
-            ...(c.recipeId ? { recipeId: c.recipeId } : {}),
-          })),
-        },
+  ...(components !== undefined && {
+    components: {
+      deleteMany: {},
+      create: components.map((c: any) => ({
+        quantity: Number(c.quantity) || 1,
+        ...(c.productId ? { productId: c.productId } : {}),
+        ...(c.recipeId ? { recipeId: c.recipeId } : {}),
+      })),
+    },
+  }),
       },
       include: {
         components: true,

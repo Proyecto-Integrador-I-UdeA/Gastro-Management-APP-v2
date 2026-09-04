@@ -28,6 +28,25 @@ export default function Login() {
 
   // 🔥 FECHA Y HORA
   const [currentDateTime, setCurrentDateTime] = useState('');
+  const [registrationAvailable, setRegistrationAvailable] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    apiFetch('/auth/register/status')
+      .then((status) => {
+        if (isMounted) {
+          setRegistrationAvailable(status.registrationAvailable === true);
+        }
+      })
+      .catch((error) => {
+        console.error('No fue posible consultar el estado del registro:', error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const updateDateTime = () => {
@@ -140,6 +159,15 @@ export default function Login() {
             <Button type="submit" className="w-full">
               Iniciar Sesión
             </Button>
+
+            {registrationAvailable && (
+              <p className="text-center text-sm text-gray-600">
+                ¿Aún no existe una cuenta?{' '}
+                <Link href={ROUTES.register} className="font-semibold text-[#001F3F] hover:underline">
+                  Crear cuenta
+                </Link>
+              </p>
+            )}
 
             <p className="text-center text-sm text-gray-600">
               <Link href={ROUTES.root} className="font-medium text-[#001F3F] hover:underline">

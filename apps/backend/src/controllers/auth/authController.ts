@@ -1,48 +1,94 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
+import { registerSchema } from '../../schemas/userSchema';
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'tu-secreto-super-seguro';
 
-export const register = async (req: Request, res: Response) => {
-  const { email, password, fullName, roleId } = req.body;
+class InitialRegistrationUnavailableError extends Error {}
+class AdminRoleNotConfiguredError extends Error {}
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email y contraseña son requeridos' });
+export const register = async (req: Request, res: Response) => {
+  const validation = registerSchema.safeParse(req.body);
+  if (!validation.success) {
+    return res.status(400).json({
+      error: 'Datos inválidos para el registro inicial',
+      details: validation.error.flatten(),
+    });
   }
 
-  try {
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+  const { email, password, fullName } = validation.data;
 
-    if (existingUser) {
-      return res.status(400).json({ error: 'El email ya está registrado' });
+  try {
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const user = await prisma.$transaction(async (tx) => {
+      const userCount = await tx.user.count();
+      if (userCount > 0) {
+        throw new InitialRegistrationUnavailableError();
+      }
+
+      const adminRole = await tx.role.findUnique({
+        where: { name: 'admin' },
+        select: { id: true },
+      });
+      if (!adminRole) {
+        throw new AdminRoleNotConfiguredError();
+      }
+
+      return tx.user.create({
+        data: {
+          email,
+          passwordHash,
+          fullName,
+          roleId: adminRole.id,
+          active: true,
+        },
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          active: true,
+          role: { select: { name: true } },
+        },
+      });
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
+
+    return res.status(201).json({
+      message: 'Registro inicial completado exitosamente',
+      user,
+    });
+  } catch (error) {
+    if (
+      error instanceof InitialRegistrationUnavailableError ||
+      (error instanceof Prisma.PrismaClientKnownRequestError &&
+        (error.code === 'P2002' || error.code === 'P2034'))
+    ) {
+      return res.status(409).json({ error: 'El registro inicial ya fue completado' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 8);
+    if (error instanceof AdminRoleNotConfiguredError) {
+      return res.status(503).json({
+        error: 'El rol admin no está configurado; no se puede completar el registro inicial',
+      });
+    }
 
-    const user = await prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        fullName,
-        roleId: roleId || 2,
-      },
-    });
+    console.error(error);
+    return res.status(500).json({ error: 'Error al registrar usuario' });
+  }
+};
 
-    res.status(201).json({
-      message: 'Usuario registrado exitosamente',
-      user: {
-        id: user.id,
-        email: user.email,
-        fullName: user.fullName,
-      },
-    });
-
+export const getRegistrationStatus = async (_req: Request, res: Response) => {
+  try {
+    const userCount = await prisma.user.count();
+    return res.json({ registrationAvailable: userCount === 0 });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Error al registrar usuario' });
+    return res.status(500).json({ error: 'Error al consultar el estado del registro' });
   }
 };
 

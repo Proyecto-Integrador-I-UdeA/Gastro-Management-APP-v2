@@ -79,7 +79,10 @@ app.get('/', (req, res) => {
 });
 
 // 🔥 START SERVER
-app.listen(PORT, () => {
-  console.log(`Servidor backend corriendo en http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Servidor backend corriendo en http://localhost:${PORT}`);
+  });
+}
 
+export default app;

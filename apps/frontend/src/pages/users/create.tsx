@@ -22,7 +22,7 @@ const createUserSchema = z.object({
 type CreateUserForm = z.infer<typeof createUserSchema>;
 
 export default function CreateUser() {
-  useAuthGuard("users.read");
+  useAuthGuard("users.create");
   const router = useRouter();
 
   const {
@@ -39,7 +39,7 @@ export default function CreateUser() {
 
   const onSubmit = async (data: CreateUserForm) => {
     try {
-      await api.post('/auth/register', data);
+      await api.post('/users', data);
       showSuccess('Usuario creado exitosamente');
       router.push('/users');
     } catch (error: any) {

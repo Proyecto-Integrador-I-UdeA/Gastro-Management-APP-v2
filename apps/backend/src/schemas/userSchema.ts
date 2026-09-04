@@ -1,11 +1,16 @@
 import { z } from 'zod';
 
-export const registerSchema = z.object({
-  email: z.string().email({ message: 'Email inválido' }),
+const userCreationBaseSchema = z.object({
+  email: z.string().trim().email({ message: 'Email inválido' }),
   password: z.string().min(8, { message: 'La contraseña debe tener al menos 8 caracteres' }),
-  fullName: z.string().min(2, { message: 'Nombre completo requerido' }).optional(),
-  roleId: z.number().int().positive().optional(), // opcional por ahora
+  fullName: z.string().trim().min(2, { message: 'Nombre completo requerido' }),
 });
+
+export const registerSchema = userCreationBaseSchema.strict();
+
+export const createUserSchema = userCreationBaseSchema.extend({
+  roleId: z.number().int().positive({ message: 'Rol requerido' }),
+}).strict();
 
 export const loginSchema = z.object({
   email: z.string().email({ message: 'Email inválido' }),
