@@ -1,9 +1,12 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '../../middlewares/auth';
-import { getUsers, updateUser, deleteUser } from '../../controllers/user/userController';
+import { createUser, getUsers, updateUser, deleteUser } from '../../controllers/user/userController';
 import prisma from '../../lib/prisma';  // ← IMPORTAMOS PRISMA AQUÍ (para la ruta PATCH)
 
 const router = Router();
+
+// POST /users - Crea un colaborador
+router.post('/', authenticate, authorize(['users.create']), createUser);
 
 // GET /users - Lista todos los usuarios
 router.get('/', authenticate, authorize(['users.read']), getUsers);
