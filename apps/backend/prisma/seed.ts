@@ -158,39 +158,37 @@ async function main() {
         });
       }
     }
-}
+  }
 
-await prisma.warehouse.updateMany({ data: { isMain: false } });
+  const warehouseCount = await prisma.warehouse.count();
 
-await prisma.warehouse.upsert({
-  where: { name: 'Bodega Principal' },
-  update: {
-    description: 'Almacén general',
-    active: true,
-    isMain: true,
-  },
-  create: {
-    name: 'Bodega Principal',
-    description: 'Almacén general',
-    active: true,
-    isMain: true,
-  },
-});
+  await prisma.warehouse.upsert({
+    where: { name: 'Bodega Principal' },
+    update: {
+      description: 'Almacén general',
+      active: true,
+    },
+    create: {
+      name: 'Bodega Principal',
+      description: 'Almacén general',
+      active: true,
+      isMain: warehouseCount === 0,
+    },
+  });
 
-await prisma.warehouse.upsert({
-  where: { name: 'Cocina' },
-  update: {
-    description: 'Insumos en cocina',
-    active: true,
-    isMain: false,
-  },
-  create: {
-    name: 'Cocina',
-    description: 'Insumos en cocina',
-    active: true,
-    isMain: false,
-  },
-});
+  await prisma.warehouse.upsert({
+    where: { name: 'Cocina' },
+    update: {
+      description: 'Insumos en cocina',
+      active: true,
+    },
+    create: {
+      name: 'Cocina',
+      description: 'Insumos en cocina',
+      active: true,
+      isMain: false,
+    },
+  });
   console.log('Seed completado correctamente 🚀');
 }
 
