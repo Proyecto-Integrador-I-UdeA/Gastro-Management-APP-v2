@@ -292,6 +292,21 @@ model CostCategory {
   @@map("cost_categories")
 }
 
+model MenuCategory {
+  id             Int        @id @default(autoincrement())
+  name           String
+  normalizedName String     @unique
+  description    String?
+  displayOrder   Int        @default(0)
+  active         Boolean    @default(true)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @default(now()) @updatedAt
+  menuItems      MenuItem[]
+
+  @@index([active, displayOrder])
+  @@map("menu_categories")
+}
+
 model MenuItem {
   id                 Int                 @id @default(autoincrement())
   name               String
@@ -308,7 +323,11 @@ model MenuItem {
   sodiumPerPortion   Float?
   sugarPerPortion    Float?
   totalCost          Decimal?            @db.Decimal(10, 2)
+  categoryId         Int?
+  category           MenuCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   components         MenuItemComponent[]
+
+  @@index([categoryId])
 }
 
 model MenuItemComponent {
