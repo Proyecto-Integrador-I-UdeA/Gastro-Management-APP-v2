@@ -2,8 +2,10 @@ import request from 'supertest';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import app from '../../src/app';
 import prisma from '../../src/lib/prisma';
+import { createIntegrationToken } from './authToken';
 
 const MENU_ITEM_PREFIX = '__sales_00a_test__';
+const manageMenuToken = createIntegrationToken(['menu.manage']);
 
 async function clearMenuFixtures() {
   const menuItems = await prisma.menuItem.findMany({
@@ -49,6 +51,7 @@ describe('regresión SALES-00A: actualización parcial de MenuItem', () => {
 
     const partialResponse = await request(app)
       .put(`/menu-items/${menuItem.id}`)
+      .set('Authorization', `Bearer ${manageMenuToken}`)
       .send({ description: 'Descripción actualizada' });
 
     expect(partialResponse.status).toBe(200);
@@ -58,6 +61,7 @@ describe('regresión SALES-00A: actualización parcial de MenuItem', () => {
 
     const clearResponse = await request(app)
       .put(`/menu-items/${menuItem.id}`)
+      .set('Authorization', `Bearer ${manageMenuToken}`)
       .send({ components: [] });
 
     expect(clearResponse.status).toBe(200);
@@ -72,6 +76,7 @@ describe('regresión SALES-00A: actualización parcial de MenuItem', () => {
 
     const response = await request(app)
       .put(`/menu-items/${menuItem.id}`)
+      .set('Authorization', `Bearer ${manageMenuToken}`)
       .send({
         name: `${MENU_ITEM_PREFIX}_should_not_change`,
         components: 'invalid',

@@ -6,17 +6,28 @@ import {
   rolePermissions,
 } from '../../prisma/permissionConfig';
 
+const menuPermissions = ['menu.read', 'menu.manage'];
+
 describe('configuración de permisos por rol', () => {
   it('asigna al rol admin todos los permisos de negocio actuales', () => {
     const businessPermissionNames = businessPermissions.map(permission => permission.name);
 
     expect(rolePermissions.admin).toEqual(businessPermissionNames);
+    expect(rolePermissions.admin).toEqual(expect.arrayContaining(menuPermissions));
   });
 
   it('asigna al rol super todos los permisos existentes', () => {
     const permissionNames = permissions.map(permission => permission.name);
 
     expect(rolePermissions.super).toEqual(permissionNames);
+    expect(rolePermissions.super).toEqual(expect.arrayContaining(menuPermissions));
+  });
+
+  it('declara los permisos de menú como negocio y los asigna explícitamente a chef', () => {
+    const businessPermissionNames = businessPermissions.map(permission => permission.name);
+
+    expect(businessPermissionNames).toEqual(expect.arrayContaining(menuPermissions));
+    expect(rolePermissions.chef).toEqual(expect.arrayContaining(menuPermissions));
   });
 
   it('mantiene un permiso futuro de plataforma fuera del rol admin', () => {
