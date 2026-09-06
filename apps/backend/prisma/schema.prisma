@@ -128,16 +128,17 @@ model InventoryMovement {
 }
 
 model User {
-  id           Int                 @id @default(autoincrement())
-  email        String              @unique
-  passwordHash String
-  fullName     String?
-  roleId       Int?
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @default(now()) @updatedAt
-  active       Boolean             @default(true)
-  movements    InventoryMovement[]
-  role         Role?               @relation(fields: [roleId], references: [id])
+  id                    Int                 @id @default(autoincrement())
+  email                 String              @unique
+  passwordHash          String
+  fullName              String?
+  roleId                Int?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @default(now()) @updatedAt
+  active                Boolean             @default(true)
+  movements             InventoryMovement[]
+  createdMenuItemPrices MenuItemPrice[]
+  role                  Role?               @relation(fields: [roleId], references: [id])
 
   @@map("users")
 }
@@ -326,8 +327,36 @@ model MenuItem {
   categoryId         Int?
   category           MenuCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   components         MenuItemComponent[]
+  prices             MenuItemPrice[]
 
   @@index([categoryId])
+}
+
+model MenuItemPrice {
+  id                   Int       @id @default(autoincrement())
+  menuItemId           Int
+  baseCostSnapshot     Decimal   @db.Decimal(14, 4)
+  indirectCostSnapshot Decimal   @db.Decimal(14, 4)
+  totalCostSnapshot    Decimal   @db.Decimal(14, 4)
+  marginRate           Decimal   @db.Decimal(9, 6)
+  taxRate              Decimal   @db.Decimal(9, 6)
+  priceBeforeTax       Decimal   @db.Decimal(14, 4)
+  taxAmount            Decimal   @db.Decimal(14, 4)
+  calculatedAmount     Decimal   @db.Decimal(14, 4)
+  roundingIncrement    Decimal   @db.Decimal(12, 2)
+  amount               Decimal   @db.Decimal(12, 2)
+  currency             String    @default("COP") @db.VarChar(3)
+  taxIncluded          Boolean   @default(true)
+  calculationVersion   String    @db.VarChar(32)
+  createdById          Int
+  validFrom            DateTime
+  validUntil           DateTime?
+  createdAt            DateTime  @default(now())
+  menuItem             MenuItem  @relation(fields: [menuItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy            User      @relation(fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([menuItemId, validFrom])
+  @@map("menu_item_prices")
 }
 
 model MenuItemComponent {

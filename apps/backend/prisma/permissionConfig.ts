@@ -34,6 +34,8 @@ export const businessPermissions: readonly PermissionDefinition[] = [
   // COSTOS
   { name: 'costs.read', description: 'Ver costos' },
   { name: 'costs.update', description: 'Editar costos' },
+  { name: 'costs.prices.read', description: 'Consultar precios de venta' },
+  { name: 'costs.prices.manage', description: 'Calcular y actualizar precios de venta' },
 
   // CONTABILIDAD
   { name: 'accounting.read', description: 'Ver contabilidad' },
@@ -98,6 +100,7 @@ export function createRolePermissions(
 
     accounting: [
       'costs.read', 'costs.update',
+      'costs.prices.read',
       'sales.read',
       'reports.read',
       'profile.update',

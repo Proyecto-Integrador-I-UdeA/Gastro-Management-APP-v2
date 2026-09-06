@@ -1,186 +1,77 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../lib/prisma';
+import {
+  calculateMenuItemCost as calculateMenuItemCostWithDecimal,
+  calculateRecipeCost as calculateRecipeCostWithDecimal,
+} from '../../services/pricing/menuItemCostService';
+import {
+  InvalidCostComponentError,
+  InvalidOperationalCostConfigError,
+  MenuItemCostNotFoundError,
+  RecipeCostNotFoundError,
+  RecipeCycleError,
+} from '../../services/pricing/pricingErrors';
 
-const prisma = new PrismaClient();
-
-
-// 🔥 CALCULAR COSTO DE RECETA (SOLO INGREDIENTES)
-export const calculateRecipeCost = async (req: Request, res: Response) => {
-  try {
-    const recipeId = Number.parseInt(req.params.id, 10);
-
-    if (Number.isNaN(recipeId)) {
-      return res.status(400).json({ error: 'Invalid recipe id' });
-    }
-
-    const recipe = await prisma.recipe.findUnique({
-      where: { id: recipeId },
-      include: {
-        items: {
-          include: {
-            product: true,
-          },
-        },
-      },
-    });
-
-    if (!recipe) {
-      return res.status(404).json({ error: 'Recipe not found' });
-    }
-
-    // 🔹 SOLO INGREDIENTES
-    const ingredientsCost = recipe.items.reduce((sum: number, item: any) => {
-      const quantity = Number(item.quantity ?? 0);
-      const productUnitCost = Number(item.product?.unitCost ?? 0);
-      const baseQty = Number(item.product?.inputUnitQuantity ?? 1);
-
-      const itemCost = (quantity / baseQty) * productUnitCost;
-
-      return sum + itemCost;
-    }, 0);
-
-    const portions = Number(recipe.portions ?? 1);
-
-    const costPerPortion = portions > 0
-      ? ingredientsCost / portions
-      : 0;
-
-    res.json({
-      recipeId,
-      ingredientsCost,
-      totalCost: ingredientsCost,
-      costPerPortion
-    });
-
-  } catch (error) {
-    console.error('❌ Error calculando receta:', error);
-    res.status(500).json({ error: 'Error interno' });
+function handleCostCalculationError(error: unknown, res: Response) {
+  if (error instanceof MenuItemCostNotFoundError || error instanceof RecipeCostNotFoundError) {
+    return res.status(404).json({ error: error.message });
   }
-};
 
+  if (
+    error instanceof RecipeCycleError
+    || error instanceof InvalidCostComponentError
+    || error instanceof InvalidOperationalCostConfigError
+  ) {
+    return res.status(422).json({ error: error.message });
+  }
 
-
-
-// 🔥 CALCULAR COSTO DE PLATO (NUEVO)
-export const calculateMenuItemCost = async (req: Request, res: Response) => {
-  try {
-    const menuItemId = Number(req.params.id);
-
-    if (Number.isNaN(menuItemId)) {
-      return res.status(400).json({ error: 'Invalid menu item id' });
-    }
-
-    // 🔹 obtener plato con componentes
-    const menuItem = await prisma.menuItem.findUnique({
-      where: { id: menuItemId },
-      include: {
-        components: {
-          include: {
-            product: true,
-            recipe: {
-              include: {
-                items: {
-                  include: {
-                    product: true
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    });
-
-    if (!menuItem) {
-      return res.status(404).json({ error: 'Menu item not found' });
-    }
-
-    // 🔹 COSTO BASE (ingredientes + recetas)
-    const baseCost = menuItem.components.reduce((sum: number, comp: any) => {
-
-      const quantity = Number(comp.quantity ?? 0);
-
-      // 🧂 PRODUCTO DIRECTO
-      if (comp.product) {
-        const productUnitCost = Number(comp.product.unitCost ?? 0);
-        const baseQty = Number(comp.product.inputUnitQuantity ?? 1);
-
-        const cost = (quantity / baseQty) * productUnitCost;
-
-        return sum + cost;
-      }
-
-      // 🍳 RECETA
-      if (comp.recipe) {
-
-  const recipeCostTotal = comp.recipe.items.reduce((rSum: number, item: any) => {
-    const qty = Number(item.quantity ?? 0);
-    const productUnitCost = Number(item.product?.unitCost ?? 0);
-    const baseQty = Number(item.product?.inputUnitQuantity ?? 1);
-
-    const itemCost = (qty / baseQty) * productUnitCost;
-
-    return rSum + itemCost;
-  }, 0);
-
-  const portions = Number(comp.recipe.portions ?? 1);
-
-  const costPerPortion = portions > 0
-    ? recipeCostTotal / portions
-    : 0;
-
-  return sum + (costPerPortion * quantity);
+  console.error('Error calculando costo:', error);
+  return res.status(500).json({ error: 'Error interno' });
 }
-      return sum;
 
-    }, 0);
+// Contrato legado: mantiene números en la respuesta, aunque el cálculo interno usa Decimal.
+export const calculateRecipeCost = async (req: Request, res: Response) => {
+  const recipeId = Number.parseInt(req.params.id, 10);
+  if (Number.isNaN(recipeId)) {
+    return res.status(400).json({ error: 'Invalid recipe id' });
+  }
 
-
-    // 🔥 COSTOS INDIRECTOS (SOLO AQUÍ)
-    const latestCosts = await prisma.operationalCostConfig .findFirst({
-      orderBy: { createdAt: 'desc' }
+  try {
+    const cost = await calculateRecipeCostWithDecimal(recipeId);
+    return res.json({
+      recipeId,
+      ingredientsCost: cost.totalCost.toNumber(),
+      totalCost: cost.totalCost.toNumber(),
+      costPerPortion: cost.costPerPortion.toNumber(),
     });
-
-    let indirectCost = 0;
-
-    if (latestCosts) {
-      const totalMonthlyCosts =
-        Number(latestCosts.fixedCosts ?? 0) +
-        Number(latestCosts.variableCosts ?? 0) +
-        Number(latestCosts.payroll ?? 0);
-
-      const production = Number(latestCosts.monthlyProduction ?? 1);
-
-      const costPerUnit = production > 0
-        ? totalMonthlyCosts / production
-        : 0;
-
-      indirectCost = costPerUnit;
-    }
-
-    const totalCost = baseCost + indirectCost;
-
-    res.json({
-      menuItemId,
-      baseCost,
-      indirectCost,
-      totalCost
-    });
-
   } catch (error) {
-    console.error('❌ Error calculando plato:', error);
-    res.status(500).json({ error: 'Error interno' });
+    return handleCostCalculationError(error, res);
   }
 };
 
+// Contrato legado: mantiene números en la respuesta, aunque el cálculo interno usa Decimal.
+export const calculateMenuItemCost = async (req: Request, res: Response) => {
+  const menuItemId = Number(req.params.id);
+  if (!Number.isInteger(menuItemId) || menuItemId <= 0) {
+    return res.status(400).json({ error: 'Invalid menu item id' });
+  }
 
+  try {
+    const cost = await calculateMenuItemCostWithDecimal(menuItemId);
+    return res.json({
+      menuItemId,
+      baseCost: cost.baseCost.toNumber(),
+      indirectCost: cost.indirectCost.toNumber(),
+      totalCost: cost.totalCost.toNumber(),
+    });
+  } catch (error) {
+    return handleCostCalculationError(error, res);
+  }
+};
 
-
-// 🔥 CREAR OTROS COSTOS
 export const createOtherCosts = async (req: Request, res: Response) => {
   try {
     const { month, fixedCosts, variableCosts, payroll, monthlyProduction } = req.body;
-
     const data = await prisma.operationalCostConfig.create({
       data: {
         month,
@@ -188,37 +79,30 @@ export const createOtherCosts = async (req: Request, res: Response) => {
         variableCosts: Number(variableCosts),
         payroll: Number(payroll),
         monthlyProduction: Number(monthlyProduction),
-      }
+      },
     });
-
-    res.status(201).json(data);
+    return res.status(201).json(data);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Error guardando costos' });
+    return res.status(500).json({ error: 'Error guardando costos' });
   }
 };
 
-
-// 🔥 LISTAR OTROS COSTOS
-export const getOtherCosts = async (req: Request, res: Response) => {
+export const getOtherCosts = async (_req: Request, res: Response) => {
   try {
     const data = await prisma.operationalCostConfig.findMany({
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
-
-    res.json(data);
-  } catch (error) {
-    res.status(500).json({ error: 'Error listando costos' });
+    return res.json(data);
+  } catch {
+    return res.status(500).json({ error: 'Error listando costos' });
   }
 };
 
-
-// 🔥 ACTUALIZAR OTROS COSTOS
 export const updateOtherCosts = async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
     const { month, fixedCosts, variableCosts, payroll, monthlyProduction } = req.body;
-
     const data = await prisma.operationalCostConfig.update({
       where: { id },
       data: {
@@ -227,27 +111,20 @@ export const updateOtherCosts = async (req: Request, res: Response) => {
         variableCosts: Number(variableCosts),
         payroll: Number(payroll),
         monthlyProduction: Number(monthlyProduction),
-      }
+      },
     });
-
-    res.json(data);
-  } catch (error) {
-    res.status(500).json({ error: 'Error actualizando costos' });
+    return res.json(data);
+  } catch {
+    return res.status(500).json({ error: 'Error actualizando costos' });
   }
 };
 
-
-// 🔥 ELIMINAR
 export const deleteOtherCosts = async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
-
-    await prisma.operationalCostConfig.delete({
-      where: { id }
-    });
-
-    res.json({ message: 'Costos eliminados' });
-  } catch (error) {
-    res.status(500).json({ error: 'Error eliminando costos' });
+    await prisma.operationalCostConfig.delete({ where: { id } });
+    return res.json({ message: 'Costos eliminados' });
+  } catch {
+    return res.status(500).json({ error: 'Error eliminando costos' });
   }
 };

@@ -7,6 +7,7 @@ import {
 } from '../../prisma/permissionConfig';
 
 const menuPermissions = ['menu.read', 'menu.manage'];
+const salePricePermissions = ['costs.prices.read', 'costs.prices.manage'];
 
 describe('configuración de permisos por rol', () => {
   it('asigna al rol admin todos los permisos de negocio actuales', () => {
@@ -28,6 +29,18 @@ describe('configuración de permisos por rol', () => {
 
     expect(businessPermissionNames).toEqual(expect.arrayContaining(menuPermissions));
     expect(rolePermissions.chef).toEqual(expect.arrayContaining(menuPermissions));
+  });
+
+  it('asigna permisos de precios a admin/super y solo lectura a accounting', () => {
+    const businessPermissionNames = businessPermissions.map(permission => permission.name);
+
+    expect(businessPermissionNames).toEqual(expect.arrayContaining(salePricePermissions));
+    expect(rolePermissions.admin).toEqual(expect.arrayContaining(salePricePermissions));
+    expect(rolePermissions.super).toEqual(expect.arrayContaining(salePricePermissions));
+    expect(rolePermissions.accounting).toContain('costs.prices.read');
+    expect(rolePermissions.accounting).not.toContain('costs.prices.manage');
+    expect(rolePermissions.chef).not.toEqual(expect.arrayContaining(salePricePermissions));
+    expect(rolePermissions.purchases).not.toEqual(expect.arrayContaining(salePricePermissions));
   });
 
   it('mantiene un permiso futuro de plataforma fuera del rol admin', () => {
