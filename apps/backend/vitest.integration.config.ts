@@ -7,5 +7,6 @@ export default defineConfig({
     setupFiles: ['./tests/integration/setup.ts'],
     passWithNoTests: true,
     clearMocks: true,
+    fileParallelism: false,
   },
 });
