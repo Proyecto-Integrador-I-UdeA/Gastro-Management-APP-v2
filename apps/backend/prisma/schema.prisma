@@ -138,6 +138,7 @@ model User {
   active                Boolean             @default(true)
   movements             InventoryMovement[]
   createdMenuItemPrices MenuItemPrice[]
+  uploadedMediaAssets   MediaAsset[]
   role                  Role?               @relation(fields: [roleId], references: [id])
 
   @@map("users")
@@ -315,6 +316,9 @@ model MenuItem {
   hasDrink           Boolean             @default(false)
   hasDessert         Boolean             @default(false)
   active             Boolean             @default(true)
+  kind               MenuItemKind        @default(STANDARD)
+  available          Boolean             @default(true)
+  includedItemsText  String?             @db.VarChar(500)
   createdAt          DateTime            @default(now())
   caloriesPerPortion Float?
   carbsPerPortion    Float?
@@ -325,11 +329,36 @@ model MenuItem {
   sugarPerPortion    Float?
   totalCost          Decimal?            @db.Decimal(10, 2)
   categoryId         Int?
+  imageAssetId       Int?                @unique
   category           MenuCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  imageAsset         MediaAsset?          @relation(fields: [imageAssetId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   components         MenuItemComponent[]
   prices             MenuItemPrice[]
 
   @@index([categoryId])
+}
+
+model MediaAsset {
+  id                 Int              @id @default(autoincrement())
+  storageKey         String           @unique
+  mimeType           String
+  byteSize           Int
+  width              Int
+  height             Int
+  checksumSha256     String           @db.Char(64)
+  status             MediaAssetStatus @default(UNATTACHED)
+  uploadedById       Int
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @default(now()) @updatedAt
+  attachedAt         DateTime?
+  cleanupRequestedAt DateTime?
+  cleanupAttempts    Int              @default(0)
+  lastCleanupError   String?
+  uploadedBy         User             @relation(fields: [uploadedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  menuItem           MenuItem?
+
+  @@index([status, createdAt])
+  @@map("media_assets")
 }
 
 model MenuItemPrice {
@@ -382,4 +411,15 @@ enum ProductBaseUnit {
   g
   ml
   und
+}
+
+enum MediaAssetStatus {
+  UNATTACHED
+  ATTACHED
+  PENDING_DELETE
+}
+
+enum MenuItemKind {
+  STANDARD
+  ADDITION
 }

@@ -24,12 +24,29 @@ async function clearFixtures() {
     select: { id: true },
   });
   const menuItemIds = menuItems.map(item => item.id);
+  const recipes = await prisma.recipe.findMany({
+    where: { internalCode: { startsWith: FIXTURE_PREFIX } },
+    select: { id: true },
+  });
+  const recipeIds = recipes.map(recipe => recipe.id);
 
   if (menuItemIds.length > 0) {
     await prisma.menuItemComponent.deleteMany({
       where: { menuItemId: { in: menuItemIds } },
     });
     await prisma.menuItem.deleteMany({ where: { id: { in: menuItemIds } } });
+  }
+
+  if (recipeIds.length > 0) {
+    await prisma.recipeItem.deleteMany({
+      where: {
+        OR: [
+          { recipeId: { in: recipeIds } },
+          { subRecipeId: { in: recipeIds } },
+        ],
+      },
+    });
+    await prisma.recipe.deleteMany({ where: { id: { in: recipeIds } } });
   }
 
   if (categoryIds.length > 0) {
@@ -245,10 +262,18 @@ describe('MenuItem y categorías', () => {
   it('asigna, cambia y quita categoryId sin alterar componentes', async () => {
     const firstCategory = await createCategory(`${FIXTURE_PREFIX} Primera`);
     const secondCategory = await createCategory(`${FIXTURE_PREFIX} Segunda`);
+    const recipe = await prisma.recipe.create({
+      data: {
+        internalCode: `${FIXTURE_PREFIX}RECIPE`,
+        name: `${FIXTURE_PREFIX} receta`,
+        batchQuantity: 1,
+        portions: 1,
+      },
+    });
     const menuItem = await prisma.menuItem.create({
       data: {
         name: `${FIXTURE_PREFIX} con componente`,
-        components: { create: { quantity: 2 } },
+        components: { create: { quantity: 2, recipeId: recipe.id } },
       },
       include: { components: true },
     });

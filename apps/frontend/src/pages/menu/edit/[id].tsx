@@ -1,10 +1,22 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import Button from "@/components/Button";
 import { apiFetch } from "@/lib/api";
+import { getUserPermissions } from "@/utils/permissions";
+import { calculateProductIngredientCost } from "@/lib/productUnits";
+import { useAuthoritativeRecipeCosts } from "@/hooks/useAuthoritativeRecipeCosts";
+import {
+  allQuantitiesValid,
+  classifyQuantity,
+  quantityError,
+  quantityInputValue,
+} from "@/lib/quantityInput";
+import MenuItemImageField from "@/components/menu/MenuItemImageField";
+import type { MenuItemImageSummary } from "@/components/menu/MenuItemImageField";
+import { showError, showSuccess } from "@/utils/toast";
 
 export default function EditMenuItemPage() {
   const router = useRouter();
@@ -15,13 +27,32 @@ export default function EditMenuItemPage() {
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [kind, setKind] = useState<"STANDARD" | "ADDITION">("STANDARD");
+  const [available, setAvailable] = useState(true);
+  const [includedItemsText, setIncludedItemsText] = useState("");
   const [hasDrink, setHasDrink] = useState(false);
   const [hasDessert, setHasDessert] = useState(false);
   const [active, setActive] = useState(true);
+  const [categoryId, setCategoryId] = useState("");
+  const [categories, setCategories] = useState<any[]>([]);
+  const [canManage, setCanManage] = useState(false);
+  const [currentImage, setCurrentImage] = useState<MenuItemImageSummary | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeletingImage, setIsDeletingImage] = useState(false);
+  const savingRef = useRef(false);
+  const deletingImageRef = useRef(false);
 
   const [products, setProducts] = useState<any[]>([]);
   const [recipes, setRecipes] = useState<any[]>([]);
   const [components, setComponents] = useState<any[]>([]);
+  const [showQuantityErrors, setShowQuantityErrors] = useState(false);
+  const initialComponentsRef = useRef("[]");
+  const authoritativeRecipeCosts = useAuthoritativeRecipeCosts(recipes);
+
+  useEffect(() => {
+    setCanManage(getUserPermissions().includes("menu.manage"));
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -29,25 +60,37 @@ export default function EditMenuItemPage() {
 
     const fetchData = async () => {
       try {
-        const menuItem = await apiFetch(`/menu-items/${id}`);
-        const productsData = await apiFetch("/products");
-        const recipesData = await apiFetch("/recipes");
+        const [menuItem, productsData, recipesData, categoriesData] = await Promise.all([
+          apiFetch(`/menu-items/${id}`),
+          apiFetch("/products"),
+          apiFetch("/recipes"),
+          apiFetch("/menu-categories?includeInactive=true"),
+        ]);
 
         console.log("MENU ITEM EDIT:", menuItem);
 
         setName(menuItem.name || "");
         setDescription(menuItem.description || "");
+        setKind(menuItem.kind ?? "STANDARD");
+        setAvailable(menuItem.available ?? true);
+        setIncludedItemsText(menuItem.includedItemsText ?? "");
         setHasDrink(menuItem.hasDrink || false);
         setHasDessert(menuItem.hasDessert || false);
         setActive(menuItem.active ?? true);
+        setCategoryId(
+          menuItem.categoryId === null || menuItem.categoryId === undefined
+            ? ""
+            : String(menuItem.categoryId),
+        );
+        setCurrentImage(menuItem.image ?? null);
 
-        setComponents(
-          (menuItem.components || []).map((c: any) => ({
+        const loadedComponents = (menuItem.components || []).map((c: any) => ({
             productId: c.productId ?? null,
             recipeId: c.recipeId ?? null,
-            quantity: c.quantity || 1,
-          }))
-        );
+            quantity: c.quantity ?? "",
+          }));
+        setComponents(loadedComponents);
+        initialComponentsRef.current = JSON.stringify(loadedComponents);
 
         setProducts(
           Array.isArray(productsData)
@@ -60,6 +103,7 @@ export default function EditMenuItemPage() {
             ? recipesData.filter((r: any) => r.active)
             : []
         );
+        setCategories(Array.isArray(categoriesData) ? categoriesData : []);
       } catch (error) {
         console.error("ERROR CARGANDO PLATO:", error);
       } finally {
@@ -85,18 +129,48 @@ export default function EditMenuItemPage() {
     setComponents(components.filter((_: any, i: number) => i !== index));
   };
 const handleSubmit = async () => {
+  if (savingRef.current || deletingImageRef.current) return;
+  setShowQuantityErrors(true);
+  if (!allQuantitiesValid(components)) return;
+
+  savingRef.current = true;
+  setIsSaving(true);
   try {
+    const componentsChanged =
+      JSON.stringify(components) !== initialComponentsRef.current;
+
+    let imageAssetId: number | undefined;
+    if (imageFile) {
+      try {
+        const multipart = new FormData();
+        multipart.append("image", imageFile);
+        const uploaded = await apiFetch("/menu-media/images", {
+          method: "POST",
+          body: multipart,
+        });
+        imageAssetId = uploaded.assetId;
+      } catch (error) {
+        console.error("Error cargando imagen:", error);
+        showError("No fue posible cargar la imagen. Inténtalo nuevamente.");
+        return;
+      }
+    }
+
     await apiFetch(`/menu-items/${id}`, {
       method: "PUT",
       body: JSON.stringify({
         name,
         description,
+        kind,
+        available,
+        includedItemsText: includedItemsText.trim() || null,
         hasDrink,
         hasDessert,
         active,
-        components,
+        categoryId: categoryId === "" ? null : Number(categoryId),
+        ...(componentsChanged && { components }),
+        ...(imageAssetId !== undefined && { imageAssetId }),
 
-        totalCost: analytics.cost,
         caloriesPerPortion: analytics.calories,
         proteinPerPortion: analytics.protein,
         carbsPerPortion: analytics.carbs,
@@ -107,9 +181,35 @@ const handleSubmit = async () => {
       }),
     });
 
+    showSuccess("Plato actualizado correctamente");
     router.push("/menu");
   } catch (error) {
     console.error("ERROR GUARDANDO:", error);
+    showError("No fue posible guardar los cambios del plato.");
+  } finally {
+    savingRef.current = false;
+    setIsSaving(false);
+  }
+};
+
+const handleDeleteCurrentImage = async () => {
+  if (!currentImage || savingRef.current || deletingImageRef.current) return;
+  if (!window.confirm("¿Deseas eliminar la imagen actual del plato?")) return;
+
+  deletingImageRef.current = true;
+  setIsDeletingImage(true);
+  try {
+    const updated = await apiFetch(`/menu-items/${id}/image`, {
+      method: "DELETE",
+    });
+    setCurrentImage(updated.image ?? null);
+    showSuccess("Imagen eliminada correctamente");
+  } catch (error) {
+    console.error("ERROR ELIMINANDO IMAGEN:", error);
+    showError("No fue posible eliminar la imagen. Inténtalo nuevamente.");
+  } finally {
+    deletingImageRef.current = false;
+    setIsDeletingImage(false);
   }
 };
 const analytics = useMemo(() => {
@@ -129,7 +229,9 @@ const analytics = useMemo(() => {
   const detailed: any[] = [];
 
   components.forEach((item) => {
-    const quantity = Number(item.quantity || 0);
+    const quantityState = classifyQuantity(item.quantity);
+    if (quantityState.status !== "valid") return;
+    const quantity = quantityState.value;
 
     // RECETA
     if (item.recipeId) {
@@ -149,14 +251,10 @@ const analytics = useMemo(() => {
         vegetableComponents++;
       }
 
-      const recipePortions = Number(recipe.portions || 1);
-
-      const costPerPortion =
-        recipePortions > 0
-          ? Number(recipe.totalCost || 0) / recipePortions
-          : 0;
-
-      const cost = costPerPortion * quantity;
+      const recipeCost = authoritativeRecipeCosts[recipe.id];
+      const cost = recipeCost?.status === "ready"
+        ? recipeCost.costPerPortion * quantity
+        : 0;
 
       totalCost += cost;
       totalCalories +=
@@ -254,13 +352,7 @@ const analytics = useMemo(() => {
 
       const factor = quantity / 100;
 
-      const costPerUnit =
-        product.inputUnitQuantity > 0
-          ? Number(product.unitCost || 0) /
-            Number(product.inputUnitQuantity || 1)
-          : 0;
-
-      const cost = costPerUnit * quantity;
+      const cost = calculateProductIngredientCost(quantity, product);
 
       totalCost += cost;
       totalCalories +=
@@ -345,7 +437,7 @@ const analytics = useMemo(() => {
     nutritionScore,
     alerts,
   };
-}, [components, products, recipes]);
+}, [authoritativeRecipeCosts, components, products, recipes]);
   
       
   const formatCurrency = (value: number) =>
@@ -381,6 +473,86 @@ const analytics = useMemo(() => {
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Descripción"
           rows={3}
+        />
+
+        <div>
+          <label className="mb-1 block text-sm font-semibold text-slate-700" htmlFor="menu-item-kind">
+            Tipo de artículo
+          </label>
+          <select
+            id="menu-item-kind"
+            className="w-full rounded-xl border bg-white p-3"
+            value={kind}
+            onChange={(event) => setKind(event.target.value as "STANDARD" | "ADDITION")}
+            disabled={!canManage || isSaving || isDeletingImage}
+          >
+            <option value="STANDARD">Plato / producto del menú</option>
+            <option value="ADDITION">Adición</option>
+          </select>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-[#001F3F]"
+            checked={available}
+            onChange={(event) => setAvailable(event.target.checked)}
+            disabled={!canManage || isSaving || isDeletingImage}
+          />
+          Disponible para la venta
+        </label>
+
+        <div>
+          <label className="mb-1 block text-sm font-semibold text-slate-700" htmlFor="included-items-text">
+            ¿Qué incluye?
+          </label>
+          <textarea
+            id="included-items-text"
+            className="w-full rounded-xl border p-3"
+            value={includedItemsText}
+            onChange={(event) => setIncludedItemsText(event.target.value)}
+            placeholder="Incluye ensalada fresca y acompañamiento de papa."
+            maxLength={500}
+            rows={2}
+            disabled={!canManage || isSaving || isDeletingImage}
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-semibold text-slate-700" htmlFor="menu-category">
+            Categoría
+          </label>
+          <select
+            id="menu-category"
+            className="w-full rounded-xl border bg-white p-3"
+            value={categoryId}
+            onChange={(event) => setCategoryId(event.target.value)}
+            disabled={!canManage}
+          >
+            <option value="">-- Sin categoría --</option>
+            {categories.map((category) => (
+              <option
+                key={category.id}
+                value={category.id}
+                disabled={!category.active && String(category.id) !== categoryId}
+              >
+                {category.name}{category.active ? "" : " (inactiva)"}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-sm text-amber-700">
+            Los platos sin categoría no estarán disponibles para la venta.
+          </p>
+        </div>
+
+        <MenuItemImageField
+          itemName={name}
+          currentImage={currentImage}
+          selectedFile={imageFile}
+          onSelectedFileChange={setImageFile}
+          onDeleteCurrent={handleDeleteCurrentImage}
+          disabled={!canManage || isSaving || isDeletingImage}
+          deleting={isDeletingImage}
         />
 
         <div className="  flex gap-6">
@@ -422,8 +594,17 @@ const analytics = useMemo(() => {
           </h3>
 
           <div className="space-y-3">
-            {components.map((item, index) => (
-              <div key={index} className="flex gap-2 items-center">
+            {components.map((item, index) => {
+              const selectedRecipe = recipes.find(
+                (recipe) => recipe.id === Number(item.recipeId)
+              );
+              const selectedRecipeCost = selectedRecipe
+                ? authoritativeRecipeCosts[selectedRecipe.id]
+                : undefined;
+
+              return (
+                <div key={index}>
+                <div className="flex gap-2 items-center">
                 <select
                   className="border p-2 rounded w-1/2"
                   value={
@@ -469,14 +650,21 @@ const analytics = useMemo(() => {
 
                 <input
                   type="number"
+                  min="0"
+                  step="any"
                   className="border p-2 rounded w-1/3 text-right"
-                  value={item.quantity}
+                  value={
+                    typeof item.quantity === "number" && Number.isFinite(item.quantity)
+                      ? item.quantity
+                      : ""
+                  }
                   onChange={(e) => {
                     const updated = [...components];
-                    updated[index].quantity = Number(e.target.value);
+                    updated[index].quantity = quantityInputValue(e.target.value);
                     setComponents(updated);
                   }}
                   placeholder="Cantidad"
+                  aria-invalid={quantityError(item.quantity, showQuantityErrors) ? "true" : "false"}
                 />
 
                 <button
@@ -486,7 +674,34 @@ const analytics = useMemo(() => {
                   ✕
                 </button>
               </div>
-            ))}
+              {quantityError(item.quantity, showQuantityErrors) && (
+                <p className="mt-1 text-xs text-red-600" role="alert">
+                  {quantityError(item.quantity, showQuantityErrors)}
+                </p>
+              )}
+              {selectedRecipe && (
+                <div className="mt-2 space-y-1 text-xs text-gray-500">
+                  <p>
+                    Receta preparada · porciones base: {selectedRecipe.portions}
+                  </p>
+                  {selectedRecipeCost?.status === "loading" && (
+                    <p>Consultando costo actualizado…</p>
+                  )}
+                  {selectedRecipeCost?.status === "ready" && (
+                    <p>
+                      Costo por porción: {formatCurrency(selectedRecipeCost.costPerPortion)}
+                    </p>
+                  )}
+                  {selectedRecipeCost?.status === "error" && (
+                    <p className="text-red-600" role="alert">
+                      {selectedRecipeCost.message}
+                    </p>
+                  )}
+                </div>
+              )}
+              </div>
+              );
+            })}
           </div>
 
           {/* BOTONES */}
@@ -498,8 +713,8 @@ const analytics = useMemo(() => {
               + Agregar componente
             </button>
 
-            <Button onClick={handleSubmit}>
-              Guardar cambios
+            <Button onClick={handleSubmit} disabled={!canManage || isSaving || isDeletingImage}>
+              {isSaving ? "Guardando..." : "Guardar cambios"}
             </Button>
           </div>
         </div>

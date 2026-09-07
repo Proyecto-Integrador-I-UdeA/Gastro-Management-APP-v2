@@ -53,6 +53,77 @@ const UNIT_FACTOR: Record<ProductInputUnit, { baseUnit: ProductBaseUnit; factorP
     paca: { baseUnit: 'und', factorPerUnit: 24 },
   };
 
+export type ProductCostInput = {
+  inputUnit: string;
+  inputUnitQuantity: number;
+  unitOfMeasure: string;
+  unitCost: number;
+};
+
+function normalizeInputUnit(inputUnit: string): ProductInputUnit | null {
+  const normalized = String(inputUnit ?? '').trim().toLowerCase();
+  const canonical = normalized === 'l' ? 'lt' : normalized;
+  return isProductInputUnit(canonical) ? canonical : null;
+}
+
+export function productConversionFactor(
+  inputUnit: string,
+  unitOfMeasure: string,
+): number {
+  const normalizedInput = normalizeInputUnit(inputUnit);
+  if (!normalizedInput) {
+    throw new Error(`inputUnit desconocida: ${inputUnit}`);
+  }
+
+  const conversion = UNIT_FACTOR[normalizedInput];
+  if (conversion.baseUnit !== unitOfMeasure) {
+    throw new Error(
+      `inputUnit ${inputUnit} no es compatible con unitOfMeasure ${unitOfMeasure}`,
+    );
+  }
+
+  return conversion.factorPerUnit;
+}
+
+export function productRegistrationAmountBase(product: ProductCostInput): number {
+  const inputUnitQuantity = Number(product.inputUnitQuantity);
+  if (!Number.isFinite(inputUnitQuantity) || inputUnitQuantity <= 0) {
+    throw new Error('product.inputUnitQuantity debe ser mayor que 0');
+  }
+
+  return inputUnitQuantity * productConversionFactor(
+    product.inputUnit,
+    product.unitOfMeasure,
+  );
+}
+
+export function productCostPerBaseUnit(product: ProductCostInput): number {
+  const unitCost = Number(product.unitCost);
+  if (!Number.isFinite(unitCost) || unitCost < 0) {
+    throw new Error('product.unitCost debe ser un número no negativo');
+  }
+
+  return unitCost / productRegistrationAmountBase(product);
+}
+
+export function calculateProductIngredientCost(
+  quantityBase: number,
+  product: ProductCostInput,
+): number {
+  const quantity = Number(quantityBase);
+  if (!Number.isFinite(quantity) || quantity < 0) {
+    throw new Error('quantityBase debe ser un número no negativo');
+  }
+
+  return quantity * productCostPerBaseUnit(product);
+}
+
+export function productBaseUnitName(unit: ProductBaseUnit): string {
+  if (unit === 'g') return 'gramos';
+  if (unit === 'ml') return 'mililitros';
+  return 'unidades';
+}
+
 /** Cantidad equivalente en la unidad base (g, ml o und). */
 export function convertToBaseUnits(inputUnit: ProductInputUnit, quantity: number) {
   const safeQuantity = Number.isFinite(quantity) && quantity > 0 ? quantity : 1;

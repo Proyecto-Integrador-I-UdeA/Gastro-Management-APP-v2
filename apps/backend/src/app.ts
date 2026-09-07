@@ -13,6 +13,8 @@ import configRoutes from './routes/config';
 import reportRoutes from './routes/reports';
 import menuRoutes from "./routes/menu";
 import menuCategoryRoutes from './routes/menu-categories';
+import menuMediaRoutes from './routes/menu-media';
+import salesRoutes from './routes/sales';
 import ingredientCatalogRoutes from "./routes/catalog/ingredientCatalog.routes";
 
 const app = express();
@@ -73,6 +75,8 @@ app.use('/config', configRoutes);
 app.use('/reports', reportRoutes);
 app.use('/menu-items', menuRoutes);
 app.use('/menu-categories', menuCategoryRoutes);
+app.use('/menu-media', menuMediaRoutes);
+app.use('/sales', salesRoutes);
 app.use("/ingredient-catalog", ingredientCatalogRoutes);
 
 // 🔥 HEALTH CHECK
