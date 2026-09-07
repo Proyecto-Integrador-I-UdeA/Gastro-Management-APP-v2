@@ -12,14 +12,24 @@ import {
   getSalePriceHistory,
   publishSalePrice,
 } from '../../controllers/cost/salePriceController';
-import { authenticate, authorize } from '../../middlewares/auth';
+import { authenticate, authorize, authorizeAny } from '../../middlewares/auth';
 
 const router = Router();
 
 // 🔥 COSTOS DE RECETA
-router.get("/recipe/:id", calculateRecipeCost);
+router.get(
+  "/recipe/:id",
+  authenticate,
+  authorizeAny(['costs.read', 'menu.manage']),
+  calculateRecipeCost,
+);
 // 🔥 COSTOS DE PLATO
-router.get("/menu-item/:id", calculateMenuItemCost);
+router.get(
+  "/menu-item/:id",
+  authenticate,
+  authorize(['costs.read']),
+  calculateMenuItemCost,
+);
 
 router.post(
   '/menu-items/:menuItemId/sale-price/calculate',
@@ -41,9 +51,9 @@ router.get(
 );
 
 // 🔥 OTROS COSTOS
-router.post("/others", createOtherCosts);
-router.get("/others", getOtherCosts);
-router.put("/others/:id", updateOtherCosts);
-router.delete("/others/:id", deleteOtherCosts);
+router.post("/others", authenticate, authorize(['costs.update']), createOtherCosts);
+router.get("/others", authenticate, authorize(['costs.read']), getOtherCosts);
+router.put("/others/:id", authenticate, authorize(['costs.update']), updateOtherCosts);
+router.delete("/others/:id", authenticate, authorize(['costs.update']), deleteOtherCosts);
 
 export default router;

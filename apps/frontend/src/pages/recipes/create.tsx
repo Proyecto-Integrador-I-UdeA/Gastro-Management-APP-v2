@@ -6,13 +6,18 @@ import DashboardLayout from "@/components/layouts/DashboardLayout";
 import Button from "@/components/Button";
 import { showError, showSuccess } from "@/utils/toast";
 import { apiFetch } from "@/lib/api";
+import RecipeQuantityField from "@/components/recipes/RecipeQuantityField";
+import { calculateProductIngredientCost } from "@/lib/productUnits";
+import { allQuantitiesValid, classifyQuantity } from "@/lib/quantityInput";
 
 type Product = {
   id: number;
   name: string;
   isIngredient: boolean;
   unitCost: number;
+  inputUnit: string;
   inputUnitQuantity: number;
+  unitOfMeasure: string;
   caloriesPer100g?: number;
   fatPer100g?: number;
   carbsPer100g?: number;
@@ -25,7 +30,7 @@ type RecipeItem = {
   itemType: "product" | "recipe";
   productId?: number | string;
   subRecipeId?: number | string;
-  quantity: number;
+  quantity: number | "";
 };
 
 
@@ -40,6 +45,7 @@ export default function CreateRecipePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [recipes, setRecipes] = useState<any[]>([]);
   const [items, setItems] = useState<RecipeItem[]>([]);
+  const [showQuantityErrors, setShowQuantityErrors] = useState(false);
 
   const LIMITS = {
     costPerPortion: { warning: 8000, danger: 12000 },
@@ -101,7 +107,7 @@ export default function CreateRecipePage() {
       itemType: "product",
       productId: "",
       subRecipeId: "",
-      quantity: 0,
+      quantity: "",
     },
   ]);
 }; 
@@ -157,6 +163,15 @@ export default function CreateRecipePage() {
   let totalSugar = 0;
 
   const detailed = items.map((item) => {
+    const quantityState = classifyQuantity(item.quantity);
+    if (quantityState.status !== "valid") {
+      return {
+        cost: 0,
+        itemName: "",
+      };
+    }
+    const quantity = quantityState.value;
+
     // PRODUCTO
     if (item.itemType === "product") {
       const product = products.find(
@@ -170,9 +185,7 @@ export default function CreateRecipePage() {
         };
       }
 
-      const quantity = Number(item.quantity || 0);
-      const costPerUnit = Number(product.unitCost || 0);
-      const cost = costPerUnit * quantity;
+      const cost = calculateProductIngredientCost(quantity, product);
 
       totalCost += cost;
 
@@ -220,7 +233,6 @@ export default function CreateRecipePage() {
         };
       }
 
-      const quantity = Number(item.quantity || 0);
       const costPerPortion =
   Number(recipe.totalCost || 0) /
   Math.max(Number(recipe.portions || 1), 1);
@@ -460,6 +472,12 @@ let nutritionScore = 100 - alerts.length * 8;
 }, [items, products, recipes, portions]);
  
   const handleSubmit = async () => {
+    setShowQuantityErrors(true);
+    if (!allQuantitiesValid(items)) {
+      showError("Corrige las cantidades antes de guardar la receta");
+      return;
+    }
+
     try {
       await apiFetch("/recipes", {
         method: "POST",
@@ -604,22 +622,16 @@ const sugarStatus = getStatus(
     </select>
   )}
 
-  <input
-    type="number"
-    className="border p-2 rounded w-1/4 text-right"
+  <RecipeQuantityField
     value={item.quantity}
-    onChange={(e) =>
-      handleItemChange(
-        index,
-        "quantity",
-        Number(e.target.value)
-      )
-    }
-    placeholder={
+    onChange={(value) => handleItemChange(index, "quantity", value)}
+    productBaseUnit={
       item.itemType === "product"
-        ? "Cantidad (g/ml)"
-        : "Porciones"
+        ? products.find((product) => product.id === Number(item.productId))?.unitOfMeasure
+        : null
     }
+    isSubRecipe={item.itemType === "recipe"}
+    showIncompleteError={showQuantityErrors}
   />
 </div>
          

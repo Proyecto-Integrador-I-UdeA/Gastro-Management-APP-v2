@@ -6,6 +6,9 @@ import DashboardLayout from "@/components/layouts/DashboardLayout";
 import Button from "@/components/Button";
 import { showError, showSuccess } from "@/utils/toast";
 import { apiFetch } from "@/lib/api";
+import RecipeQuantityField from "@/components/recipes/RecipeQuantityField";
+import { calculateProductIngredientCost } from "@/lib/productUnits";
+import { allQuantitiesValid, classifyQuantity } from "@/lib/quantityInput";
 
 export default function RecipeDetail() {
   const router = useRouter();
@@ -21,6 +24,7 @@ export default function RecipeDetail() {
   const [editIngredients, setEditIngredients] = useState(false);
   const [products, setProducts] = useState<any[]>([]);
   const [recipes, setRecipes] = useState<any[]>([]);
+  const [showQuantityErrors, setShowQuantityErrors] = useState(false);
 
   const fetchRecipe = async () => {
     if (!recipeId) return;
@@ -37,7 +41,7 @@ const normalizedItems = (data.items || []).map(
 
     productId: item.productId || "",
     subRecipeId: item.subRecipeId || "",
-    quantity: Number(item.quantity || 0),
+    quantity: item.quantity ?? "",
   })
 );
 
@@ -124,7 +128,7 @@ setProcesses(data.processes || []);
       itemType: "product",
       productId: "",
       subRecipeId: "",
-      quantity: 0,
+      quantity: "",
     },
   ]);
 };
@@ -148,6 +152,12 @@ setProcesses(data.processes || []);
   };
 
   const saveAll = async () => {
+    setShowQuantityErrors(true);
+    if (!allQuantitiesValid(recipe.items || [])) {
+      showError("Corrige las cantidades antes de guardar la receta");
+      return;
+    }
+
     try {
       await apiFetch(`/recipes/${recipeId}`, {
         method: "PUT",
@@ -196,6 +206,15 @@ setProcesses(data.processes || []);
   let totalSugar = 0;
 
   const detailed = recipe.items.map((item: any) => {
+    const quantityState = classifyQuantity(item.quantity);
+    if (quantityState.status !== "valid") {
+      return {
+        cost: 0,
+        itemName: "",
+      };
+    }
+    const quantity = quantityState.value;
+
     // PRODUCTO
     if (item.itemType === "product") {
       const product = products.find(
@@ -209,9 +228,7 @@ setProcesses(data.processes || []);
         };
       }
 
-      const quantity = Number(item.quantity || 0);
-      const unitCost = Number(product.unitCost || 0);
-      const cost = unitCost * quantity;
+      const cost = calculateProductIngredientCost(quantity, product);
 
       totalCost += cost;
 
@@ -258,8 +275,6 @@ setProcesses(data.processes || []);
           itemName: "",
         };
       }
-
-      const quantity = Number(item.quantity || 0);
 
       const costPerPortion =
         Number(subRecipe.totalCost || 0) /
@@ -582,17 +597,18 @@ else {
           </select>
         )}
 
-        <input
-          type="number"
-          className="border p-2 rounded w-1/4 text-right"
+        <RecipeQuantityField
           value={item.quantity}
-          onChange={(e) =>
-            handleIngredientChange(
-              index,
-              "quantity",
-              Number(e.target.value)
-            )
+          onChange={(value) =>
+            handleIngredientChange(index, "quantity", value)
           }
+          productBaseUnit={
+            item.itemType === "product"
+              ? selectedProduct?.unitOfMeasure
+              : null
+          }
+          isSubRecipe={item.itemType === "recipe"}
+          showIncompleteError={showQuantityErrors}
         />
 
         <button
@@ -602,23 +618,6 @@ else {
           ✕
         </button>
       </div>
-    {item.itemType === "product" && selectedProduct && (
-  <p className="text-xs text-gray-500 mt-2">
-    Unidad: {selectedProduct.unitOfMeasure}
-  </p>
-)}
-
-{item.itemType === "recipe" && (
-  <p className="text-xs text-gray-500 mt-2">
-    Unidad: porciones
-  </p>
-)}
-  
-  
-  
-  
-  
-  
     </div>
   );
 })}

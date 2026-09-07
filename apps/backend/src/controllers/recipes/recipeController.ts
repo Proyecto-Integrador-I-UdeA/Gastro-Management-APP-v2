@@ -1,5 +1,10 @@
 import { Request, Response } from 'express';
 import { MovementType, PrismaClient } from '@prisma/client';
+import {
+  costPerBaseUnit,
+  ingredientCost,
+} from '../../services/pricing/productUnitCost';
+import { InvalidCostComponentError } from '../../services/pricing/pricingErrors';
 
 const prisma = new PrismaClient();
 function calculateRecipeNutrition(
@@ -26,9 +31,7 @@ function calculateRecipeNutrition(
       if (!product) continue;
 
       const quantity = Number(item.quantity || 0);
-      const unitCost = Number(product.unitCost || 0);
-
-      totalCost += unitCost * quantity;
+      totalCost += ingredientCost(quantity, product).toNumber();
 
       totalCalories +=
         (Number(product.caloriesPer100g || 0) *
@@ -458,13 +461,14 @@ const recipeItems = items.map((item: any) => {
       );
     }
 
-    const unitCost = Number(product.unitCost || 0);
+    const unitCost = costPerBaseUnit(product);
+    const totalCost = ingredientCost(quantity, product);
 
     return {
       productId: Number(item.productId),
       quantity,
       unitCost,
-      totalCost: unitCost * quantity,
+      totalCost,
     };
   }
 
@@ -557,6 +561,9 @@ costClassification: nutrition.costClassification,
 
   } catch (error) {
     console.error('Error al crear receta:', error);
+    if (error instanceof InvalidCostComponentError) {
+      return res.status(422).json({ error: error.message });
+    }
     res.status(500).json({ error: 'Error interno al crear receta' });
   }
 };
@@ -664,16 +671,15 @@ costClassification: nutrition.costClassification,
 
           if (!product) continue;
 
-          const unitCost = Number(
-            product.unitCost || 0
-          );
+          const unitCost = costPerBaseUnit(product);
+          const totalCost = ingredientCost(quantity, product);
 
           recipeItems.push({
             recipeId: id,
             productId: Number(item.productId),
             quantity,
             unitCost,
-            totalCost: unitCost * quantity,
+            totalCost,
           });
         }
 
@@ -765,6 +771,10 @@ costClassification: nutrition.costClassification,
       "Error actualizando receta:",
       error
     );
+
+    if (error instanceof InvalidCostComponentError) {
+      return res.status(422).json({ error: error.message });
+    }
 
     res.status(500).json({
       error: "Error interno",

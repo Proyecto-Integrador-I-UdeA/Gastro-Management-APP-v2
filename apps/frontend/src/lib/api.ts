@@ -1,6 +1,6 @@
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://gastro-management-app-production-6187.up.railway.app";
+import { API_BASE_URL } from "@/config/apiBaseUrl";
+
+export const API_URL = API_BASE_URL;
 
 console.log("🌍 BUILD NUEVO EJECUTANDOSE");
 
@@ -21,17 +21,19 @@ export const apiFetch = async (
     throw new Error("API_URL no está configurada");
   }
 
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-    ...(options.headers || {}),
-  };
+  const headers = new Headers(options.headers);
+  const isMultipart = typeof FormData !== "undefined" && options.body instanceof FormData;
+
+  if (!isMultipart && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
 
   if (token && token !== "null") {
-    headers["Authorization"] = `Bearer ${token}`;
+    headers.set("Authorization", `Bearer ${token}`);
   }
 
   try {
-    const url = `${API_URL}${endpoint}`;
+    const url = `${API_URL.replace(/\/+$/, "")}/${endpoint.replace(/^\/+/, "")}`;
     console.log("🚀 Request a:", url);
 
     const res = await fetch(url, {

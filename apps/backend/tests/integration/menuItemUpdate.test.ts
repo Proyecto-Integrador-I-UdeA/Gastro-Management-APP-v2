@@ -13,6 +13,10 @@ async function clearMenuFixtures() {
     select: { id: true },
   });
   const menuItemIds = menuItems.map((item) => item.id);
+  const recipes = await prisma.recipe.findMany({
+    where: { internalCode: { startsWith: MENU_ITEM_PREFIX } },
+    select: { id: true },
+  });
 
   if (menuItemIds.length > 0) {
     await prisma.menuItemComponent.deleteMany({
@@ -22,14 +26,29 @@ async function clearMenuFixtures() {
       where: { id: { in: menuItemIds } },
     });
   }
+
+  if (recipes.length > 0) {
+    await prisma.recipe.deleteMany({
+      where: { id: { in: recipes.map(recipe => recipe.id) } },
+    });
+  }
 }
 
 async function createMenuItemWithComponent(name: string) {
+  const recipe = await prisma.recipe.create({
+    data: {
+      internalCode: `${MENU_ITEM_PREFIX}_${name}`,
+      name: `${name}_recipe`,
+      batchQuantity: 1,
+      portions: 1,
+    },
+  });
+
   return prisma.menuItem.create({
     data: {
       name,
       components: {
-        create: { quantity: 1 },
+        create: { quantity: 1, recipeId: recipe.id },
       },
     },
     include: { components: true },

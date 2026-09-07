@@ -7,11 +7,14 @@ import {
   RecipeCostNotFoundError,
   RecipeCycleError,
 } from './pricingErrors';
+import { ingredientCost } from './productUnitCost';
 
 type DecimalValue = Prisma.Decimal.Value;
 
 export type CostProduct = {
   id: number;
+  inputUnit: string;
+  unitOfMeasure: string;
   unitCost: DecimalValue;
   inputUnitQuantity: DecimalValue;
 };
@@ -87,27 +90,13 @@ function positiveDecimal(value: DecimalValue, field: string): Prisma.Decimal {
   return parsed;
 }
 
-function nonNegativeDecimal(value: DecimalValue, field: string): Prisma.Decimal {
-  const parsed = asDecimal(value, field);
-  if (parsed.lt(0)) {
-    throw new InvalidCostComponentError(`${field} no puede ser negativo`);
-  }
-  return parsed;
-}
-
 function calculateProductCost(
   product: CostProduct,
   quantityValue: DecimalValue,
   context: string,
 ): Prisma.Decimal {
   const quantity = positiveDecimal(quantityValue, `${context}.quantity`);
-  const unitCost = nonNegativeDecimal(product.unitCost, `${context}.product.unitCost`);
-  const inputUnitQuantity = positiveDecimal(
-    product.inputUnitQuantity,
-    `${context}.product.inputUnitQuantity`,
-  );
-
-  return quantity.div(inputUnitQuantity).mul(unitCost);
+  return ingredientCost(quantity, product);
 }
 
 export function createPrismaMenuItemCostDataSource(
@@ -128,6 +117,8 @@ export function createPrismaMenuItemCostDataSource(
               product: {
                 select: {
                   id: true,
+                  inputUnit: true,
+                  unitOfMeasure: true,
                   unitCost: true,
                   inputUnitQuantity: true,
                 },
@@ -152,6 +143,8 @@ export function createPrismaMenuItemCostDataSource(
               product: {
                 select: {
                   id: true,
+                  inputUnit: true,
+                  unitOfMeasure: true,
                   unitCost: true,
                   inputUnitQuantity: true,
                 },
@@ -264,10 +257,10 @@ function calculateIndirectCost(
   return production.gt(0) ? monthlyOverhead.div(production) : new Prisma.Decimal(0);
 }
 
-export async function calculateMenuItemCost(
+export async function calculateMenuItemBaseCost(
   menuItemId: number,
   source: MenuItemCostDataSource = createPrismaMenuItemCostDataSource(),
-): Promise<MenuItemCostResult> {
+): Promise<Prisma.Decimal> {
   const menuItem = await source.getMenuItem(menuItemId);
   if (!menuItem) throw new MenuItemCostNotFoundError();
 
@@ -304,6 +297,15 @@ export async function calculateMenuItemCost(
     );
     baseCost = baseCost.plus(recipe.costPerPortion.mul(quantity));
   }
+
+  return baseCost;
+}
+
+export async function calculateMenuItemCost(
+  menuItemId: number,
+  source: MenuItemCostDataSource = createPrismaMenuItemCostDataSource(),
+): Promise<MenuItemCostResult> {
+  const baseCost = await calculateMenuItemBaseCost(menuItemId, source);
 
   const indirectCost = calculateIndirectCost(
     await source.getLatestOperationalCostConfig(),

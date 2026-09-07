@@ -6,6 +6,7 @@ import { createIntegrationToken } from './authToken';
 
 const PREFIX = '__sales_04a2__';
 const RATE_BODY = { marginRate: '0.400000', taxRate: '0.190000' };
+const costsReadToken = createIntegrationToken(['costs.read']);
 
 async function clearFixtures() {
   const menuItems = await prisma.menuItem.findMany({
@@ -159,7 +160,8 @@ describe('publicación versionada de precios', () => {
   it('usa exactamente los mismos snapshots normalizados en preview y publish', async () => {
     const { actor, menuItem } = await createDirectMenuFixture(1.234567);
     const generalCost = await request(app)
-      .get(`/costs/menu-item/${menuItem.id}`);
+      .get(`/costs/menu-item/${menuItem.id}`)
+      .set('Authorization', `Bearer ${costsReadToken}`);
     const preview = await request(app)
       .post(`/costs/menu-items/${menuItem.id}/sale-price/calculate`)
       .set(
@@ -228,7 +230,8 @@ describe('publicación versionada de precios', () => {
   it('mantiene el costo general sin límite de pricing y rechaza sus snapshots con 422', async () => {
     const { actor, menuItem } = await createDirectMenuFixture(10_000_000_000.25);
     const generalCost = await request(app)
-      .get(`/costs/menu-item/${menuItem.id}`);
+      .get(`/costs/menu-item/${menuItem.id}`)
+      .set('Authorization', `Bearer ${costsReadToken}`);
     const preview = await request(app)
       .post(`/costs/menu-items/${menuItem.id}/sale-price/calculate`)
       .set(
@@ -390,6 +393,60 @@ describe('publicación versionada de precios', () => {
 });
 
 describe('costos recursivos en la API oficial', () => {
+  it('convierte la presentación del producto en receta, MenuItem, preview y publicación', async () => {
+    const { actor, product, menuItem } = await createDirectMenuFixture(18_000);
+    await prisma.product.update({
+      where: { id: product.id },
+      data: { inputUnit: 'kg', inputUnitQuantity: 1, unitOfMeasure: 'g' },
+    });
+    await prisma.menuItemComponent.updateMany({
+      where: { menuItemId: menuItem.id },
+      data: { quantity: 200 },
+    });
+    const recipe = await prisma.recipe.create({
+      data: {
+        internalCode: `${PREFIX}RECIPE_CONVERSION`,
+        name: `${PREFIX} receta convertida`,
+        batchQuantity: 1,
+        portions: 1,
+        items: {
+          create: {
+            productId: product.id,
+            quantity: 200,
+            unitCost: 18,
+            totalCost: 3600,
+          },
+        },
+      },
+    });
+
+    const recipeCost = await request(app)
+      .get(`/costs/recipe/${recipe.id}`)
+      .set('Authorization', `Bearer ${costsReadToken}`);
+    const menuCost = await request(app)
+      .get(`/costs/menu-item/${menuItem.id}`)
+      .set('Authorization', `Bearer ${costsReadToken}`);
+    const preview = await request(app)
+      .post(`/costs/menu-items/${menuItem.id}/sale-price/calculate`)
+      .set('Authorization', `Bearer ${createIntegrationToken(['costs.prices.read'], actor.id)}`)
+      .send({ marginRate: '0', taxRate: '0' });
+    const published = await request(app)
+      .post(`/costs/menu-items/${menuItem.id}/sale-price`)
+      .set('Authorization', `Bearer ${createIntegrationToken(['costs.prices.manage'], actor.id)}`)
+      .send({ marginRate: '0', taxRate: '0' });
+
+    expect(recipeCost.status).toBe(200);
+    expect(recipeCost.body.totalCost).toBe(3600);
+    expect(menuCost.status).toBe(200);
+    expect(menuCost.body.baseCost).toBe(3600);
+    expect(preview.status).toBe(200);
+    expect(preview.body.cost.baseCost).toBe('3600.0000');
+    expect(preview.body.cost.totalCost).toBe('8600.0000');
+    expect(published.status).toBe(201);
+    expect(published.body.cost).toEqual(preview.body.cost);
+    expect(published.body.pricing).toEqual(preview.body.pricing);
+  });
+
   it('calcula una subreceta mediante el endpoint de preview', async () => {
     const product = await createProductFixture(100);
     const leaf = await prisma.recipe.create({

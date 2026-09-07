@@ -1,34 +1,65 @@
 "use client";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import Button from "@/components/Button";
 import { showError, showSuccess } from "@/utils/toast";
 import { apiFetch } from "@/lib/api";
+import { getUserPermissions } from "@/utils/permissions";
+import { calculateProductIngredientCost } from "@/lib/productUnits";
+import { useAuthoritativeRecipeCosts } from "@/hooks/useAuthoritativeRecipeCosts";
+import {
+  allQuantitiesValid,
+  classifyQuantity,
+  quantityError,
+  quantityInputValue,
+} from "@/lib/quantityInput";
+import MenuItemImageField from "@/components/menu/MenuItemImageField";
 
 export default function CreateMenuItemPage() {
   const router = useRouter();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [kind, setKind] = useState<"STANDARD" | "ADDITION">("STANDARD");
+  const [available, setAvailable] = useState(true);
+  const [includedItemsText, setIncludedItemsText] = useState("");
   const [hasDrink, setHasDrink] = useState(false);
   const [hasDessert, setHasDessert] = useState(false);
+  const [categoryId, setCategoryId] = useState("");
+  const [categories, setCategories] = useState<any[]>([]);
+  const [canManage, setCanManage] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const savingRef = useRef(false);
 
   const [products, setProducts] = useState<any[]>([]);
   const [recipes, setRecipes] = useState<any[]>([]);
   const [components, setComponents] = useState<any[]>([]);
+  const [showQuantityErrors, setShowQuantityErrors] = useState(false);
+  const authoritativeRecipeCosts = useAuthoritativeRecipeCosts(recipes);
 
   // 🔥 cargar productos y recetas (FILTRANDO ACTIVAS)
   useEffect(() => {
+    setCanManage(getUserPermissions().includes("menu.manage"));
+
     const fetchData = async () => {
       try {
-        const productsData = await apiFetch("/products");
-        const recipesData = await apiFetch("/recipes");
+        const [productsData, recipesData, categoriesData] = await Promise.all([
+          apiFetch("/products"),
+          apiFetch("/recipes"),
+          apiFetch("/menu-categories"),
+        ]);
 
         setProducts(Array.isArray(productsData) ? productsData : []);
 
         const list = Array.isArray(recipesData) ? recipesData : [];
         setRecipes(list.filter((r: any) => r.active === true));
+        setCategories(
+          Array.isArray(categoriesData)
+            ? categoriesData.filter((category: any) => category.active === true)
+            : [],
+        );
 
       } catch (error) {
         console.error(error);
@@ -68,7 +99,9 @@ let vegetableComponents = 0;
 let fatComponents = 0;
 
   components.forEach((item) => {
-    const quantity = Number(item.quantity || 1);
+    const quantityState = classifyQuantity(item.quantity);
+    if (quantityState.status !== "valid") return;
+    const quantity = quantityState.value;
 
     // INGREDIENTE DIRECTO
    // INGREDIENTE DIRECTO
@@ -145,12 +178,9 @@ if (item.productId) {
     }
   }
 
-  const quantity = Number(item.quantity || 0);
-
   const factor = quantity / 100;
 
-  const cost =
-    Number(product.costPerUnit || 0) * quantity;
+  const cost = calculateProductIngredientCost(quantity, product);
 
   const calories =
     Number(product.caloriesPer100g || 0) * factor;
@@ -213,15 +243,10 @@ else if (recipe.nutritionRole === "VEGETABLE_BASE") {
   vegetableComponents++;
 }
 
-     const recipePortions =
-     Number(recipe.portions || 1);
-
-    const costPerPortion =
-    recipePortions > 0
-    ? Number(recipe.totalCost || 0) / recipePortions
-    : 0;
-
-const cost = costPerPortion * quantity;
+      const recipeCost = authoritativeRecipeCosts[recipe.id];
+      const cost = recipeCost?.status === "ready"
+        ? recipeCost.costPerPortion * quantity
+        : 0;
      
 
       const calories =
@@ -335,7 +360,7 @@ let nutritionScore = 100 - alerts.length * 8;
     nutritionScore,
     alerts,
   };
-}, [components, products, recipes]);
+}, [authoritativeRecipeCosts, components, products, recipes]);
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("es-CO", {
@@ -345,32 +370,67 @@ let nutritionScore = 100 - alerts.length * 8;
     }).format(value || 0);
 
  const handleSubmit = async () => {
+  if (savingRef.current) return;
+  setShowQuantityErrors(true);
+  if (!allQuantitiesValid(components)) {
+    showError("Corrige las cantidades antes de guardar el plato");
+    return;
+  }
+
+  savingRef.current = true;
+  setIsSaving(true);
   try {
-    await apiFetch("/menu-items", {
-      method: "POST",
-      body: JSON.stringify({
-        name,
-        description,
-        hasDrink,
-        hasDessert,
-        components,
+    let imageAssetId: number | undefined;
+    if (imageFile) {
+      try {
+        const multipart = new FormData();
+        multipart.append("image", imageFile);
+        const uploaded = await apiFetch("/menu-media/images", {
+          method: "POST",
+          body: multipart,
+        });
+        imageAssetId = uploaded.assetId;
+      } catch (error) {
+        console.error("Error cargando imagen:", error);
+        showError("No fue posible cargar la imagen. Inténtalo nuevamente.");
+        return;
+      }
+    }
 
-        totalCost: analytics.totalCost,
-        caloriesPerPortion: analytics.totalCalories,
-        proteinPerPortion: analytics.totalProtein,
-        carbsPerPortion: analytics.totalCarbs,
-        fatPerPortion: analytics.totalFat,
-        sodiumPerPortion: analytics.totalSodium,
-        sugarPerPortion: analytics.totalSugar,
-        nutritionScore: analytics.nutritionScore,
-      }),
-    });
+    try {
+      await apiFetch("/menu-items", {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          description,
+          kind,
+          available,
+          includedItemsText: includedItemsText.trim() || null,
+          hasDrink,
+          hasDessert,
+          categoryId: categoryId === "" ? null : Number(categoryId),
+          components,
+          ...(imageAssetId !== undefined && { imageAssetId }),
 
-    showSuccess("Plato creado correctamente");
-    router.push("/menu");
-  } catch (error) {
-    console.error(error);
-    showError("Error al crear plato");
+          caloriesPerPortion: analytics.totalCalories,
+          proteinPerPortion: analytics.totalProtein,
+          carbsPerPortion: analytics.totalCarbs,
+          fatPerPortion: analytics.totalFat,
+          sodiumPerPortion: analytics.totalSodium,
+          sugarPerPortion: analytics.totalSugar,
+          nutritionScore: analytics.nutritionScore,
+        }),
+      });
+
+      showSuccess("Plato creado correctamente");
+      router.push("/menu");
+    } catch (error) {
+      console.error(error);
+      showError("Error al crear plato");
+    }
+  } finally {
+    savingRef.current = false;
+    setIsSaving(false);
   }
 };
  
@@ -398,6 +458,79 @@ let nutritionScore = 100 - alerts.length * 8;
             placeholder="Descripción"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+          />
+
+          <div>
+            <label className="mb-1 block text-sm font-semibold text-slate-700" htmlFor="menu-item-kind">
+              Tipo de artículo
+            </label>
+            <select
+              id="menu-item-kind"
+              className="w-full rounded border bg-white p-2"
+              value={kind}
+              onChange={(event) => setKind(event.target.value as "STANDARD" | "ADDITION")}
+              disabled={!canManage || isSaving}
+            >
+              <option value="STANDARD">Plato / producto del menú</option>
+              <option value="ADDITION">Adición</option>
+            </select>
+          </div>
+
+          <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-[#001F3F]"
+              checked={available}
+              onChange={(event) => setAvailable(event.target.checked)}
+              disabled={!canManage || isSaving}
+            />
+            Disponible para la venta
+          </label>
+
+          <div>
+            <label className="mb-1 block text-sm font-semibold text-slate-700" htmlFor="included-items-text">
+              ¿Qué incluye?
+            </label>
+            <textarea
+              id="included-items-text"
+              className="w-full rounded border p-2"
+              value={includedItemsText}
+              onChange={(event) => setIncludedItemsText(event.target.value)}
+              placeholder="Incluye ensalada fresca y acompañamiento de papa."
+              maxLength={500}
+              rows={2}
+              disabled={!canManage || isSaving}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-semibold text-slate-700" htmlFor="menu-category">
+              Categoría
+            </label>
+            <select
+              id="menu-category"
+              className="w-full rounded border bg-white p-2"
+              value={categoryId}
+              onChange={(event) => setCategoryId(event.target.value)}
+              disabled={!canManage}
+            >
+              <option value="">-- Seleccionar categoría --</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-sm text-amber-700">
+              Los platos sin categoría no estarán disponibles para la venta.
+            </p>
+          </div>
+
+          <MenuItemImageField
+            itemName={name}
+            selectedFile={imageFile}
+            onSelectedFileChange={setImageFile}
+            disabled={!canManage || isSaving}
           />
 
           <div className="flex gap-4">
@@ -430,8 +563,8 @@ let nutritionScore = 100 - alerts.length * 8;
     + Agregar componente
   </Button>
 
-  <Button onClick={handleSubmit}>
-    Guardar Plato
+  <Button onClick={handleSubmit} disabled={!canManage || isSaving}>
+    {isSaving ? "Guardando..." : "Guardar Plato"}
   </Button>
 </div> 
   {components.map((item, index) => {
@@ -442,6 +575,9 @@ let nutritionScore = 100 - alerts.length * 8;
     const selectedRecipe = recipes.find(
       (r) => r.id === Number(item.recipeId)
     );
+    const selectedRecipeCost = selectedRecipe
+      ? authoritativeRecipeCosts[selectedRecipe.id]
+      : undefined;
 
     return (
       <div
@@ -502,16 +638,22 @@ let nutritionScore = 100 - alerts.length * 8;
 
           <input
             type="number"
-            min="1"
+            min="0"
+            step="any"
             className="border p-2 rounded w-1/4 text-right"
-            value={item.quantity}
+            value={
+              typeof item.quantity === "number" && Number.isFinite(item.quantity)
+                ? item.quantity
+                : ""
+            }
             onChange={(e) =>
               handleComponentChange(
                 index,
                 "quantity",
-                Number(e.target.value)
+                quantityInputValue(e.target.value)
               )
             }
+            aria-invalid={quantityError(item.quantity, showQuantityErrors) ? "true" : "false"}
           />
 
           <button
@@ -528,6 +670,12 @@ let nutritionScore = 100 - alerts.length * 8;
           </button>
         </div>
 
+        {quantityError(item.quantity, showQuantityErrors) && (
+          <p className="mt-1 text-xs text-red-600" role="alert">
+            {quantityError(item.quantity, showQuantityErrors)}
+          </p>
+        )}
+
         {selectedProduct && (
           <p className="text-xs text-gray-500 mt-2">
             Ingrediente directo · unidad:{" "}
@@ -536,10 +684,25 @@ let nutritionScore = 100 - alerts.length * 8;
         )}
 
         {selectedRecipe && (
-          <p className="text-xs text-gray-500 mt-2">
-            Receta preparada · porciones base:{" "}
-            {selectedRecipe.portions}
-          </p>
+          <div className="mt-2 space-y-1 text-xs text-gray-500">
+            <p>
+              Receta preparada · porciones base:{" "}
+              {selectedRecipe.portions}
+            </p>
+            {selectedRecipeCost?.status === "loading" && (
+              <p>Consultando costo actualizado…</p>
+            )}
+            {selectedRecipeCost?.status === "ready" && (
+              <p>
+                Costo por porción: {formatCurrency(selectedRecipeCost.costPerPortion)}
+              </p>
+            )}
+            {selectedRecipeCost?.status === "error" && (
+              <p className="text-red-600" role="alert">
+                {selectedRecipeCost.message}
+              </p>
+            )}
+          </div>
         )}
       </div>
     );
