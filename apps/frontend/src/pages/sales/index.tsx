@@ -25,7 +25,7 @@ const moduleGroups: Array<{
         title: "Mesas y pedidos",
         description: "Abre mesas, registra pedidos y consulta su estado.",
         path: "/sales/orders",
-        available: false,
+        available: true,
       },
       {
         title: "Cocina",

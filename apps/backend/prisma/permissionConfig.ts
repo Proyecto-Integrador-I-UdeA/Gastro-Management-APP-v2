@@ -45,6 +45,7 @@ export const businessPermissions: readonly PermissionDefinition[] = [
   // VENTAS / REPORTES
   { name: 'sales.read', description: 'Ver ventas' },
   { name: 'sales.manage', description: 'Administrar mesas y pedidos de venta' },
+  { name: 'sales.tables.manage', description: 'Configurar mesas del restaurante' },
   { name: 'reports.read', description: 'Ver reportes' },
 
   // INVENTARIO / LOGÍSTICA

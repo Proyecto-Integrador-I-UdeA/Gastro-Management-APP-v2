@@ -355,6 +355,138 @@ describe('backend de mesas y pedidos SALES-02D', () => {
     ]));
   });
 
+  it('protege la configuración de mesas y valida su contrato estricto de creación', async () => {
+    expect((await request(app)
+      .post('/sales/tables')
+      .send({ code: 'ADM-01', capacity: 4 })).status).toBe(401);
+    expect((await request(app)
+      .post('/sales/tables')
+      .set('Authorization', auth(['sales.manage']))
+      .send({ code: 'ADM-01', capacity: 4 })).status).toBe(403);
+
+    const created = await request(app)
+      .post('/sales/tables')
+      .set('Authorization', auth(['sales.tables.manage']))
+      .send({ code: '  ADM-01  ', area: '   ', capacity: 4 });
+    expect(created.status).toBe(201);
+    expect(created.body).toMatchObject({
+      code: 'ADM-01',
+      area: null,
+      capacity: 4,
+      active: true,
+      operationalStatus: 'AVAILABLE',
+      activeOrder: null,
+    });
+
+    expect((await request(app)
+      .post('/sales/tables')
+      .set('Authorization', auth(['sales.tables.manage']))
+      .send({ code: '   ', capacity: 4 })).status).toBe(400);
+    expect((await request(app)
+      .post('/sales/tables')
+      .set('Authorization', auth(['sales.tables.manage']))
+      .send({ code: 'ADM-02', capacity: 0 })).status).toBe(400);
+    expect((await request(app)
+      .post('/sales/tables')
+      .set('Authorization', auth(['sales.tables.manage']))
+      .send({ code: 'ADM-02', capacity: 4, id: 999 })).status).toBe(400);
+
+    const duplicate = await request(app)
+      .post('/sales/tables')
+      .set('Authorization', auth(['sales.tables.manage']))
+      .send({ code: 'ADM-01', capacity: 2 });
+    expect(duplicate.status).toBe(409);
+    expect(duplicate.body).toMatchObject({ code: 'TABLE_CODE_ALREADY_EXISTS' });
+  });
+
+  it('actualiza únicamente metadatos permitidos y controla mesa inexistente', async () => {
+    const table = await createTable(true, 'Área anterior');
+    const updated = await request(app)
+      .patch(`/sales/tables/${table.id}`)
+      .set('Authorization', auth(['sales.tables.manage']))
+      .send({ code: '  NUEVA-01 ', area: '  Patio  ', capacity: 8 });
+
+    expect(updated.status).toBe(200);
+    expect(updated.body).toMatchObject({
+      id: table.id,
+      code: 'NUEVA-01',
+      area: 'Patio',
+      capacity: 8,
+      active: true,
+    });
+    expect((await request(app)
+      .patch(`/sales/tables/${table.id}`)
+      .set('Authorization', auth(['sales.tables.manage']))
+      .send({})).status).toBe(400);
+    expect((await request(app)
+      .patch(`/sales/tables/${table.id}`)
+      .set('Authorization', auth(['sales.tables.manage']))
+      .send({ openedById: actorId })).status).toBe(400);
+
+    const missing = await request(app)
+      .patch('/sales/tables/999999')
+      .set('Authorization', auth(['sales.tables.manage']))
+      .send({ capacity: 2 });
+    expect(missing.status).toBe(404);
+    expect(missing.body).toMatchObject({ code: 'TABLE_NOT_FOUND' });
+  });
+
+  it('permite activar o desactivar mesas libres y refleja OUT_OF_SERVICE', async () => {
+    const table = await createTable();
+    const deactivated = await request(app)
+      .patch(`/sales/tables/${table.id}`)
+      .set('Authorization', auth(['sales.tables.manage']))
+      .send({ active: false });
+    expect(deactivated.status).toBe(200);
+    expect(deactivated.body).toMatchObject({
+      active: false,
+      operationalStatus: 'OUT_OF_SERVICE',
+    });
+
+    const list = await request(app)
+      .get('/sales/tables')
+      .set('Authorization', auth(['sales.read']));
+    expect(list.body.tables).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: table.id,
+        active: false,
+        operationalStatus: 'OUT_OF_SERVICE',
+      }),
+    ]));
+
+    const reactivated = await request(app)
+      .patch(`/sales/tables/${table.id}`)
+      .set('Authorization', auth(['sales.tables.manage']))
+      .send({ active: true });
+    expect(reactivated.body).toMatchObject({
+      active: true,
+      operationalStatus: 'AVAILABLE',
+    });
+  });
+
+  it('rechaza desactivar una mesa con pedido OPEN sin alterar mesa ni orden', async () => {
+    const table = await createTable();
+    const order = await openOrder(table.id, 2);
+
+    const response = await request(app)
+      .patch(`/sales/tables/${table.id}`)
+      .set('Authorization', auth(['sales.tables.manage']))
+      .send({ active: false });
+    expect(response.status).toBe(409);
+    expect(response.body).toMatchObject({
+      code: 'TABLE_HAS_ACTIVE_ORDER',
+      activeOrderId: order.id,
+    });
+    expect(await prisma.diningTable.findUnique({
+      where: { id: table.id },
+      select: { active: true },
+    })).toEqual({ active: true });
+    expect(await prisma.salesOrder.findUnique({
+      where: { id: order.id },
+      select: { status: true },
+    })).toEqual({ status: SalesOrderStatus.OPEN });
+  });
+
   it('abre una mesa con seguridad concurrente y devuelve la orden activa en conflicto', async () => {
     const inactive = await createTable(false);
     const table = await createTable();
