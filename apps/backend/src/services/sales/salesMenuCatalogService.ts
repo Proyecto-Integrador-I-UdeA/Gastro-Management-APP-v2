@@ -2,6 +2,10 @@ import { MenuItemKind, Prisma, PrismaClient } from '@prisma/client';
 import prisma from '../../lib/prisma';
 import type { MediaStorage } from '../media/mediaStorage';
 import { getMediaStorage } from '../media/mediaStorageProvider';
+import {
+  currentPublishedMenuItemPriceWhere,
+  salesCatalogMenuItemWhere,
+} from './salesCommercialPolicy';
 
 type CatalogPriceRecord = {
   amount: Prisma.Decimal.Value;
@@ -83,12 +87,7 @@ export function createPrismaSalesMenuCatalogDataSource(
   return {
     async listSaleableMenuItems() {
       const items = await client.menuItem.findMany({
-        where: {
-          active: true,
-          categoryId: { not: null },
-          category: { is: { active: true } },
-          prices: { some: { validUntil: null } },
-        },
+        where: salesCatalogMenuItemWhere,
         select: {
           id: true,
           name: true,
@@ -114,7 +113,7 @@ export function createPrismaSalesMenuCatalogDataSource(
             },
           },
           prices: {
-            where: { validUntil: null },
+            where: currentPublishedMenuItemPriceWhere,
             select: {
               amount: true,
               currency: true,

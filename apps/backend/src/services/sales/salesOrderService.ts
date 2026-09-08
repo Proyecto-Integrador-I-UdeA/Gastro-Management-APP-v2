@@ -1,0 +1,623 @@
+import {
+  MenuItemKind,
+  Prisma,
+  PrismaClient,
+  SalesOrderStatus,
+} from '@prisma/client';
+import prisma from '../../lib/prisma';
+import type {
+  AddExistingOrderItemAdditionInput,
+  AddOrderItemInput,
+  UpdateOrderItemInput,
+} from '../../schemas/salesOrderSchema';
+import { currentPublishedMenuItemPriceWhere } from './salesCommercialPolicy';
+
+type SalesClient = PrismaClient | Prisma.TransactionClient;
+
+export class SalesOperationError extends Error {
+  constructor(
+    public readonly code: string,
+    public readonly status: number,
+    message: string,
+    public readonly details?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = 'SalesOperationError';
+  }
+}
+
+const orderDetailSelect = {
+  id: true,
+  status: true,
+  guestCount: true,
+  openedAt: true,
+  billRequestedAt: true,
+  diningTable: {
+    select: {
+      id: true,
+      code: true,
+      area: true,
+      capacity: true,
+      active: true,
+    },
+  },
+  openedBy: {
+    select: {
+      id: true,
+      fullName: true,
+    },
+  },
+  items: {
+    orderBy: { id: 'asc' as const },
+    select: {
+      id: true,
+      menuItemId: true,
+      menuItemNameSnapshot: true,
+      quantity: true,
+      specialInstructions: true,
+      unitPriceSnapshot: true,
+      currencySnapshot: true,
+      taxIncludedSnapshot: true,
+      parentItemId: true,
+    },
+  },
+} satisfies Prisma.SalesOrderSelect;
+
+type OrderDetailRecord = Prisma.SalesOrderGetPayload<{
+  select: typeof orderDetailSelect;
+}>;
+
+type OrderItemRecord = OrderDetailRecord['items'][number];
+
+function money(value: Prisma.Decimal.Value): string {
+  return new Prisma.Decimal(value).toFixed(2);
+}
+
+function lineSubtotal(item: OrderItemRecord): Prisma.Decimal {
+  return new Prisma.Decimal(item.unitPriceSnapshot).mul(item.quantity);
+}
+
+function toAdditionDto(item: OrderItemRecord) {
+  return {
+    id: item.id,
+    menuItemId: item.menuItemId,
+    name: item.menuItemNameSnapshot,
+    quantity: item.quantity,
+    specialInstructions: item.specialInstructions,
+    unitPrice: money(item.unitPriceSnapshot),
+    currency: item.currencySnapshot,
+    taxIncluded: item.taxIncludedSnapshot,
+    lineSubtotal: lineSubtotal(item).toFixed(2),
+  };
+}
+
+export function toSalesOrderDto(order: OrderDetailRecord) {
+  const currencies = new Set(order.items.map(item => item.currencySnapshot));
+  if (currencies.size > 1) {
+    throw new SalesOperationError(
+      'ORDER_DATA_INCONSISTENT',
+      500,
+      'La orden contiene monedas inconsistentes',
+    );
+  }
+
+  const additionsByParent = new Map<number, OrderItemRecord[]>();
+  for (const item of order.items) {
+    if (item.parentItemId !== null) {
+      const additions = additionsByParent.get(item.parentItemId) ?? [];
+      additions.push(item);
+      additionsByParent.set(item.parentItemId, additions);
+    }
+  }
+
+  const subtotal = order.items.reduce(
+    (total, item) => total.add(lineSubtotal(item)),
+    new Prisma.Decimal(0),
+  );
+  const currency = currencies.values().next().value ?? null;
+
+  return {
+    id: order.id,
+    status: order.status,
+    table: order.diningTable,
+    guestCount: order.guestCount,
+    openedAt: order.openedAt.toISOString(),
+    billRequestedAt: order.billRequestedAt?.toISOString() ?? null,
+    openedBy: order.openedBy,
+    items: order.items
+      .filter(item => item.parentItemId === null)
+      .map(item => ({
+        ...toAdditionDto(item),
+        additions: (additionsByParent.get(item.id) ?? []).map(toAdditionDto),
+      })),
+    totals: {
+      subtotal: subtotal.toFixed(2),
+      total: subtotal.toFixed(2),
+      currency,
+    },
+  };
+}
+
+async function findOrderRecord(client: SalesClient, orderId: number) {
+  return client.salesOrder.findUnique({
+    where: { id: orderId },
+    select: orderDetailSelect,
+  });
+}
+
+async function requireOrderRecord(client: SalesClient, orderId: number) {
+  const order = await findOrderRecord(client, orderId);
+  if (!order) {
+    throw new SalesOperationError('ORDER_NOT_FOUND', 404, 'Orden no encontrada');
+  }
+  return order;
+}
+
+async function lockOpenOrder(transaction: Prisma.TransactionClient, orderId: number) {
+  const rows = await transaction.$queryRaw<Array<{
+    id: number;
+    status: SalesOrderStatus;
+  }>>`
+    SELECT "id", "status"
+    FROM "sales_orders"
+    WHERE "id" = ${orderId}
+    FOR UPDATE
+  `;
+
+  if (rows.length === 0) {
+    throw new SalesOperationError('ORDER_NOT_FOUND', 404, 'Orden no encontrada');
+  }
+  if (rows[0].status !== SalesOrderStatus.OPEN) {
+    throw new SalesOperationError('ORDER_NOT_OPEN', 409, 'La orden ya no está abierta');
+  }
+}
+
+type ResolvedCommercialItem = {
+  id: number;
+  name: string;
+  kind: MenuItemKind;
+  price: {
+    id: number;
+    amount: Prisma.Decimal;
+    currency: string;
+    taxIncluded: boolean;
+  };
+};
+
+async function resolveCommercialItem(
+  transaction: Prisma.TransactionClient,
+  menuItemId: number,
+  expectedKind: MenuItemKind,
+): Promise<ResolvedCommercialItem> {
+  const item = await transaction.menuItem.findUnique({
+    where: { id: menuItemId },
+    select: {
+      id: true,
+      name: true,
+      active: true,
+      available: true,
+      kind: true,
+      category: { select: { active: true } },
+      prices: {
+        where: currentPublishedMenuItemPriceWhere,
+        orderBy: [{ validFrom: 'desc' }, { id: 'desc' }],
+        take: 2,
+        select: {
+          id: true,
+          amount: true,
+          currency: true,
+          taxIncluded: true,
+        },
+      },
+    },
+  });
+
+  if (!item) {
+    throw new SalesOperationError(
+      'MENU_ITEM_NOT_FOUND',
+      404,
+      'Producto de menú no encontrado',
+    );
+  }
+  if (!item.active || !item.category?.active) {
+    throw new SalesOperationError(
+      'MENU_ITEM_NOT_SALEABLE',
+      409,
+      'El producto no está habilitado comercialmente',
+    );
+  }
+  if (!item.available) {
+    throw new SalesOperationError(
+      'MENU_ITEM_UNAVAILABLE',
+      409,
+      'El producto está agotado',
+    );
+  }
+  if (item.kind !== expectedKind) {
+    const isAddition = expectedKind === MenuItemKind.ADDITION;
+    throw new SalesOperationError(
+      isAddition ? 'ADDITION_KIND_REQUIRED' : 'MENU_ITEM_NOT_SALEABLE',
+      409,
+      isAddition
+        ? 'El producto seleccionado no es una adición'
+        : 'Una adición no puede agregarse como línea principal',
+    );
+  }
+  if (item.prices.length === 0) {
+    throw new SalesOperationError(
+      'MENU_ITEM_PRICE_NOT_FOUND',
+      409,
+      'El producto no tiene un precio publicado vigente',
+    );
+  }
+  if (item.prices.length > 1) {
+    throw new SalesOperationError(
+      'MENU_ITEM_NOT_SALEABLE',
+      409,
+      'El producto tiene más de un precio publicado vigente',
+    );
+  }
+
+  return {
+    id: item.id,
+    name: item.name,
+    kind: item.kind,
+    price: item.prices[0],
+  };
+}
+
+async function ensureOrderCurrency(
+  transaction: Prisma.TransactionClient,
+  orderId: number,
+  resolvedItems: readonly ResolvedCommercialItem[],
+) {
+  const currentLine = await transaction.salesOrderItem.findFirst({
+    where: { salesOrderId: orderId },
+    orderBy: { id: 'asc' },
+    select: { currencySnapshot: true },
+  });
+  const expectedCurrency = currentLine?.currencySnapshot ?? resolvedItems[0]?.price.currency;
+
+  if (
+    expectedCurrency
+    && resolvedItems.some(item => item.price.currency !== expectedCurrency)
+  ) {
+    throw new SalesOperationError(
+      'ORDER_CURRENCY_MISMATCH',
+      409,
+      'La moneda del producto no coincide con la moneda de la orden',
+      { currency: expectedCurrency },
+    );
+  }
+}
+
+function createLineData(
+  orderId: number,
+  item: ResolvedCommercialItem,
+  quantity: number,
+  specialInstructions: string | null | undefined,
+  actorId: number,
+  parentItemId?: number,
+): Prisma.SalesOrderItemUncheckedCreateInput {
+  return {
+    salesOrderId: orderId,
+    menuItemId: item.id,
+    menuItemPriceId: item.price.id,
+    menuItemNameSnapshot: item.name,
+    quantity,
+    specialInstructions: specialInstructions ?? null,
+    unitPriceSnapshot: item.price.amount,
+    currencySnapshot: item.price.currency,
+    taxIncludedSnapshot: item.price.taxIncluded,
+    addedById: actorId,
+    parentItemId: parentItemId ?? null,
+  };
+}
+
+export async function listSalesTables(client: SalesClient = prisma) {
+  const tables = await client.diningTable.findMany({
+    orderBy: [{ area: 'asc' }, { code: 'asc' }, { id: 'asc' }],
+    select: {
+      id: true,
+      code: true,
+      area: true,
+      capacity: true,
+      active: true,
+      salesOrders: {
+        where: { status: SalesOrderStatus.OPEN },
+        take: 1,
+        select: {
+          id: true,
+          guestCount: true,
+          openedAt: true,
+          billRequestedAt: true,
+          openedBy: { select: { id: true, fullName: true } },
+        },
+      },
+    },
+  });
+
+  return tables.map(({ salesOrders, ...table }) => {
+    const activeOrder = salesOrders[0] ?? null;
+    return {
+      ...table,
+      operationalStatus: activeOrder
+        ? 'OCCUPIED'
+        : table.active ? 'AVAILABLE' : 'OUT_OF_SERVICE',
+      activeOrder: activeOrder
+        ? {
+            ...activeOrder,
+            openedAt: activeOrder.openedAt.toISOString(),
+            billRequestedAt: activeOrder.billRequestedAt?.toISOString() ?? null,
+          }
+        : null,
+    };
+  });
+}
+
+export async function getSalesOrder(orderId: number, client: SalesClient = prisma) {
+  return toSalesOrderDto(await requireOrderRecord(client, orderId));
+}
+
+export async function getActiveSalesOrderByTable(
+  tableId: number,
+  client: SalesClient = prisma,
+) {
+  const table = await client.diningTable.findUnique({
+    where: { id: tableId },
+    select: {
+      id: true,
+      salesOrders: {
+        where: { status: SalesOrderStatus.OPEN },
+        take: 1,
+        select: { id: true },
+      },
+    },
+  });
+  if (!table) {
+    throw new SalesOperationError('TABLE_NOT_FOUND', 404, 'Mesa no encontrada');
+  }
+  const activeOrder = table.salesOrders[0];
+  if (!activeOrder) {
+    throw new SalesOperationError(
+      'ACTIVE_ORDER_NOT_FOUND',
+      404,
+      'La mesa no tiene una orden activa',
+    );
+  }
+  return getSalesOrder(activeOrder.id, client);
+}
+
+export async function openSalesTable(
+  tableId: number,
+  guestCount: number | undefined,
+  actorId: number,
+) {
+  const table = await prisma.diningTable.findUnique({
+    where: { id: tableId },
+    select: { id: true, active: true },
+  });
+  if (!table) {
+    throw new SalesOperationError('TABLE_NOT_FOUND', 404, 'Mesa no encontrada');
+  }
+  if (!table.active) {
+    throw new SalesOperationError(
+      'TABLE_OUT_OF_SERVICE',
+      409,
+      'La mesa está fuera de servicio',
+    );
+  }
+
+  try {
+    const order = await prisma.salesOrder.create({
+      data: {
+        diningTableId: tableId,
+        openedById: actorId,
+        guestCount,
+      },
+      select: { id: true },
+    });
+    return getSalesOrder(order.id);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      const activeOrder = await prisma.salesOrder.findFirst({
+        where: { diningTableId: tableId, status: SalesOrderStatus.OPEN },
+        select: { id: true },
+      });
+      if (activeOrder) {
+        throw new SalesOperationError(
+          'TABLE_ALREADY_OCCUPIED',
+          409,
+          'La mesa ya tiene una orden activa',
+          { activeOrderId: activeOrder.id },
+        );
+      }
+    }
+    throw error;
+  }
+}
+
+export async function addSalesOrderItem(
+  orderId: number,
+  input: AddOrderItemInput,
+  actorId: number,
+) {
+  return prisma.$transaction(async transaction => {
+    await lockOpenOrder(transaction, orderId);
+    const principal = await resolveCommercialItem(
+      transaction,
+      input.menuItemId,
+      MenuItemKind.STANDARD,
+    );
+    const additions = await Promise.all((input.additions ?? []).map(async addition => ({
+      input: addition,
+      item: await resolveCommercialItem(
+        transaction,
+        addition.menuItemId,
+        MenuItemKind.ADDITION,
+      ),
+    })));
+    await ensureOrderCurrency(
+      transaction,
+      orderId,
+      [principal, ...additions.map(addition => addition.item)],
+    );
+
+    const principalLine = await transaction.salesOrderItem.create({
+      data: createLineData(
+        orderId,
+        principal,
+        input.quantity,
+        input.specialInstructions,
+        actorId,
+      ),
+      select: { id: true },
+    });
+    if (additions.length > 0) {
+      await transaction.salesOrderItem.createMany({
+        data: additions.map(addition => createLineData(
+          orderId,
+          addition.item,
+          addition.input.quantity ?? input.quantity,
+          addition.input.specialInstructions,
+          actorId,
+          principalLine.id,
+        )),
+      });
+    }
+
+    return getSalesOrder(orderId, transaction);
+  });
+}
+
+export async function addSalesOrderItemAddition(
+  orderId: number,
+  itemId: number,
+  input: AddExistingOrderItemAdditionInput,
+  actorId: number,
+) {
+  return prisma.$transaction(async transaction => {
+    await lockOpenOrder(transaction, orderId);
+    const parent = await transaction.salesOrderItem.findFirst({
+      where: { id: itemId, salesOrderId: orderId },
+      select: { id: true, quantity: true, parentItemId: true },
+    });
+    if (!parent) {
+      throw new SalesOperationError(
+        'ORDER_ITEM_NOT_FOUND',
+        404,
+        'Línea de orden no encontrada',
+      );
+    }
+    if (parent.parentItemId !== null) {
+      throw new SalesOperationError(
+        'NESTED_ADDITION_NOT_ALLOWED',
+        409,
+        'No se pueden agregar adiciones a otra adición',
+      );
+    }
+
+    const addition = await resolveCommercialItem(
+      transaction,
+      input.menuItemId,
+      MenuItemKind.ADDITION,
+    );
+    await ensureOrderCurrency(transaction, orderId, [addition]);
+    await transaction.salesOrderItem.create({
+      data: createLineData(
+        orderId,
+        addition,
+        input.quantity ?? parent.quantity,
+        input.specialInstructions,
+        actorId,
+        parent.id,
+      ),
+    });
+
+    return getSalesOrder(orderId, transaction);
+  });
+}
+
+export async function updateSalesOrderItem(
+  orderId: number,
+  itemId: number,
+  input: UpdateOrderItemInput,
+) {
+  return prisma.$transaction(async transaction => {
+    await lockOpenOrder(transaction, orderId);
+    const item = await transaction.salesOrderItem.findFirst({
+      where: { id: itemId, salesOrderId: orderId },
+      select: { id: true },
+    });
+    if (!item) {
+      throw new SalesOperationError(
+        'ORDER_ITEM_NOT_FOUND',
+        404,
+        'Línea de orden no encontrada',
+      );
+    }
+    await transaction.salesOrderItem.update({
+      where: { id: item.id },
+      data: {
+        ...(input.quantity !== undefined && { quantity: input.quantity }),
+        ...(input.specialInstructions !== undefined && {
+          specialInstructions: input.specialInstructions,
+        }),
+      },
+    });
+    return getSalesOrder(orderId, transaction);
+  });
+}
+
+export async function deleteSalesOrderItem(orderId: number, itemId: number) {
+  return prisma.$transaction(async transaction => {
+    await lockOpenOrder(transaction, orderId);
+    const item = await transaction.salesOrderItem.findFirst({
+      where: { id: itemId, salesOrderId: orderId },
+      select: { id: true, parentItemId: true },
+    });
+    if (!item) {
+      throw new SalesOperationError(
+        'ORDER_ITEM_NOT_FOUND',
+        404,
+        'Línea de orden no encontrada',
+      );
+    }
+    if (item.parentItemId === null) {
+      await transaction.salesOrderItem.deleteMany({ where: { parentItemId: item.id } });
+    }
+    await transaction.salesOrderItem.delete({ where: { id: item.id } });
+    return getSalesOrder(orderId, transaction);
+  });
+}
+
+export async function updateSalesOrderGuestCount(
+  orderId: number,
+  guestCount: number | null,
+) {
+  return prisma.$transaction(async transaction => {
+    await lockOpenOrder(transaction, orderId);
+    await transaction.salesOrder.update({
+      where: { id: orderId },
+      data: { guestCount },
+    });
+    return getSalesOrder(orderId, transaction);
+  });
+}
+
+export async function requestSalesOrderBill(orderId: number) {
+  return prisma.$transaction(async transaction => {
+    await lockOpenOrder(transaction, orderId);
+    const order = await transaction.salesOrder.findUnique({
+      where: { id: orderId },
+      select: { billRequestedAt: true },
+    });
+    if (order?.billRequestedAt === null) {
+      await transaction.salesOrder.update({
+        where: { id: orderId },
+        data: { billRequestedAt: new Date() },
+      });
+    }
+    return getSalesOrder(orderId, transaction);
+  });
+}
