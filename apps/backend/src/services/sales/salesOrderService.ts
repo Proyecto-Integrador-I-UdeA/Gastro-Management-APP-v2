@@ -8,6 +8,8 @@ import prisma from '../../lib/prisma';
 import type {
   AddExistingOrderItemAdditionInput,
   AddOrderItemInput,
+  CreateDiningTableInput,
+  UpdateDiningTableInput,
   UpdateOrderItemInput,
 } from '../../schemas/salesOrderSchema';
 import { currentPublishedMenuItemPriceWhere } from './salesCommercialPolicy';
@@ -314,45 +316,142 @@ function createLineData(
   };
 }
 
+const salesTableSelect = {
+  id: true,
+  code: true,
+  area: true,
+  capacity: true,
+  active: true,
+  salesOrders: {
+    where: { status: SalesOrderStatus.OPEN },
+    take: 1,
+    select: {
+      id: true,
+      guestCount: true,
+      openedAt: true,
+      billRequestedAt: true,
+      openedBy: { select: { id: true, fullName: true } },
+    },
+  },
+} satisfies Prisma.DiningTableSelect;
+
+type SalesTableRecord = Prisma.DiningTableGetPayload<{
+  select: typeof salesTableSelect;
+}>;
+
+function toSalesTableDto({ salesOrders, ...table }: SalesTableRecord) {
+  const activeOrder = salesOrders[0] ?? null;
+  return {
+    ...table,
+    operationalStatus: activeOrder
+      ? 'OCCUPIED'
+      : table.active ? 'AVAILABLE' : 'OUT_OF_SERVICE',
+    activeOrder: activeOrder
+      ? {
+          ...activeOrder,
+          openedAt: activeOrder.openedAt.toISOString(),
+          billRequestedAt: activeOrder.billRequestedAt?.toISOString() ?? null,
+        }
+      : null,
+  };
+}
+
+async function getSalesTable(tableId: number, client: SalesClient) {
+  const table = await client.diningTable.findUnique({
+    where: { id: tableId },
+    select: salesTableSelect,
+  });
+  if (!table) {
+    throw new SalesOperationError('TABLE_NOT_FOUND', 404, 'Mesa no encontrada');
+  }
+  return toSalesTableDto(table);
+}
+
+async function lockDiningTable(
+  transaction: Prisma.TransactionClient,
+  tableId: number,
+) {
+  const rows = await transaction.$queryRaw<Array<{ id: number }>>`
+    SELECT "id"
+    FROM "dining_tables"
+    WHERE "id" = ${tableId}
+    FOR UPDATE
+  `;
+  if (rows.length === 0) {
+    throw new SalesOperationError('TABLE_NOT_FOUND', 404, 'Mesa no encontrada');
+  }
+}
+
+function translateDiningTableWriteError(error: unknown): never {
+  if (error instanceof SalesOperationError) throw error;
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === 'P2002') {
+      throw new SalesOperationError(
+        'TABLE_CODE_ALREADY_EXISTS',
+        409,
+        'Ya existe una mesa con ese código',
+      );
+    }
+    if (error.code === 'P2025') {
+      throw new SalesOperationError('TABLE_NOT_FOUND', 404, 'Mesa no encontrada');
+    }
+  }
+  throw error;
+}
+
 export async function listSalesTables(client: SalesClient = prisma) {
   const tables = await client.diningTable.findMany({
     orderBy: [{ area: 'asc' }, { code: 'asc' }, { id: 'asc' }],
-    select: {
-      id: true,
-      code: true,
-      area: true,
-      capacity: true,
-      active: true,
-      salesOrders: {
-        where: { status: SalesOrderStatus.OPEN },
-        take: 1,
-        select: {
-          id: true,
-          guestCount: true,
-          openedAt: true,
-          billRequestedAt: true,
-          openedBy: { select: { id: true, fullName: true } },
-        },
-      },
-    },
+    select: salesTableSelect,
   });
 
-  return tables.map(({ salesOrders, ...table }) => {
-    const activeOrder = salesOrders[0] ?? null;
-    return {
-      ...table,
-      operationalStatus: activeOrder
-        ? 'OCCUPIED'
-        : table.active ? 'AVAILABLE' : 'OUT_OF_SERVICE',
-      activeOrder: activeOrder
-        ? {
-            ...activeOrder,
-            openedAt: activeOrder.openedAt.toISOString(),
-            billRequestedAt: activeOrder.billRequestedAt?.toISOString() ?? null,
-          }
-        : null,
-    };
-  });
+  return tables.map(toSalesTableDto);
+}
+
+export async function createSalesTable(input: CreateDiningTableInput) {
+  try {
+    const table = await prisma.diningTable.create({
+      data: input,
+      select: { id: true },
+    });
+    return getSalesTable(table.id, prisma);
+  } catch (error) {
+    return translateDiningTableWriteError(error);
+  }
+}
+
+export async function updateSalesTable(
+  tableId: number,
+  input: UpdateDiningTableInput,
+) {
+  try {
+    return await prisma.$transaction(async transaction => {
+      await lockDiningTable(transaction, tableId);
+      if (input.active === false) {
+        const activeOrder = await transaction.salesOrder.findFirst({
+          where: { diningTableId: tableId, status: SalesOrderStatus.OPEN },
+          select: { id: true },
+        });
+        if (activeOrder) {
+          throw new SalesOperationError(
+            'TABLE_HAS_ACTIVE_ORDER',
+            409,
+            'No se puede poner fuera de servicio una mesa con un pedido abierto',
+            { activeOrderId: activeOrder.id },
+          );
+        }
+      }
+
+      await transaction.diningTable.update({
+        where: { id: tableId },
+        data: input,
+        select: { id: true },
+      });
+      return getSalesTable(tableId, transaction);
+    });
+  } catch (error) {
+    return translateDiningTableWriteError(error);
+  }
 }
 
 export async function getSalesOrder(orderId: number, client: SalesClient = prisma) {
@@ -393,32 +492,34 @@ export async function openSalesTable(
   guestCount: number | undefined,
   actorId: number,
 ) {
-  const table = await prisma.diningTable.findUnique({
-    where: { id: tableId },
-    select: { id: true, active: true },
-  });
-  if (!table) {
-    throw new SalesOperationError('TABLE_NOT_FOUND', 404, 'Mesa no encontrada');
-  }
-  if (!table.active) {
-    throw new SalesOperationError(
-      'TABLE_OUT_OF_SERVICE',
-      409,
-      'La mesa está fuera de servicio',
-    );
-  }
-
   try {
-    const order = await prisma.salesOrder.create({
-      data: {
-        diningTableId: tableId,
-        openedById: actorId,
-        guestCount,
-      },
-      select: { id: true },
+    const orderId = await prisma.$transaction(async transaction => {
+      await lockDiningTable(transaction, tableId);
+      const table = await transaction.diningTable.findUnique({
+        where: { id: tableId },
+        select: { active: true },
+      });
+      if (!table?.active) {
+        throw new SalesOperationError(
+          'TABLE_OUT_OF_SERVICE',
+          409,
+          'La mesa está fuera de servicio',
+        );
+      }
+
+      const order = await transaction.salesOrder.create({
+        data: {
+          diningTableId: tableId,
+          openedById: actorId,
+          guestCount,
+        },
+        select: { id: true },
+      });
+      return order.id;
     });
-    return getSalesOrder(order.id);
+    return getSalesOrder(orderId);
   } catch (error) {
+    if (error instanceof SalesOperationError) throw error;
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       const activeOrder = await prisma.salesOrder.findFirst({
         where: { diningTableId: tableId, status: SalesOrderStatus.OPEN },

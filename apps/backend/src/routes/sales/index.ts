@@ -3,6 +3,7 @@ import { listSalesMenuCatalog } from '../../controllers/sales/salesMenuCatalogCo
 import {
   addOrderItem,
   addOrderItemAddition,
+  createTable,
   deleteOrderItem,
   getActiveOrder,
   getOrder,
@@ -11,6 +12,7 @@ import {
   requestBill,
   updateGuestCount,
   updateOrderItem,
+  updateTable,
 } from '../../controllers/sales/salesOrderController';
 import { authenticate, authorize } from '../../middlewares/auth';
 
@@ -24,6 +26,8 @@ router.get(
 );
 
 router.get('/tables', authenticate, authorize(['sales.read']), listTables);
+router.post('/tables', authenticate, authorize(['sales.tables.manage']), createTable);
+router.patch('/tables/:tableId', authenticate, authorize(['sales.tables.manage']), updateTable);
 router.post('/tables/:tableId/orders', authenticate, authorize(['sales.manage']), openTable);
 router.get(
   '/tables/:tableId/active-order',

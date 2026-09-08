@@ -28,7 +28,7 @@ describe('dashboard del módulo de Ventas', () => {
   it('muestra los seis submódulos organizados según el prototipo', async () => {
     render(<SalesDashboardPage />);
 
-    expect(await screen.findByRole('button', { name: /Mesas y pedidos/ })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: /Mesas y pedidos/ })).toBeEnabled();
     expect(screen.getByRole('button', { name: /Cocina/ })).toBeDisabled();
     expect(screen.getByRole('button', { name: /Menú y precios/ })).toBeEnabled();
     expect(screen.getByRole('button', { name: /Caja/ })).toBeDisabled();
@@ -43,6 +43,15 @@ describe('dashboard del módulo de Ventas', () => {
     await user.click(await screen.findByRole('button', { name: /Menú y precios/ }));
 
     expect(mocks.push).toHaveBeenCalledWith('/sales/menu');
+  });
+
+  it('navega desde Mesas y pedidos hacia /sales/orders', async () => {
+    const user = userEvent.setup();
+    render(<SalesDashboardPage />);
+
+    await user.click(await screen.findByRole('button', { name: /Mesas y pedidos/ }));
+
+    expect(mocks.push).toHaveBeenCalledWith('/sales/orders');
   });
 
   it('protege también el dashboard cuando falta sales.read', async () => {
