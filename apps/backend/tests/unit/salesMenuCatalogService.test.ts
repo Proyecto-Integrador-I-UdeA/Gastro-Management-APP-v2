@@ -26,6 +26,7 @@ function record(
       displayOrder: 1,
       active: true,
     },
+    image: null,
     prices: [{
       amount: new Prisma.Decimal('34000.00'),
       currency: 'COP',
@@ -116,6 +117,7 @@ describe('catálogo operacional de ventas', () => {
       kind: 'STANDARD',
       available: true,
       includedItemsText: null,
+      image: null,
       category: { id: 10, name: 'Platos fuertes' },
       price: {
         amount: '34000.00',
@@ -124,6 +126,20 @@ describe('catálogo operacional de ventas', () => {
         validFrom: '2026-09-06T12:00:00.000Z',
       },
     });
+  });
+
+  it('incluye únicamente el resumen público de imagen', () => {
+    const image = {
+      url: 'https://media.example.test/menu/ajiaco.webp',
+      width: 1200,
+      height: 900,
+    };
+
+    const item = buildSalesMenuCatalog([record({ image })]).categories[0].items[0];
+
+    expect(item.image).toEqual(image);
+    expect(item.image).not.toHaveProperty('storageKey');
+    expect(item.image).not.toHaveProperty('assetId');
   });
 
   it('mantiene en el catálogo un item activo temporalmente agotado', () => {

@@ -30,6 +30,7 @@ export const businessPermissions: readonly PermissionDefinition[] = [
   // MENÚ
   { name: 'menu.read', description: 'Consultar menú y categorías' },
   { name: 'menu.manage', description: 'Administrar menú y categorías' },
+  { name: 'menu.availability.manage', description: 'Administrar disponibilidad operativa del menú' },
 
   // COSTOS
   { name: 'costs.read', description: 'Ver costos' },
@@ -78,7 +79,7 @@ export function createRolePermissions(
     chef: [
       'recipes.read', 'recipes.create', 'recipes.update',
       'products.read',
-      'menu.read', 'menu.manage',
+      'menu.read', 'menu.manage', 'menu.availability.manage',
       'profile.update',
     ],
 

@@ -6,7 +6,7 @@ import {
   rolePermissions,
 } from '../../prisma/permissionConfig';
 
-const menuPermissions = ['menu.read', 'menu.manage'];
+const menuPermissions = ['menu.read', 'menu.manage', 'menu.availability.manage'];
 const salePricePermissions = ['costs.prices.read', 'costs.prices.manage'];
 
 describe('configuración de permisos por rol', () => {
@@ -29,6 +29,8 @@ describe('configuración de permisos por rol', () => {
 
     expect(businessPermissionNames).toEqual(expect.arrayContaining(menuPermissions));
     expect(rolePermissions.chef).toEqual(expect.arrayContaining(menuPermissions));
+    expect(rolePermissions.accounting).not.toContain('menu.availability.manage');
+    expect(rolePermissions.purchases).not.toContain('menu.availability.manage');
   });
 
   it('asigna permisos de precios a admin/super y solo lectura a accounting', () => {

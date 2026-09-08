@@ -2,7 +2,10 @@ import { Prisma } from '@prisma/client';
 import { Request, Response } from 'express';
 import prisma from '../../lib/prisma';
 import { menuItemCategoryIdSchema } from '../../schemas/menuCategorySchema';
-import { menuItemSalesFieldsSchema } from '../../schemas/menuItemSchema';
+import {
+  menuItemAvailabilitySchema,
+  menuItemSalesFieldsSchema,
+} from '../../schemas/menuItemSchema';
 import {
   ensureMenuCategoryExists,
   menuCategorySummarySelect,
@@ -282,6 +285,38 @@ export const listMenuItems = async (_req: Request, res: Response) => {
     return res.json(await Promise.all(items.map(toMenuItemAdministrationDto)));
   } catch (error) {
     return handleMenuItemError(error, res, 'listando');
+  }
+};
+
+// ACTUALIZAR EXCLUSIVAMENTE LA DISPONIBILIDAD OPERATIVA
+export const updateMenuItemAvailability = async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'id de MenuItem inválido' });
+  }
+
+  const validation = menuItemAvailabilitySchema.safeParse(req.body);
+  if (!validation.success) {
+    return res.status(400).json({
+      error: 'La disponibilidad indicada no es válida',
+      details: validation.error.issues,
+    });
+  }
+
+  try {
+    const item = await prisma.menuItem.update({
+      where: { id },
+      data: { available: validation.data.available },
+      select: { id: true, available: true },
+    });
+    return res.json(item);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return res.status(404).json({ error: 'Plato no encontrado' });
+    }
+
+    console.error('Error actualizando disponibilidad del plato:', error);
+    return res.status(500).json({ error: 'Error actualizando disponibilidad del plato' });
   }
 };
 

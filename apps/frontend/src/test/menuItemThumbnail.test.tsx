@@ -24,7 +24,6 @@ describe("MenuItemThumbnail administrativo", () => {
       <MenuItemThumbnail
         itemName="Pollo a la plancha"
         image={{
-          assetId: 7,
           url: "/menu-media/files/plato.jpg",
           width: 1200,
           height: 900,
@@ -40,5 +39,15 @@ describe("MenuItemThumbnail administrativo", () => {
       "max-w-[260px]",
       "sm:w-[250px]",
     );
+  });
+
+  it("reduce en 12% la huella visual de la variante comercial sin afectar admin", () => {
+    render(
+      <MenuItemThumbnail itemName="Plato comercial" image={null} size="sales" />,
+    );
+
+    const salesThumbnail = screen.getByText("Sin imagen").parentElement;
+    expect(salesThumbnail).toHaveClass("aspect-[4/3]", "w-[88%]", "mx-auto");
+    expect(salesThumbnail).not.toHaveClass("max-w-[260px]", "sm:w-[250px]");
   });
 });

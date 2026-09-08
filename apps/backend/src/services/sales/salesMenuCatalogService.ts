@@ -1,5 +1,7 @@
 import { MenuItemKind, Prisma, PrismaClient } from '@prisma/client';
 import prisma from '../../lib/prisma';
+import type { MediaStorage } from '../media/mediaStorage';
+import { getMediaStorage } from '../media/mediaStorageProvider';
 
 type CatalogPriceRecord = {
   amount: Prisma.Decimal.Value;
@@ -24,6 +26,11 @@ export type SalesMenuCatalogRecord = {
     displayOrder: number;
     active: boolean;
   } | null;
+  image: {
+    url: string;
+    width: number | null;
+    height: number | null;
+  } | null;
   prices: CatalogPriceRecord[];
 };
 
@@ -43,6 +50,11 @@ export type SalesMenuCatalog = {
         id: number;
         name: string;
       };
+      image: {
+        url: string;
+        width: number | null;
+        height: number | null;
+      } | null;
       price: {
         amount: string;
         currency: string;
@@ -66,10 +78,11 @@ export class SalesMenuCatalogInconsistencyError extends Error {
 
 export function createPrismaSalesMenuCatalogDataSource(
   client: PrismaClient = prisma,
+  mediaStorage?: MediaStorage,
 ): SalesMenuCatalogDataSource {
   return {
     async listSaleableMenuItems() {
-      return client.menuItem.findMany({
+      const items = await client.menuItem.findMany({
         where: {
           active: true,
           categoryId: { not: null },
@@ -93,6 +106,13 @@ export function createPrismaSalesMenuCatalogDataSource(
               active: true,
             },
           },
+          imageAsset: {
+            select: {
+              storageKey: true,
+              width: true,
+              height: true,
+            },
+          },
           prices: {
             where: { validUntil: null },
             select: {
@@ -105,6 +125,17 @@ export function createPrismaSalesMenuCatalogDataSource(
           },
         },
       });
+
+      return Promise.all(items.map(async ({ imageAsset, ...item }) => ({
+        ...item,
+        image: imageAsset
+          ? {
+              url: await (mediaStorage ?? getMediaStorage()).getUrl(imageAsset.storageKey),
+              width: imageAsset.width,
+              height: imageAsset.height,
+            }
+          : null,
+      })));
     },
   };
 }
@@ -144,6 +175,7 @@ export function buildSalesMenuCatalog(
       kind: record.kind,
       available: record.available,
       includedItemsText: record.includedItemsText,
+      image: record.image,
       category: {
         id: record.category.id,
         name: record.category.name,
