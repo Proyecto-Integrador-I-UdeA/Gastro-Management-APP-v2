@@ -11,3 +11,7 @@ export const menuItemSalesFieldsSchema = z.object({
     .nullable()
     .optional(),
 });
+
+export const menuItemAvailabilitySchema = z.object({
+  available: z.boolean(),
+}).strict();

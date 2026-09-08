@@ -1,10 +1,15 @@
-import type { MenuItemImageSummary } from "@/components/menu/MenuItemImageField";
 import { resolveMediaUrl } from "@/lib/mediaUrl";
+
+export type MenuItemThumbnailImage = {
+  url: string;
+  width?: number | null;
+  height?: number | null;
+};
 
 type MenuItemThumbnailProps = {
   itemName: string;
-  image?: MenuItemImageSummary | null;
-  size?: "default" | "admin";
+  image?: MenuItemThumbnailImage | null;
+  size?: "default" | "admin" | "sales";
 };
 
 export default function MenuItemThumbnail({
@@ -15,7 +20,9 @@ export default function MenuItemThumbnail({
   const imageUrl = resolveMediaUrl(image?.url);
   const sizeClasses = size === "admin"
     ? "w-full max-w-[260px] shrink-0 self-start sm:w-[250px]"
-    : "mb-4 w-full";
+    : size === "sales"
+      ? "mx-auto mb-4 w-[88%]"
+      : "mb-4 w-full";
 
   return (
     <div className={`aspect-[4/3] overflow-hidden rounded-xl border border-white/10 bg-slate-700/60 ${sizeClasses}`}>

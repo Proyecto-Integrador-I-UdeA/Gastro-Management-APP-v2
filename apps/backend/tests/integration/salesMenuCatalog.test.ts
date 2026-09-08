@@ -1,10 +1,13 @@
 import request from 'supertest';
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import app from '../../src/app';
 import prisma from '../../src/lib/prisma';
+import { LocalMediaStorage } from '../../src/services/media/localMediaStorage';
+import { setMediaStorageForTests } from '../../src/services/media/mediaStorageProvider';
 import { createIntegrationToken } from './authToken';
 
 const PREFIX = '__sales_04a3__';
+const IMAGE_STORAGE_KEY = '11111111-1111-4111-8111-111111111111.png';
 
 async function clearFixtures() {
   const menuItems = await prisma.menuItem.findMany({
@@ -20,7 +23,7 @@ async function clearFixtures() {
   }
 
   await prisma.mediaAsset.deleteMany({
-    where: { storageKey: { startsWith: `${PREFIX}-` } },
+    where: { uploadedBy: { email: { startsWith: PREFIX } } },
   });
 
   await prisma.menuCategory.deleteMany({
@@ -100,9 +103,16 @@ async function createPrice(
   });
 }
 
+beforeAll(() => {
+  setMediaStorageForTests(new LocalMediaStorage({
+    rootDirectory: process.cwd(),
+    publicBaseUrl: 'https://media.example.test',
+  }));
+});
 beforeEach(clearFixtures);
 afterEach(clearFixtures);
 afterAll(async () => {
+  setMediaStorageForTests(undefined);
   await clearFixtures();
   await prisma.$disconnect();
 });
@@ -144,7 +154,7 @@ describe('GET /sales/menu-catalog', () => {
     await createPrice(historicalOnly.id, actor.id, false);
     const imageAsset = await prisma.mediaAsset.create({
       data: {
-        storageKey: `${PREFIX}-11111111-1111-4111-8111-111111111111.png`,
+        storageKey: IMAGE_STORAGE_KEY,
         mimeType: 'image/png',
         byteSize: 100,
         width: 12,
@@ -183,12 +193,20 @@ describe('GET /sales/menu-catalog', () => {
       },
     });
     expect(typeof item.price.amount).toBe('string');
+    expect(item.image).toEqual({
+      url: `https://media.example.test/menu-media/files/${IMAGE_STORAGE_KEY}`,
+      width: 12,
+      height: 9,
+    });
 
     for (const field of [
       'totalCost',
-      'image',
       'imageAsset',
       'imageAssetId',
+      'storageKey',
+      'checksumSha256',
+      'uploadedById',
+      'status',
       'components',
       'product',
       'recipe',
@@ -208,6 +226,20 @@ describe('GET /sales/menu-catalog', () => {
       expect(item).not.toHaveProperty(field);
       expect(item.price).not.toHaveProperty(field);
     }
+  });
+
+  it('devuelve image null cuando el MenuItem no tiene imagen asociada', async () => {
+    const actor = await createActor();
+    const category = await createCategory('SinImagen', true);
+    const menuItem = await createMenuItem('Sin imagen', category.id);
+    await createPrice(menuItem.id, actor.id, true);
+
+    const response = await request(app)
+      .get('/sales/menu-catalog')
+      .set('Authorization', `Bearer ${createIntegrationToken(['sales.read'])}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.categories[0].items[0].image).toBeNull();
   });
 
   it('devuelve 200 con categories vacío cuando no hay productos vendibles', async () => {

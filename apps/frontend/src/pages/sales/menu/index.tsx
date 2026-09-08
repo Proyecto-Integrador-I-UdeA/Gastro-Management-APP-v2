@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
+import MenuItemThumbnail from "@/components/menu/MenuItemThumbnail";
 import { apiFetch } from "@/utils/apiFetch";
 import { getUserPermissions } from "@/utils/permissions";
 
@@ -12,6 +13,11 @@ type SalesCatalogItem = {
   kind: "STANDARD" | "ADDITION";
   available: boolean;
   includedItemsText: string | null;
+  image: {
+    url: string;
+    width: number | null;
+    height: number | null;
+  } | null;
   category: {
     id: number;
     name: string;
@@ -54,7 +60,8 @@ export default function SalesMenuCatalogPage() {
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    if (!getUserPermissions().includes("sales.read")) {
+    const permissions = getUserPermissions();
+    if (!permissions.includes("sales.read")) {
       setAccessDenied(true);
       setLoading(false);
       return;
@@ -153,15 +160,20 @@ export default function SalesMenuCatalogPage() {
                           item.available ? "" : "opacity-70"
                         }`}
                       >
+                        <MenuItemThumbnail itemName={item.name} image={item.image} size="sales" />
                         <div className="mb-3 flex items-start justify-between gap-3">
                           <h3 className="text-xl font-semibold text-gray-900">{item.name}</h3>
                           <span className="rounded-full bg-blue-50 px-3 py-1 text-xs text-blue-800">
                             {item.kind === "ADDITION" ? "Adición" : item.category.name}
                           </span>
                         </div>
-                        {!item.available && (
-                          <p className="mb-3 text-sm font-semibold text-amber-700">Agotado</p>
-                        )}
+                        <p className={`mb-3 inline-flex rounded-full px-3 py-1 text-sm font-semibold ${
+                          item.available
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-800"
+                        }`}>
+                          {item.available ? "Disponible" : "Agotado"}
+                        </p>
                         {item.description && (
                           <p className="mb-5 text-sm text-gray-600">{item.description}</p>
                         )}
