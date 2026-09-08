@@ -139,6 +139,9 @@ model User {
   movements             InventoryMovement[]
   createdMenuItemPrices MenuItemPrice[]
   uploadedMediaAssets   MediaAsset[]
+  openedSalesOrders     SalesOrder[]        @relation("SalesOrderOpenedBy")
+  settledSalesOrders    SalesOrder[]        @relation("SalesOrderSettledBy")
+  addedSalesOrderItems  SalesOrderItem[]     @relation("SalesOrderItemAddedBy")
   role                  Role?               @relation(fields: [roleId], references: [id])
 
   @@map("users")
@@ -334,6 +337,7 @@ model MenuItem {
   imageAsset         MediaAsset?          @relation(fields: [imageAssetId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   components         MenuItemComponent[]
   prices             MenuItemPrice[]
+  salesOrderItems    SalesOrderItem[]
 
   @@index([categoryId])
 }
@@ -383,9 +387,74 @@ model MenuItemPrice {
   createdAt            DateTime  @default(now())
   menuItem             MenuItem  @relation(fields: [menuItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   createdBy            User      @relation(fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  salesOrderItems      SalesOrderItem[]
 
   @@index([menuItemId, validFrom])
   @@map("menu_item_prices")
+}
+
+model DiningTable {
+  id          Int          @id @default(autoincrement())
+  code        String       @unique
+  area        String?
+  capacity    Int
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @default(now()) @updatedAt
+  salesOrders SalesOrder[]
+
+  @@map("dining_tables")
+}
+
+model SalesOrder {
+  id              Int               @id @default(autoincrement())
+  diningTableId   Int
+  status          SalesOrderStatus  @default(OPEN)
+  openedById      Int
+  openedAt        DateTime          @default(now())
+  guestCount      Int?
+  billRequestedAt DateTime?
+  settledAt       DateTime?
+  settledById     Int?
+  voidedAt        DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @default(now()) @updatedAt
+  diningTable     DiningTable       @relation(fields: [diningTableId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  openedBy        User              @relation("SalesOrderOpenedBy", fields: [openedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  settledBy       User?             @relation("SalesOrderSettledBy", fields: [settledById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  items           SalesOrderItem[]
+
+  @@index([diningTableId])
+  @@index([status])
+  @@map("sales_orders")
+}
+
+model SalesOrderItem {
+  id                  Int           @id @default(autoincrement())
+  salesOrderId        Int
+  menuItemId          Int
+  menuItemPriceId     Int
+  menuItemNameSnapshot String
+  quantity            Int
+  specialInstructions String?       @db.VarChar(500)
+  unitPriceSnapshot   Decimal       @db.Decimal(12, 2)
+  currencySnapshot    String        @db.VarChar(3)
+  taxIncludedSnapshot Boolean
+  addedById           Int
+  parentItemId        Int?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @default(now()) @updatedAt
+  salesOrder          SalesOrder    @relation(fields: [salesOrderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  menuItem            MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  menuItemPrice       MenuItemPrice @relation(fields: [menuItemPriceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  addedBy             User          @relation("SalesOrderItemAddedBy", fields: [addedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  parentItem          SalesOrderItem? @relation("SalesOrderItemAdditions", fields: [parentItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  additions           SalesOrderItem[] @relation("SalesOrderItemAdditions")
+
+  @@index([salesOrderId])
+  @@index([menuItemId])
+  @@index([parentItemId])
+  @@map("sales_order_items")
 }
 
 model MenuItemComponent {
@@ -422,4 +491,10 @@ enum MediaAssetStatus {
 enum MenuItemKind {
   STANDARD
   ADDITION
+}
+
+enum SalesOrderStatus {
+  OPEN
+  SETTLED
+  VOIDED
 }

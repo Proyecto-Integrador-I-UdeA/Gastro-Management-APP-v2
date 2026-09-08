@@ -8,6 +8,7 @@ import {
 
 const menuPermissions = ['menu.read', 'menu.manage', 'menu.availability.manage'];
 const salePricePermissions = ['costs.prices.read', 'costs.prices.manage'];
+const salesPermissions = ['sales.read', 'sales.manage'];
 
 describe('configuración de permisos por rol', () => {
   it('asigna al rol admin todos los permisos de negocio actuales', () => {
@@ -43,6 +44,18 @@ describe('configuración de permisos por rol', () => {
     expect(rolePermissions.accounting).not.toContain('costs.prices.manage');
     expect(rolePermissions.chef).not.toEqual(expect.arrayContaining(salePricePermissions));
     expect(rolePermissions.purchases).not.toEqual(expect.arrayContaining(salePricePermissions));
+  });
+
+  it('reserva la gestión operativa de ventas para admin y super', () => {
+    const businessPermissionNames = businessPermissions.map(permission => permission.name);
+
+    expect(businessPermissionNames).toEqual(expect.arrayContaining(salesPermissions));
+    expect(rolePermissions.admin).toEqual(expect.arrayContaining(salesPermissions));
+    expect(rolePermissions.super).toEqual(expect.arrayContaining(salesPermissions));
+    expect(rolePermissions.accounting).toContain('sales.read');
+    expect(rolePermissions.accounting).not.toContain('sales.manage');
+    expect(rolePermissions.purchases).not.toContain('sales.manage');
+    expect(rolePermissions.chef).not.toContain('sales.manage');
   });
 
   it('mantiene un permiso futuro de plataforma fuera del rol admin', () => {
