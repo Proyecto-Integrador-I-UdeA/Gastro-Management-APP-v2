@@ -316,6 +316,35 @@ function createLineData(
   };
 }
 
+async function ensureOrderItemGroupUnsent(
+  transaction: Prisma.TransactionClient,
+  item: { id: number; parentItemId: number | null },
+) {
+  const lineIds = item.parentItemId === null
+    ? (await transaction.salesOrderItem.findMany({
+        where: {
+          OR: [
+            { id: item.id },
+            { parentItemId: item.id },
+          ],
+        },
+        select: { id: true },
+      })).map(line => line.id)
+    : [item.id];
+  const dispatched = await transaction.kitchenDispatchItem.findFirst({
+    where: { salesOrderItemId: { in: lineIds } },
+    select: { salesOrderItemId: true },
+  });
+  if (dispatched) {
+    throw new SalesOperationError(
+      'ORDER_ITEM_ALREADY_SENT_TO_KITCHEN',
+      409,
+      'La línea ya fue enviada a cocina y no puede modificarse',
+      { itemId: dispatched.salesOrderItemId },
+    );
+  }
+}
+
 const salesTableSelect = {
   id: true,
   code: true,
@@ -617,6 +646,7 @@ export async function addSalesOrderItemAddition(
         'No se pueden agregar adiciones a otra adición',
       );
     }
+    await ensureOrderItemGroupUnsent(transaction, parent);
 
     const addition = await resolveCommercialItem(
       transaction,
@@ -648,7 +678,7 @@ export async function updateSalesOrderItem(
     await lockOpenOrder(transaction, orderId);
     const item = await transaction.salesOrderItem.findFirst({
       where: { id: itemId, salesOrderId: orderId },
-      select: { id: true },
+      select: { id: true, parentItemId: true },
     });
     if (!item) {
       throw new SalesOperationError(
@@ -657,6 +687,7 @@ export async function updateSalesOrderItem(
         'Línea de orden no encontrada',
       );
     }
+    await ensureOrderItemGroupUnsent(transaction, item);
     await transaction.salesOrderItem.update({
       where: { id: item.id },
       data: {
@@ -684,6 +715,7 @@ export async function deleteSalesOrderItem(orderId: number, itemId: number) {
         'Línea de orden no encontrada',
       );
     }
+    await ensureOrderItemGroupUnsent(transaction, item);
     if (item.parentItemId === null) {
       await transaction.salesOrderItem.deleteMany({ where: { parentItemId: item.id } });
     }

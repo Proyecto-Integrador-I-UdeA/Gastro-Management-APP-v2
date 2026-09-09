@@ -1,7 +1,12 @@
 import type { Express } from 'express';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { MenuItemKind, PrismaClient, SalesOrderStatus } from '@prisma/client';
+import {
+  KitchenDispatchStatus,
+  MenuItemKind,
+  PrismaClient,
+  SalesOrderStatus,
+} from '@prisma/client';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createIntegrationToken } from './authToken';
@@ -15,6 +20,17 @@ const migrationSql = readFileSync(
   'utf8',
 );
 const migrationStatements = migrationSql
+  .split(';')
+  .map(statement => statement.trim())
+  .filter(Boolean);
+const kitchenMigrationSql = readFileSync(
+  resolve(
+    process.cwd(),
+    'prisma/migrations/20260909120000_kitchen_01a_dispatch_foundation/migration.sql',
+  ),
+  'utf8',
+);
+const kitchenMigrationStatements = kitchenMigrationSql
   .split(';')
   .map(statement => statement.trim())
   .filter(Boolean);
@@ -132,6 +148,11 @@ async function addItem(
 }
 
 async function clearOrders() {
+  await prisma.kitchenDispatchItem.deleteMany({
+    where: { parentDispatchItemId: { not: null } },
+  });
+  await prisma.kitchenDispatchItem.deleteMany();
+  await prisma.kitchenDispatch.deleteMany();
   await prisma.salesOrderItem.deleteMany({ where: { parentItemId: { not: null } } });
   await prisma.salesOrderItem.deleteMany();
   await prisma.salesOrder.deleteMany();
@@ -243,11 +264,15 @@ beforeAll(async () => {
   schemaUrl.searchParams.set('schema', TEST_SCHEMA);
 
   administrationPrisma = new PrismaClient({ datasources: { db: { url: baseUrl } } });
+  await administrationPrisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${TEST_SCHEMA}" CASCADE`);
   await administrationPrisma.$executeRawUnsafe(`CREATE SCHEMA "${TEST_SCHEMA}"`);
 
   prisma = new PrismaClient({ datasources: { db: { url: schemaUrl.toString() } } });
   await createBaseSchema(prisma);
   for (const statement of migrationStatements) {
+    await prisma.$executeRawUnsafe(statement);
+  }
+  for (const statement of kitchenMigrationStatements) {
     await prisma.$executeRawUnsafe(statement);
   }
 
@@ -296,16 +321,18 @@ beforeAll(async () => {
   await createPrice(usdItemId, '8.00', 'USD');
   await createPrice(precisionItemAId, '0.10');
   await createPrice(precisionItemBId, '0.20');
-});
+}, 30_000);
 
 afterEach(clearOrders);
 
 afterAll(async () => {
-  await clearOrders();
-  await appPrisma.$disconnect();
-  await prisma.$disconnect();
-  await administrationPrisma.$executeRawUnsafe(`DROP SCHEMA "${TEST_SCHEMA}" CASCADE`);
-  await administrationPrisma.$disconnect();
+  if (prisma) await clearOrders();
+  if (appPrisma) await appPrisma.$disconnect();
+  if (prisma) await prisma.$disconnect();
+  if (administrationPrisma) {
+    await administrationPrisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${TEST_SCHEMA}" CASCADE`);
+    await administrationPrisma.$disconnect();
+  }
   process.env.DATABASE_URL = originalDatabaseUrl;
 });
 
@@ -853,5 +880,352 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       .post(`/sales/orders/${order.id}/items`)
       .set('Authorization', auth(['sales.read']))
       .send({ menuItemId: standardItemId, quantity: 1 })).status).toBe(403);
+  });
+
+  it('envía snapshots jerárquicos a cocina, incluso con cuenta solicitada, y evita reenvíos', async () => {
+    const order = await openOrder((await createTable()).id, 2);
+    const created = await addItem(order.id, {
+      menuItemId: standardItemId,
+      quantity: 2,
+      specialInstructions: 'Sin cebolla',
+      additions: [{
+        menuItemId: additionItemId,
+        quantity: 1,
+        specialInstructions: 'Bien fundido',
+      }],
+    });
+    const principalId = created.body.items[0].id as number;
+    const additionId = created.body.items[0].additions[0].id as number;
+
+    expect((await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .send({})).status).toBe(401);
+    expect((await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.read']))
+      .send({})).status).toBe(403);
+    expect((await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({ itemIds: [principalId] })).status).toBe(400);
+
+    await request(app)
+      .post(`/sales/orders/${order.id}/request-bill`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    const dispatched = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+
+    expect(dispatched.status).toBe(201);
+    expect(dispatched.body).toMatchObject({
+      id: expect.any(Number),
+      dispatchNumber: expect.any(Number),
+      orderId: order.id,
+      orderNumber: order.id,
+      status: 'NEXT',
+      table: { code: expect.any(String), area: 'Salón' },
+      prepTimeMinutesSnapshot: 15,
+      warningThresholdMinutes: 5,
+      dispatchedBy: { id: actorId, fullName: 'Mesero de prueba' },
+      items: [{
+        salesOrderItemId: principalId,
+        name: 'Hamburguesa',
+        quantity: 2,
+        specialInstructions: 'Sin cebolla',
+        additions: [{
+          salesOrderItemId: additionId,
+          name: 'Queso adicional',
+          quantity: 1,
+          specialInstructions: 'Bien fundido',
+        }],
+      }],
+    });
+    expect(
+      new Date(dispatched.body.targetReadyAt).getTime()
+      - new Date(dispatched.body.dispatchedAt).getTime(),
+    ).toBe(15 * 60_000);
+    expect(await prisma.kitchenDispatchItem.count()).toBe(2);
+
+    const noPending = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    expect(noPending.status).toBe(409);
+    expect(noPending.body.code).toBe('NO_PENDING_KITCHEN_ITEMS');
+
+    for (const itemId of [principalId, additionId]) {
+      const update = await request(app)
+        .patch(`/sales/orders/${order.id}/items/${itemId}`)
+        .set('Authorization', auth(['sales.manage']))
+        .send({ quantity: 3 });
+      const deletion = await request(app)
+        .delete(`/sales/orders/${order.id}/items/${itemId}`)
+        .set('Authorization', auth(['sales.manage']));
+      expect(update.status).toBe(409);
+      expect(update.body.code).toBe('ORDER_ITEM_ALREADY_SENT_TO_KITCHEN');
+      expect(deletion.status).toBe(409);
+      expect(deletion.body.code).toBe('ORDER_ITEM_ALREADY_SENT_TO_KITCHEN');
+    }
+  });
+
+  it('rechaza enviar a cocina una orden inexistente o que ya no está OPEN', async () => {
+    const missing = await request(app)
+      .post('/sales/orders/999999/send-to-kitchen')
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    expect(missing.status).toBe(404);
+    expect(missing.body.code).toBe('ORDER_NOT_FOUND');
+
+    const order = await openOrder((await createTable()).id);
+    await addItem(order.id, { menuItemId: standardItemId, quantity: 1 });
+    await prisma.salesOrder.update({
+      where: { id: order.id },
+      data: {
+        status: SalesOrderStatus.SETTLED,
+        settledAt: new Date(),
+        settledById: actorId,
+      },
+    });
+    const closed = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    expect(closed.status).toBe(409);
+    expect(closed.body.code).toBe('ORDER_NOT_OPEN');
+  });
+
+  it('serializa dos envíos concurrentes y crea un único dispatch', async () => {
+    const order = await openOrder((await createTable()).id);
+    await addItem(order.id, { menuItemId: standardItemId, quantity: 1 });
+
+    const responses = await Promise.all([
+      request(app)
+        .post(`/sales/orders/${order.id}/send-to-kitchen`)
+        .set('Authorization', auth(['sales.manage']))
+        .send({}),
+      request(app)
+        .post(`/sales/orders/${order.id}/send-to-kitchen`)
+        .set('Authorization', auth(['sales.manage']))
+        .send({}),
+    ]);
+
+    expect(responses.map(response => response.status).sort()).toEqual([201, 409]);
+    expect(responses.find(response => response.status === 409)?.body.code).toBe(
+      'NO_PENDING_KITCHEN_ITEMS',
+    );
+    expect(await prisma.kitchenDispatch.count({
+      where: { salesOrderId: order.id },
+    })).toBe(1);
+    expect(await prisma.kitchenDispatchItem.count()).toBe(1);
+  });
+
+  it('mantiene editables las líneas nuevas y crea un segundo envío solo con pendientes', async () => {
+    const order = await openOrder((await createTable()).id);
+    const firstLine = await addItem(order.id, {
+      menuItemId: standardItemId,
+      quantity: 1,
+    });
+    const sentPrincipalId = firstLine.body.items[0].id as number;
+    const firstDispatch = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    expect(firstDispatch.status).toBe(201);
+
+    const additionToSentLine = await request(app)
+      .post(`/sales/orders/${order.id}/items/${sentPrincipalId}/additions`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({ menuItemId: additionItemId });
+    expect(additionToSentLine.status).toBe(409);
+    expect(additionToSentLine.body.code).toBe('ORDER_ITEM_ALREADY_SENT_TO_KITCHEN');
+
+    const editable = await addItem(order.id, {
+      menuItemId: standardItemId,
+      quantity: 1,
+      specialInstructions: 'Nueva línea',
+    });
+    const editableId = editable.body.items[1].id as number;
+    expect((await request(app)
+      .patch(`/sales/orders/${order.id}/items/${editableId}`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({ quantity: 2 })).status).toBe(200);
+    expect((await request(app)
+      .delete(`/sales/orders/${order.id}/items/${editableId}`)
+      .set('Authorization', auth(['sales.manage']))).status).toBe(200);
+
+    const pending = await addItem(order.id, {
+      menuItemId: standardItemId,
+      quantity: 3,
+      specialInstructions: 'Segundo envío',
+    });
+    const pendingId = pending.body.items[1].id as number;
+    const secondDispatch = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+
+    expect(secondDispatch.status).toBe(201);
+    expect(secondDispatch.body.id).not.toBe(firstDispatch.body.id);
+    expect(secondDispatch.body.items).toEqual([
+      expect.objectContaining({
+        salesOrderItemId: pendingId,
+        quantity: 3,
+        specialInstructions: 'Segundo envío',
+      }),
+    ]);
+    expect(secondDispatch.body.items).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ salesOrderItemId: sentPrincipalId }),
+    ]));
+    expect(await prisma.kitchenDispatch.count({
+      where: { salesOrderId: order.id },
+    })).toBe(2);
+  });
+
+  it('protege cola y detalle, devuelve DTO anidado y ordena por estado, fecha e id', async () => {
+    const order = await openOrder((await createTable()).id);
+    const firstLine = await addItem(order.id, {
+      menuItemId: standardItemId,
+      quantity: 1,
+      additions: [{ menuItemId: additionItemId }],
+    });
+    const first = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    await request(app)
+      .patch(`/kitchen/dispatches/${first.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'PREPARING' });
+
+    const secondLine = await addItem(order.id, {
+      menuItemId: standardItemId,
+      quantity: 2,
+    });
+    const second = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+
+    expect((await request(app).get('/kitchen/dispatches')).status).toBe(401);
+    expect((await request(app)
+      .get('/kitchen/dispatches')
+      .set('Authorization', auth(['sales.manage']))).status).toBe(403);
+    const queue = await request(app)
+      .get('/kitchen/dispatches')
+      .set('Authorization', auth(['kitchen.read']));
+    expect(queue.status).toBe(200);
+    expect(queue.body.dispatches.map((dispatch: { id: number }) => dispatch.id)).toEqual([
+      second.body.id,
+      first.body.id,
+    ]);
+    expect(queue.body.dispatches.map((dispatch: { status: string }) => dispatch.status)).toEqual([
+      'NEXT',
+      'PREPARING',
+    ]);
+
+    expect((await request(app)
+      .get(`/kitchen/dispatches/${first.body.id}`)
+      .set('Authorization', auth(['kitchen.manage']))).status).toBe(403);
+    const detail = await request(app)
+      .get(`/kitchen/dispatches/${first.body.id}`)
+      .set('Authorization', auth(['kitchen.read']));
+    expect(detail.status).toBe(200);
+    expect(detail.body).toMatchObject({
+      id: first.body.id,
+      orderId: order.id,
+      table: { id: expect.any(Number), code: expect.any(String) },
+      items: [{
+        salesOrderItemId: firstLine.body.items[0].id,
+        additions: [{
+          salesOrderItemId: firstLine.body.items[0].additions[0].id,
+        }],
+      }],
+    });
+    expect(second.body.items[0].salesOrderItemId).toBe(secondLine.body.items[1].id);
+    expect((await request(app)
+      .get('/kitchen/dispatches/999999')
+      .set('Authorization', auth(['kitchen.read']))).body.code).toBe(
+      'KITCHEN_DISPATCH_NOT_FOUND',
+    );
+  });
+
+  it('aplica transiciones secuenciales, timestamps iniciales e idempotencia', async () => {
+    const order = await openOrder((await createTable()).id);
+    await addItem(order.id, { menuItemId: standardItemId, quantity: 1 });
+    const dispatch = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+
+    expect((await request(app)
+      .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
+      .send({ status: 'PREPARING' })).status).toBe(401);
+    expect((await request(app)
+      .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.read']))
+      .send({ status: 'PREPARING' })).status).toBe(403);
+    expect((await request(app)
+      .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'INVALID' })).status).toBe(400);
+    const directReady = await request(app)
+      .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'READY' });
+    expect(directReady.status).toBe(409);
+    expect(directReady.body.code).toBe('INVALID_KITCHEN_STATUS_TRANSITION');
+
+    const preparing = await request(app)
+      .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'PREPARING' });
+    expect(preparing.status).toBe(200);
+    expect(preparing.body.status).toBe(KitchenDispatchStatus.PREPARING);
+    expect(preparing.body.startedAt).toEqual(expect.any(String));
+    expect(preparing.body.readyAt).toBeNull();
+    const preparingAgain = await request(app)
+      .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'PREPARING' });
+    expect(preparingAgain.body.startedAt).toBe(preparing.body.startedAt);
+
+    const ready = await request(app)
+      .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'READY' });
+    expect(ready.status).toBe(200);
+    expect(ready.body.status).toBe(KitchenDispatchStatus.READY);
+    expect(ready.body.startedAt).toBe(preparing.body.startedAt);
+    expect(ready.body.readyAt).toEqual(expect.any(String));
+    const readyAgain = await request(app)
+      .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'READY' });
+    expect(readyAgain.body.readyAt).toBe(ready.body.readyAt);
+
+    const backward = await request(app)
+      .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'PREPARING' });
+    expect(backward.status).toBe(409);
+    expect(backward.body).toMatchObject({
+      code: 'INVALID_KITCHEN_STATUS_TRANSITION',
+      from: 'READY',
+      to: 'PREPARING',
+    });
+
+    const oldTimestamp = new Date(Date.now() - 121 * 60_000);
+    await prisma.kitchenDispatch.update({
+      where: { id: dispatch.body.id },
+      data: { startedAt: oldTimestamp, readyAt: oldTimestamp },
+    });
+    const liveQueue = await request(app)
+      .get('/kitchen/dispatches')
+      .set('Authorization', auth(['kitchen.read']));
+    expect(liveQueue.body.dispatches).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: dispatch.body.id }),
+    ]));
   });
 });

@@ -27,6 +27,7 @@ import {
   updateSalesOrderItem,
   updateSalesTable,
 } from '../../services/sales/salesOrderService';
+import { sendSalesOrderToKitchen } from '../../services/kitchen/kitchenDispatchService';
 
 function parseId(rawId: string, field: string, res: Response): number | null {
   const validation = positiveIdParamSchema.safeParse(rawId);
@@ -236,6 +237,26 @@ export const requestBill = async (req: AuthenticatedRequest, res: Response) => {
 
   try {
     return res.json(await requestSalesOrderBill(orderId));
+  } catch (error) {
+    return handleSalesError(error, res);
+  }
+};
+
+export const sendOrderToKitchen = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
+  const orderId = parseId(req.params.orderId, 'orderId', res);
+  if (orderId === null) return;
+  if (!parseBody(emptySalesMutationSchema, req.body, res)) return;
+  const dispatchedById = actorId(req, res);
+  if (dispatchedById === null) return;
+
+  try {
+    return res.status(201).json(await sendSalesOrderToKitchen(
+      orderId,
+      dispatchedById,
+    ));
   } catch (error) {
     return handleSalesError(error, res);
   }

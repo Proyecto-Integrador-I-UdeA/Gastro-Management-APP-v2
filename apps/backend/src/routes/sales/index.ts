@@ -10,6 +10,7 @@ import {
   listTables,
   openTable,
   requestBill,
+  sendOrderToKitchen,
   updateGuestCount,
   updateOrderItem,
   updateTable,
@@ -66,6 +67,12 @@ router.post(
   authenticate,
   authorize(['sales.manage']),
   requestBill,
+);
+router.post(
+  '/orders/:orderId/send-to-kitchen',
+  authenticate,
+  authorize(['sales.manage']),
+  sendOrderToKitchen,
 );
 
 export default router;

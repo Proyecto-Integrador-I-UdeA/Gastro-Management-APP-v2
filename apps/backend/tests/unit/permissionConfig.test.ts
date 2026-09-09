@@ -10,6 +10,7 @@ const menuPermissions = ['menu.read', 'menu.manage', 'menu.availability.manage']
 const salePricePermissions = ['costs.prices.read', 'costs.prices.manage'];
 const salesPermissions = ['sales.read', 'sales.manage'];
 const tableAdministrationPermission = 'sales.tables.manage';
+const kitchenPermissions = ['kitchen.read', 'kitchen.manage'];
 
 describe('configuración de permisos por rol', () => {
   it('asigna al rol admin todos los permisos de negocio actuales', () => {
@@ -68,6 +69,19 @@ describe('configuración de permisos por rol', () => {
     expect(rolePermissions.accounting).not.toContain(tableAdministrationPermission);
     expect(rolePermissions.purchases).not.toContain(tableAdministrationPermission);
     expect(rolePermissions.chef).not.toContain(tableAdministrationPermission);
+  });
+
+  it('asigna Kitchen a chef, admin y super, pero no a accounting ni purchases', () => {
+    const businessPermissionNames = businessPermissions.map(permission => permission.name);
+
+    expect(businessPermissionNames).toEqual(expect.arrayContaining(kitchenPermissions));
+    expect(rolePermissions.chef).toEqual(expect.arrayContaining(kitchenPermissions));
+    expect(rolePermissions.admin).toEqual(expect.arrayContaining(kitchenPermissions));
+    expect(rolePermissions.super).toEqual(expect.arrayContaining(kitchenPermissions));
+    for (const permission of kitchenPermissions) {
+      expect(rolePermissions.accounting).not.toContain(permission);
+      expect(rolePermissions.purchases).not.toContain(permission);
+    }
   });
 
   it('mantiene un permiso futuro de plataforma fuera del rol admin', () => {
