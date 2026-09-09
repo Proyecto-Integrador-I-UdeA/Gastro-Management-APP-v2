@@ -25,15 +25,24 @@ beforeEach(() => {
 });
 
 describe('dashboard del módulo de Ventas', () => {
-  it('muestra los seis submódulos organizados según el prototipo', async () => {
+  it('mantiene los módulos de Ventas y oculta Cocina sin kitchen.read', async () => {
     render(<SalesDashboardPage />);
 
     expect(await screen.findByRole('button', { name: /Mesas y pedidos/ })).toBeEnabled();
-    expect(screen.getByRole('button', { name: /Cocina/ })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /Cocina/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Menú y precios/ })).toBeEnabled();
     expect(screen.getByRole('button', { name: /Caja/ })).toBeDisabled();
     expect(screen.getByRole('button', { name: /Reservas y eventos/ })).toBeDisabled();
     expect(screen.getByRole('button', { name: /^Ventas / })).toBeDisabled();
+  });
+
+  it('muestra Cocina con kitchen.read y navega a /kitchen', async () => {
+    const user = userEvent.setup();
+    mocks.getUserPermissions.mockReturnValue(['sales.read', 'kitchen.read']);
+    render(<SalesDashboardPage />);
+
+    await user.click(await screen.findByRole('button', { name: /Cocina/ }));
+    expect(mocks.push).toHaveBeenCalledWith('/kitchen');
   });
 
   it('navega desde Menú y precios hacia /sales/menu', async () => {

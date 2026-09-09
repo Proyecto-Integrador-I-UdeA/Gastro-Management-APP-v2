@@ -65,6 +65,7 @@ export default function Sidebar() {
   const inTransfersModule = safePath.startsWith("/transfers");
   const inInventoryModule = safePath.startsWith("/inventory");
   const inReportsModule = safePath.startsWith("/reports");
+  const inSalesModule = safePath.startsWith("/sales") || safePath === "/kitchen";
   const reportsProductsActive =
     safePath === "/reports/products" || safePath.startsWith("/reports/products");
   const reportsSuppliersActive =
@@ -287,6 +288,56 @@ export default function Sidebar() {
                 onClick={() => handleNavigate("/dashboard")}
               >
                 📈 <span className="text-lg">Dashboard</span>
+              </button>
+            </>
+          ) : inSalesModule ? (
+            <>
+              {can("sales.read") && (
+                <>
+                  <button
+                    type="button"
+                    className={itemClass(safePath === "/sales")}
+                    onClick={() => handleNavigate("/sales", "sales.read")}
+                  >
+                    <span className="text-xl">📈</span>
+                    <span className="text-lg">Inicio de ventas</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={itemClass(safePath.startsWith("/sales/orders"))}
+                    onClick={() => handleNavigate("/sales/orders", "sales.read")}
+                  >
+                    <span className="text-xl">🍽️</span>
+                    <span className="text-lg">Mesas y pedidos</span>
+                  </button>
+                </>
+              )}
+              {can("kitchen.read") && (
+                <button
+                  type="button"
+                  className={itemClass(safePath === "/kitchen")}
+                  onClick={() => handleNavigate("/kitchen", "kitchen.read")}
+                >
+                  <span className="text-xl">👨‍🍳</span>
+                  <span className="text-lg">Cocina</span>
+                </button>
+              )}
+              {can("sales.read") && (
+                <button
+                  type="button"
+                  className={itemClass(safePath.startsWith("/sales/menu"))}
+                  onClick={() => handleNavigate("/sales/menu", "sales.read")}
+                >
+                  <span className="text-xl">📖</span>
+                  <span className="text-lg">Menú y precios</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E] text-white/80"
+                onClick={() => handleNavigate("/dashboard")}
+              >
+                📊 <span className="text-lg">Dashboard</span>
               </button>
             </>
           ) : (

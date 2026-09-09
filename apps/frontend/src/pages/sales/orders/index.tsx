@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
+import type {
+  KitchenDispatch,
+  KitchenDispatchStatus,
+  KitchenOrderLineState,
+  KitchenOrderSummary,
+} from "@/types/kitchen";
 import { apiFetch } from "@/utils/apiFetch";
 import { getUserPermissions } from "@/utils/permissions";
 
@@ -15,18 +21,18 @@ type SalesTable = {
   capacity: number;
   active: boolean;
   operationalStatus: OperationalStatus;
-  activeOrder: {
+  activeOrder: ({
     id: number;
     guestCount: number | null;
     openedAt: string;
     billRequestedAt: string | null;
     openedBy: { id: number; fullName: string | null };
-  } | null;
+  } & KitchenOrderSummary) | null;
 };
 
 type SalesTablesResponse = { tables: SalesTable[] };
 
-type SalesOrderLine = {
+type SalesOrderLine = KitchenOrderLineState & {
   id: number;
   menuItemId: number;
   name: string;
@@ -44,7 +50,7 @@ type SalesOrderItem = SalesOrderLine & {
   additions?: SalesOrderAddition[];
 };
 
-type SalesOrder = {
+type SalesOrder = KitchenOrderSummary & {
   id: number;
   status: "OPEN" | "SETTLED" | "VOIDED";
   table: { id: number; code: string; area: string | null; capacity: number; active: boolean };
@@ -87,6 +93,8 @@ function errorMessage(error: unknown, fallback: string): string {
     ORDER_ITEM_NOT_FOUND: "La línea ya no existe.",
     MENU_ITEM_UNAVAILABLE: "El producto está agotado.",
     ORDER_CURRENCY_MISMATCH: "El producto usa una moneda diferente a la del pedido.",
+    NO_PENDING_KITCHEN_ITEMS: "Todos los productos ya fueron enviados a cocina.",
+    ORDER_ITEM_ALREADY_SENT_TO_KITCHEN: "Uno de los productos ya fue enviado a cocina.",
   };
   return (code && messages[code]) || apiError.message || fallback;
 }
@@ -103,6 +111,22 @@ const statusClasses: Record<OperationalStatus, string> = {
   OUT_OF_SERVICE: "bg-gray-200 text-gray-700",
 };
 
+const kitchenStatusLabels: Record<KitchenDispatchStatus, string> = {
+  NEXT: "Próximo",
+  PREPARING: "En preparación",
+  READY: "Listo",
+};
+
+function kitchenSummaryLabel(summary: KitchenOrderSummary): string | null {
+  const status = summary.latestKitchenStatus
+    ? kitchenStatusLabels[summary.latestKitchenStatus]
+    : null;
+  const pending = summary.pendingKitchenItemCount > 0
+    ? `${summary.pendingKitchenItemCount} pendiente${summary.pendingKitchenItemCount === 1 ? "" : "s"}`
+    : null;
+  return [status, pending].filter(Boolean).join(" · ") || null;
+}
+
 export default function SalesOrdersPage() {
   const router = useRouter();
   const [permissions, setPermissions] = useState<string[]>([]);
@@ -117,6 +141,7 @@ export default function SalesOrdersPage() {
   const [pageError, setPageError] = useState("");
   const [orderError, setOrderError] = useState("");
   const [mutationError, setMutationError] = useState("");
+  const [kitchenFeedback, setKitchenFeedback] = useState("");
   const [openingTableId, setOpeningTableId] = useState<number | null>(null);
   const [guestCountDraft, setGuestCountDraft] = useState("");
   const [orderGuestCountDraft, setOrderGuestCountDraft] = useState("");
@@ -328,6 +353,29 @@ export default function SalesOrdersPage() {
     );
   }
 
+  async function sendToKitchen() {
+    if (!order || !canManage || order.status !== "OPEN" || !order.hasPendingKitchenItems) return;
+    if (mutationKey) return;
+    setMutationKey("send-kitchen");
+    setMutationError("");
+    setKitchenFeedback("");
+    try {
+      await apiFetch<KitchenDispatch>(`/sales/orders/${order.id}/send-to-kitchen`, {
+        method: "POST",
+        json: {},
+      });
+      await loadOrder(order.id);
+      await refreshAfterMutation();
+      setKitchenFeedback("Pedido enviado a cocina correctamente.");
+    } catch (error) {
+      setMutationError(errorMessage(error, "No fue posible enviar el pedido a cocina."));
+      await loadOrder(order.id);
+      await refreshAfterMutation();
+    } finally {
+      setMutationKey("");
+    }
+  }
+
   function saveGuestCount() {
     if (!order || !canManage) return;
     const raw = orderGuestCountDraft.trim();
@@ -365,7 +413,20 @@ export default function SalesOrdersPage() {
             Indicaciones: {item.specialInstructions}
           </p>
         )}
-        {canManage && order?.status === "OPEN" && (
+        <div className="mt-2">
+          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+            item.kitchenDispatched
+              ? "bg-blue-100 text-blue-800"
+              : "bg-amber-100 text-amber-900"
+          }`}>
+            {item.kitchenDispatched
+              ? item.kitchenStatus
+                ? `Cocina: ${kitchenStatusLabels[item.kitchenStatus]}`
+                : "Enviado a cocina"
+              : "Pendiente de enviar"}
+          </span>
+        </div>
+        {canManage && order?.status === "OPEN" && !item.kitchenDispatched && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -388,7 +449,7 @@ export default function SalesOrdersPage() {
             >Eliminar</button>
           </div>
         )}
-        {canManage && order?.status === "OPEN" && (
+        {canManage && order?.status === "OPEN" && !item.kitchenDispatched && (
           <div className="mt-2 flex gap-2">
             <input
               aria-label={`Indicaciones para ${item.name}`}
@@ -454,6 +515,7 @@ export default function SalesOrdersPage() {
 
         {pageError && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">{pageError}</div>}
         {mutationError && <div role="alert" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">{mutationError}</div>}
+        {kitchenFeedback && <div role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">{kitchenFeedback}</div>}
 
         <div className="mb-5 flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-3">
           <button
@@ -506,6 +568,11 @@ export default function SalesOrdersPage() {
                         <p>{table.activeOrder.guestCount ?? "Sin"} comensales</p>
                         <p>Abrió: {table.activeOrder.openedBy.fullName ?? "Usuario"}</p>
                         {table.activeOrder.billRequestedAt && <p className="font-medium text-amber-700">Cuenta solicitada</p>}
+                        {kitchenSummaryLabel(table.activeOrder) && (
+                          <p className="mt-2 font-semibold text-violet-700">
+                            Cocina: {kitchenSummaryLabel(table.activeOrder)}
+                          </p>
+                        )}
                       </div>
                     )}
                     <div className="mt-4">
@@ -576,6 +643,11 @@ export default function SalesOrdersPage() {
                     )}
                     <p>Abierto: {formatDate(order.openedAt)}</p>
                     {order.billRequestedAt && <p className="font-semibold text-amber-700">Cuenta solicitada</p>}
+                    {kitchenSummaryLabel(order) && (
+                      <p className="font-semibold text-violet-700">
+                        Cocina: {kitchenSummaryLabel(order)}
+                      </p>
+                    )}
                   </div>
                   {order.items.length === 0 ? (
                     <div className="py-8 text-center text-slate-600">
@@ -599,6 +671,20 @@ export default function SalesOrdersPage() {
                       className="rounded-lg bg-[#001F3F] px-4 py-3 font-semibold text-white"
                       onClick={() => void router.push(`/sales/menu?orderId=${order.id}`)}
                     >Agregar productos</button>
+                    {canManage && order.status === "OPEN" && (
+                      <button
+                        type="button"
+                        className="rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+                        disabled={!order.hasPendingKitchenItems || Boolean(mutationKey)}
+                        onClick={() => void sendToKitchen()}
+                      >
+                        {mutationKey === "send-kitchen"
+                          ? "Enviando a cocina..."
+                          : order.hasPendingKitchenItems
+                            ? "Enviar a cocina"
+                            : "Todo enviado a cocina"}
+                      </button>
+                    )}
                     {canManage && order.status === "OPEN" && !order.billRequestedAt && (
                       <button
                         type="button"

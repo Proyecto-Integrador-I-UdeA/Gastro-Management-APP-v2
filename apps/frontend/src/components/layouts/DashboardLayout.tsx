@@ -69,6 +69,10 @@ export default function DashboardLayout({
    parentRoute = "/sales";
    parentLabel = "Ventas";
  }
+  if (path.startsWith("/kitchen")) {
+   parentRoute = "/dashboard";
+   parentLabel = "Dashboard";
+ }
   if (path.startsWith("/reports") && path !== "/reports") {
    parentRoute = "/reports";
    parentLabel = "Reportes";
