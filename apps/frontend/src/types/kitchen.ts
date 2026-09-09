@@ -33,12 +33,55 @@ export type KitchenDispatch = {
   warningThresholdMinutes: number;
   targetReadyAt: string;
   startedAt: string | null;
+  startedBy: { id: number; fullName: string | null } | null;
   readyAt: string | null;
+  readyBy: { id: number; fullName: string | null } | null;
+  deliveredAt: string | null;
+  deliveredBy: { id: number; fullName: string | null } | null;
   items: KitchenDispatchItem[];
+};
+
+export type KitchenCancellationAlert = {
+  orderId: number;
+  orderNumber: number;
+  table: {
+    id: number;
+    code: string;
+    area: string | null;
+  };
+  cancelledAt: string;
+  cancelledBy: { id: number; fullName: string | null } | null;
+  cancellationReason: string;
+  cancellationAcknowledgedAt: string | null;
+  cancellationAcknowledgedBy: { id: number; fullName: string | null } | null;
+  affectedDispatches: Array<{
+    id: number;
+    status: KitchenDispatchStatus;
+  }>;
 };
 
 export type KitchenQueueResponse = {
   dispatches: KitchenDispatch[];
+  cancellations: KitchenCancellationAlert[];
+};
+
+export type ReadyKitchenPickup = {
+  dispatchId: number;
+  salesOrderId: number;
+  orderNumber: number;
+  table: {
+    id: number;
+    code: string;
+    area: string | null;
+  };
+  status: "READY";
+  readyAt: string;
+  deliveredAt: null;
+  cancelled: false;
+};
+
+export type ReadyKitchenPickupsResponse = {
+  pickups: ReadyKitchenPickup[];
 };
 
 export type KitchenStatusUpdateInput = {

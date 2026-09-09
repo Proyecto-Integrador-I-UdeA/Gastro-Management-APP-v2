@@ -3,11 +3,14 @@ import { listSalesMenuCatalog } from '../../controllers/sales/salesMenuCatalogCo
 import {
   addOrderItem,
   addOrderItemAddition,
+  cancelOrder,
   createTable,
   deleteOrderItem,
+  deliverDispatch,
   getActiveOrder,
   getOrder,
   listTables,
+  listReadyPickups,
   openTable,
   requestBill,
   sendOrderToKitchen,
@@ -27,6 +30,12 @@ router.get(
 );
 
 router.get('/tables', authenticate, authorize(['sales.read']), listTables);
+router.get(
+  '/kitchen-ready-pickups',
+  authenticate,
+  authorize(['sales.read']),
+  listReadyPickups,
+);
 router.post('/tables', authenticate, authorize(['sales.tables.manage']), createTable);
 router.patch('/tables/:tableId', authenticate, authorize(['sales.tables.manage']), updateTable);
 router.post('/tables/:tableId/orders', authenticate, authorize(['sales.manage']), openTable);
@@ -73,6 +82,18 @@ router.post(
   authenticate,
   authorize(['sales.manage']),
   sendOrderToKitchen,
+);
+router.post(
+  '/orders/:orderId/kitchen-dispatches/:dispatchId/deliver',
+  authenticate,
+  authorize(['sales.manage']),
+  deliverDispatch,
+);
+router.post(
+  '/orders/:orderId/cancel',
+  authenticate,
+  authorize(['sales.manage']),
+  cancelOrder,
 );
 
 export default router;

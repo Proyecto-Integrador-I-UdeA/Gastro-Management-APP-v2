@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import KitchenPage from "@/pages/kitchen";
-import type { KitchenDispatch } from "@/types/kitchen";
+import type { KitchenCancellationAlert, KitchenDispatch } from "@/types/kitchen";
 
 const mocks = vi.hoisted(() => ({
   apiFetch: vi.fn(),
@@ -38,7 +38,11 @@ function dispatch(
     warningThresholdMinutes: 5,
     targetReadyAt: new Date(now + targetOffsetMinutes * 60_000).toISOString(),
     startedAt: status === "NEXT" ? null : new Date(now - 60_000).toISOString(),
+    startedBy: status === "NEXT" ? null : { id: 8, fullName: "Cocinero" },
     readyAt: status === "READY" ? new Date(now).toISOString() : null,
+    readyBy: status === "READY" ? { id: 8, fullName: "Cocinero" } : null,
+    deliveredAt: null,
+    deliveredBy: null,
     items: [{
       id: id * 10,
       salesOrderItemId: id * 100,
@@ -57,6 +61,7 @@ function dispatch(
 }
 
 let queue: KitchenDispatch[];
+let cancellations: KitchenCancellationAlert[];
 
 beforeEach(() => {
   vi.useRealTimers();
@@ -67,9 +72,10 @@ beforeEach(() => {
     dispatch(2, "PREPARING", 5),
     dispatch(3, "READY", -2),
   ];
+  cancellations = [];
   mocks.apiFetch.mockImplementation((path: string, options?: RequestInit & { json?: unknown }) => {
     if (path === "/kitchen/dispatches" && !options?.method) {
-      return Promise.resolve({ dispatches: queue });
+      return Promise.resolve({ dispatches: queue, cancellations });
     }
     const match = path.match(/^\/kitchen\/dispatches\/(\d+)\/status$/);
     if (match && options?.method === "PATCH") {
@@ -190,6 +196,87 @@ describe("pantalla operativa de Cocina", () => {
     expect(await screen.findByLabelText("Ticket de cocina 1")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Iniciar preparación" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Marcar como listo" })).not.toBeInTheDocument();
+  });
+
+  it("muestra una cancelación persistente y exige kitchen.manage para acusarla", async () => {
+    cancellations = [{
+      orderId: 71,
+      orderNumber: 71,
+      table: { id: 4, code: "M-4", area: "Terraza" },
+      cancelledAt: "2026-09-09T18:00:00.000Z",
+      cancelledBy: { id: 7, fullName: "Laura" },
+      cancellationReason: "Cliente abandonó el restaurante.",
+      cancellationAcknowledgedAt: null,
+      cancellationAcknowledgedBy: null,
+      affectedDispatches: [{ id: 3, status: "READY" }],
+    }];
+    queue = [];
+    mocks.getUserPermissions.mockReturnValue(["kitchen.read"]);
+    render(<KitchenPage />);
+
+    const alert = await screen.findByLabelText("Pedido cancelado de mesa M-4");
+    expect(alert).toHaveTextContent("Pedido cancelado");
+    expect(alert).toHaveTextContent("Detener preparación");
+    expect(alert).toHaveTextContent("Cliente abandonó el restaurante.");
+    expect(within(alert).queryByRole("button", { name: "Confirmar cancelación" }))
+      .not.toBeInTheDocument();
+  });
+
+  it("confirma una cancelación una vez y la retira de la cola activa", async () => {
+    cancellations = [{
+      orderId: 71,
+      orderNumber: 71,
+      table: { id: 4, code: "M-4", area: "Terraza" },
+      cancelledAt: "2026-09-09T18:00:00.000Z",
+      cancelledBy: { id: 7, fullName: "Laura" },
+      cancellationReason: "Cliente abandonó el restaurante.",
+      cancellationAcknowledgedAt: null,
+      cancellationAcknowledgedBy: null,
+      affectedDispatches: [{ id: 3, status: "READY" }],
+    }];
+    queue = [];
+    mocks.apiFetch.mockImplementation((path: string, options?: RequestInit) => {
+      if (path === "/kitchen/dispatches" && !options?.method) {
+        return Promise.resolve({ dispatches: queue, cancellations });
+      }
+      if (path === "/kitchen/cancellations/71/acknowledge" && options?.method === "POST") {
+        return Promise.resolve({
+          ...cancellations[0],
+          cancellationAcknowledgedAt: "2026-09-09T18:01:00.000Z",
+        });
+      }
+      return Promise.reject(new Error("Ruta inesperada"));
+    });
+    const user = userEvent.setup();
+    render(<KitchenPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Confirmar cancelación" }));
+    await waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith(
+      "/kitchen/cancellations/71/acknowledge",
+      { method: "POST", json: {} },
+    ));
+    expect(screen.queryByLabelText("Pedido cancelado de mesa M-4"))
+      .not.toBeInTheDocument();
+  });
+
+  it("descarta defensivamente tickets entregados y limita el scroll por columna", async () => {
+    queue = [{
+      ...dispatch(9, "READY", -3),
+      deliveredAt: "2026-09-09T18:05:00.000Z",
+      deliveredBy: { id: 7, fullName: "Laura" },
+    }];
+    const firstRender = render(<KitchenPage />);
+
+    expect(await screen.findByText("No hay pedidos pendientes en cocina."))
+      .toBeInTheDocument();
+    firstRender.unmount();
+
+    queue = [dispatch(1, "NEXT", 10)];
+    const { unmount } = render(<KitchenPage />);
+    const nextColumn = await screen.findByRole("region", { name: "Próximo" });
+    expect(nextColumn.className).toContain("max-h-[calc(100vh-13rem)]");
+    expect(nextColumn.querySelector(".overflow-y-auto")).not.toBeNull();
+    unmount();
   });
 
   it("muestra el estado vacío intencional", async () => {

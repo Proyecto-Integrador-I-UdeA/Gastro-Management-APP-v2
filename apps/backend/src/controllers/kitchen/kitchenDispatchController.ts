@@ -1,9 +1,14 @@
 import type { Response } from 'express';
 import type { AuthenticatedRequest } from '../../middlewares/auth';
 import { positiveIdParamSchema } from '../../schemas/salesOrderSchema';
-import { kitchenDispatchStatusSchema } from '../../schemas/kitchenDispatchSchema';
 import {
+  emptyKitchenMutationSchema,
+  kitchenDispatchStatusSchema,
+} from '../../schemas/kitchenDispatchSchema';
+import {
+  acknowledgeKitchenCancellation,
   getKitchenDispatch,
+  listKitchenCancellationAlerts,
   listKitchenDispatches,
   updateKitchenDispatchStatus,
 } from '../../services/kitchen/kitchenDispatchService';
@@ -20,6 +25,14 @@ function parseId(raw: string, res: Response): number | null {
     return null;
   }
   return result.data;
+}
+
+function actorId(req: AuthenticatedRequest, res: Response): number | null {
+  if (!req.user) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return null;
+  }
+  return req.user.id;
 }
 
 function handleKitchenError(error: unknown, res: Response) {
@@ -39,7 +52,11 @@ function handleKitchenError(error: unknown, res: Response) {
 
 export const listDispatches = async (_req: AuthenticatedRequest, res: Response) => {
   try {
-    return res.json({ dispatches: await listKitchenDispatches() });
+    const [dispatches, cancellations] = await Promise.all([
+      listKitchenDispatches(),
+      listKitchenCancellationAlerts(),
+    ]);
+    return res.json({ dispatches, cancellations });
   } catch (error) {
     return handleKitchenError(error, res);
   }
@@ -69,8 +86,40 @@ export const updateDispatchStatus = async (
       details: input.error.issues,
     });
   }
+  const updatedById = actorId(req, res);
+  if (updatedById === null) return;
   try {
-    return res.json(await updateKitchenDispatchStatus(dispatchId, input.data.status));
+    return res.json(await updateKitchenDispatchStatus(
+      dispatchId,
+      input.data.status,
+      updatedById,
+    ));
+  } catch (error) {
+    return handleKitchenError(error, res);
+  }
+};
+
+export const acknowledgeCancellation = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
+  const orderId = parseId(req.params.orderId, res);
+  if (orderId === null) return;
+  const input = emptyKitchenMutationSchema.safeParse(req.body ?? {});
+  if (!input.success) {
+    return res.status(400).json({
+      error: 'Solicitud de cocina inválida',
+      code: 'VALIDATION_ERROR',
+      details: input.error.issues,
+    });
+  }
+  const acknowledgedById = actorId(req, res);
+  if (acknowledgedById === null) return;
+  try {
+    return res.json(await acknowledgeKitchenCancellation(
+      orderId,
+      acknowledgedById,
+    ));
   } catch (error) {
     return handleKitchenError(error, res);
   }

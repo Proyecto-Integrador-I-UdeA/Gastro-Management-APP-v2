@@ -5,6 +5,7 @@ import Header from '@/components/Header';
 import Breadcrumb from "@/components/Breadcrumb";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import ReadyPickupNotifier from "@/components/kitchen/ReadyPickupNotifier";
 
 export default function DashboardLayout({
   children,
@@ -90,6 +91,7 @@ export default function DashboardLayout({
 
       {/* Contenido */}
       <div className="flex-1 ml-72">
+        <ReadyPickupNotifier />
 
         {/* Header */}
         <Header />

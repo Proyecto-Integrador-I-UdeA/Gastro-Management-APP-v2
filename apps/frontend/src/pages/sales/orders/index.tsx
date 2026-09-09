@@ -57,6 +57,11 @@ type SalesOrder = KitchenOrderSummary & {
   guestCount: number | null;
   openedAt: string;
   billRequestedAt: string | null;
+  cancelledAt: string | null;
+  cancelledBy: { id: number; fullName: string | null } | null;
+  cancellationReason: string | null;
+  cancellationAcknowledgedAt: string | null;
+  cancellationAcknowledgedBy: { id: number; fullName: string | null } | null;
   openedBy: { id: number; fullName: string | null };
   items: SalesOrderItem[];
   totals: { subtotal: string; total: string; currency: string | null };
@@ -95,6 +100,8 @@ function errorMessage(error: unknown, fallback: string): string {
     ORDER_CURRENCY_MISMATCH: "El producto usa una moneda diferente a la del pedido.",
     NO_PENDING_KITCHEN_ITEMS: "Todos los productos ya fueron enviados a cocina.",
     ORDER_ITEM_ALREADY_SENT_TO_KITCHEN: "Uno de los productos ya fue enviado a cocina.",
+    ORDER_HAS_DELIVERED_DISPATCHES:
+      "No se puede cancelar completamente un pedido que ya tuvo entregas.",
   };
   return (code && messages[code]) || apiError.message || fallback;
 }
@@ -143,6 +150,8 @@ export default function SalesOrdersPage() {
   const [mutationError, setMutationError] = useState("");
   const [kitchenFeedback, setKitchenFeedback] = useState("");
   const [openingTableId, setOpeningTableId] = useState<number | null>(null);
+  const [cancellationDialogOpen, setCancellationDialogOpen] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState("");
   const [guestCountDraft, setGuestCountDraft] = useState("");
   const [orderGuestCountDraft, setOrderGuestCountDraft] = useState("");
   const [mutationKey, setMutationKey] = useState("");
@@ -394,6 +403,31 @@ export default function SalesOrdersPage() {
     );
   }
 
+  async function cancelOrder() {
+    if (!order || !canManage || order.status !== "OPEN" || mutationKey) return;
+    const reason = cancellationReason.trim();
+    if (!reason) {
+      setMutationError("El motivo de cancelación es obligatorio.");
+      return;
+    }
+    setMutationKey("cancel-order");
+    setMutationError("");
+    try {
+      const cancelled = await apiFetch<SalesOrder>(
+        `/sales/orders/${order.id}/cancel`,
+        { method: "POST", json: { reason } },
+      );
+      setOrder(cancelled);
+      setCancellationDialogOpen(false);
+      setCancellationReason("");
+      await refreshAfterMutation();
+    } catch (error) {
+      setMutationError(errorMessage(error, "No fue posible cancelar el pedido."));
+    } finally {
+      setMutationKey("");
+    }
+  }
+
   function renderOrderItem(item: SalesOrderItem | SalesOrderAddition, isAddition = false) {
     const additions = !isAddition && "additions" in item ? item.additions ?? [] : [];
 
@@ -612,7 +646,15 @@ export default function SalesOrdersPage() {
                       <p className="text-sm text-slate-500">Mesa {order.table.code}</p>
                       <h2 className="text-xl font-bold text-slate-900">Pedido #{order.id}</h2>
                     </div>
-                    <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800">Abierto</span>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      order.status === "VOIDED"
+                        ? "bg-red-100 text-red-800"
+                        : order.status === "SETTLED"
+                          ? "bg-slate-200 text-slate-700"
+                          : "bg-blue-100 text-blue-800"
+                    }`}>
+                      {order.status === "VOIDED" ? "Cancelado" : order.status === "SETTLED" ? "Cerrado" : "Abierto"}
+                    </span>
                   </div>
                   <div className="mt-4 space-y-1 border-b border-slate-200 pb-4 text-sm text-slate-600">
                     <p>Área: {order.table.area ?? "Sin área"}</p>
@@ -643,6 +685,14 @@ export default function SalesOrdersPage() {
                     )}
                     <p>Abierto: {formatDate(order.openedAt)}</p>
                     {order.billRequestedAt && <p className="font-semibold text-amber-700">Cuenta solicitada</p>}
+                    {order.status === "VOIDED" && (
+                      <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3 text-red-900">
+                        <p className="font-bold">Pedido cancelado</p>
+                        <p>Motivo: {order.cancellationReason}</p>
+                        {order.cancelledAt && <p>Cancelado: {formatDate(order.cancelledAt)}</p>}
+                        <p>Por: {order.cancelledBy?.fullName ?? "Usuario"}</p>
+                      </div>
+                    )}
                     {kitchenSummaryLabel(order) && (
                       <p className="font-semibold text-violet-700">
                         Cocina: {kitchenSummaryLabel(order)}
@@ -652,11 +702,11 @@ export default function SalesOrdersPage() {
                   {order.items.length === 0 ? (
                     <div className="py-8 text-center text-slate-600">
                       <p>Este pedido aún no tiene productos.</p>
-                      <button
+                      {order.status === "OPEN" && <button
                         type="button"
                         className="mt-4 rounded-lg bg-[#001F3F] px-4 py-2 font-semibold text-white"
                         onClick={() => void router.push(`/sales/menu?orderId=${order.id}`)}
-                      >Agregar productos</button>
+                      >Agregar productos</button>}
                     </div>
                   ) : (
                     <ul className="my-5 space-y-5">{order.items.map(item => renderOrderItem(item))}</ul>
@@ -666,11 +716,11 @@ export default function SalesOrdersPage() {
                     <div className="mt-1 flex justify-between text-lg font-bold text-slate-900"><span>Total</span><span>{formatMoney(order.totals.total, order.totals.currency)}</span></div>
                   </div>
                   <div className="mt-5 flex flex-col gap-2">
-                    <button
+                    {order.status === "OPEN" && <button
                       type="button"
                       className="rounded-lg bg-[#001F3F] px-4 py-3 font-semibold text-white"
                       onClick={() => void router.push(`/sales/menu?orderId=${order.id}`)}
-                    >Agregar productos</button>
+                    >Agregar productos</button>}
                     {canManage && order.status === "OPEN" && (
                       <button
                         type="button"
@@ -692,6 +742,18 @@ export default function SalesOrdersPage() {
                         disabled={Boolean(mutationKey)}
                         onClick={requestBill}
                       >Pedir cuenta</button>
+                    )}
+                    {canManage && order.status === "OPEN" && (
+                      <button
+                        type="button"
+                        className="rounded-lg border border-red-600 px-4 py-3 font-semibold text-red-700"
+                        disabled={Boolean(mutationKey)}
+                        onClick={() => {
+                          setCancellationDialogOpen(true);
+                          setCancellationReason("");
+                          setMutationError("");
+                        }}
+                      >Cancelar pedido</button>
                     )}
                   </div>
                 </>
@@ -734,6 +796,49 @@ export default function SalesOrdersPage() {
               <div className="mt-5 flex justify-end gap-2">
                 <button type="button" className="rounded-lg border border-slate-300 px-4 py-2" onClick={() => setOpeningTableId(null)}>Cancelar</button>
                 <button type="submit" className="rounded-lg bg-[#001F3F] px-4 py-2 font-semibold text-white" disabled={mutationKey === `open-${openingTableId}`}>Abrir mesa</button>
+              </div>
+            </form>
+          </div>
+        )}
+        {cancellationDialogOpen && order?.status === "OPEN" && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+            <form
+              role="dialog"
+              aria-label="Cancelar pedido"
+              className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl"
+              onSubmit={event => {
+                event.preventDefault();
+                void cancelOrder();
+              }}
+            >
+              <h2 className="text-xl font-bold text-red-800">Cancelar pedido #{order.id}</h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Cocina recibirá una alerta persistente para detener la preparación.
+              </p>
+              <label className="mt-4 block text-sm font-semibold text-slate-800">
+                Motivo de cancelación
+                <textarea
+                  autoFocus
+                  required
+                  maxLength={500}
+                  rows={4}
+                  value={cancellationReason}
+                  onChange={event => setCancellationReason(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal"
+                />
+              </label>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-slate-300 px-4 py-2"
+                  disabled={mutationKey === "cancel-order"}
+                  onClick={() => setCancellationDialogOpen(false)}
+                >Volver</button>
+                <button
+                  type="submit"
+                  className="rounded-lg bg-red-800 px-4 py-2 font-bold text-white disabled:opacity-60"
+                  disabled={mutationKey === "cancel-order"}
+                >{mutationKey === "cancel-order" ? "Cancelando..." : "Confirmar cancelación"}</button>
               </div>
             </form>
           </div>

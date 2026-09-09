@@ -5,6 +5,7 @@ import DashboardLayout from "@/components/layouts/DashboardLayout";
 import type {
   KitchenDispatch,
   KitchenDispatchStatus,
+  KitchenCancellationAlert,
   KitchenQueueResponse,
 } from "@/types/kitchen";
 import { apiFetch } from "@/utils/apiFetch";
@@ -53,6 +54,9 @@ function kitchenErrorMessage(error: unknown, fallback: string): string {
     KITCHEN_DISPATCH_NOT_FOUND: "El pedido ya no está disponible en la cola.",
     INVALID_KITCHEN_STATUS_TRANSITION:
       "El estado cambió en otra pantalla. La cola se actualizará automáticamente.",
+    ORDER_CANCELLED: "El pedido fue cancelado. Confirma la alerta de cancelación.",
+    KITCHEN_CANCELLATION_NOT_FOUND:
+      "La cancelación ya fue confirmada en otra pantalla.",
   };
   return (apiError.body?.code && messages[apiError.body.code])
     || apiError.message
@@ -70,10 +74,12 @@ export default function KitchenPage() {
   const [permissions, setPermissions] = useState<string[]>([]);
   const [permissionReady, setPermissionReady] = useState(false);
   const [dispatches, setDispatches] = useState<KitchenDispatch[]>([]);
+  const [cancellations, setCancellations] = useState<KitchenCancellationAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
   const [backgroundError, setBackgroundError] = useState("");
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [acknowledgingOrderId, setAcknowledgingOrderId] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const requestInFlight = useRef(false);
   const queueRevisionRef = useRef(0);
@@ -89,7 +95,8 @@ export default function KitchenPage() {
     try {
       const response = await apiFetch<KitchenQueueResponse>("/kitchen/dispatches");
       if (requestRevision !== queueRevisionRef.current) return;
-      setDispatches(response.dispatches);
+      setDispatches(response.dispatches.filter(dispatch => dispatch.deliveredAt === null));
+      setCancellations(response.cancellations ?? []);
       setPageError("");
       setBackgroundError("");
     } catch (error) {
@@ -115,9 +122,34 @@ export default function KitchenPage() {
   }, [canRead, loadQueue, permissionReady]);
 
   useEffect(() => {
+    if (!dispatches.some(dispatch => dispatch.status !== "READY")) return undefined;
     const timerInterval = window.setInterval(() => setNowMs(Date.now()), 1_000);
     return () => window.clearInterval(timerInterval);
-  }, []);
+  }, [dispatches]);
+
+  async function acknowledgeCancellation(cancellation: KitchenCancellationAlert) {
+    if (!canManage || acknowledgingOrderId !== null) return;
+    setAcknowledgingOrderId(cancellation.orderId);
+    setBackgroundError("");
+    try {
+      await apiFetch(
+        `/kitchen/cancellations/${cancellation.orderId}/acknowledge`,
+        { method: "POST", json: {} },
+      );
+      queueRevisionRef.current += 1;
+      setCancellations(current => current.filter(
+        item => item.orderId !== cancellation.orderId,
+      ));
+    } catch (error) {
+      setBackgroundError(kitchenErrorMessage(
+        error,
+        "No fue posible confirmar la cancelación.",
+      ));
+      void loadQueue(true);
+    } finally {
+      setAcknowledgingOrderId(null);
+    }
+  }
 
   async function advanceDispatch(dispatch: KitchenDispatch) {
     if (!canManage || updatingId !== null || dispatch.status === "READY") return;
@@ -165,7 +197,7 @@ export default function KitchenPage() {
     return (
       <article
         key={dispatch.id}
-        className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
         aria-label={`Ticket de cocina ${dispatch.dispatchNumber}`}
       >
         <div className="flex items-start justify-between gap-3">
@@ -203,12 +235,12 @@ export default function KitchenPage() {
           </div>
         </div>
 
-        <div className="mt-3 border-y border-slate-100 py-2 text-xs text-slate-500">
+        <div className="mt-2 border-y border-slate-100 py-1.5 text-xs text-slate-500">
           <p>Enviado: {formatDispatchTime(dispatch.dispatchedAt)}</p>
           <p>Mesero: {dispatch.dispatchedBy.fullName ?? "Usuario"}</p>
         </div>
 
-        <ul className="mt-3 space-y-3">
+        <ul className="mt-2 space-y-2">
           {dispatch.items.map(item => (
             <li key={item.id}>
               <p className="font-semibold text-slate-900">
@@ -240,7 +272,7 @@ export default function KitchenPage() {
         {canManage && dispatch.status !== "READY" && (
           <button
             type="button"
-            className="mt-4 w-full rounded-lg bg-[#001F3F] px-4 py-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-60"
+            className="mt-3 w-full rounded-lg bg-[#001F3F] px-4 py-2 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-60"
             disabled={updatingId !== null}
             onClick={() => void advanceDispatch(dispatch)}
           >
@@ -301,21 +333,63 @@ export default function KitchenPage() {
               Reintentar
             </button>
           </div>
-        ) : dispatches.length === 0 ? (
+        ) : dispatches.length === 0 && cancellations.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-600">
             No hay pedidos pendientes en cocina.
           </div>
         ) : (
-          <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
+          <div>
+            {cancellations.length > 0 && (
+              <section aria-label="Cancelaciones pendientes" className="mb-5 space-y-3">
+                {cancellations.map(cancellation => (
+                  <article
+                    key={cancellation.orderId}
+                    role="alert"
+                    aria-label={`Pedido cancelado de mesa ${cancellation.table.code}`}
+                    className="rounded-2xl border-4 border-red-700 bg-red-50 p-5 text-red-950 shadow-lg"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-black uppercase tracking-widest">⚠ Pedido cancelado</p>
+                        <h2 className="mt-1 text-3xl font-black">Mesa {cancellation.table.code}</h2>
+                        <p className="mt-1 text-lg font-extrabold uppercase">Detener preparación</p>
+                        <p className="mt-3 font-semibold">Motivo:</p>
+                        <p className="whitespace-pre-wrap">{cancellation.cancellationReason}</p>
+                        <p className="mt-2 text-sm">
+                          Pedido #{cancellation.orderNumber} · {cancellation.affectedDispatches.length} ticket(s) afectado(s)
+                        </p>
+                      </div>
+                      {canManage ? (
+                        <button
+                          type="button"
+                          className="rounded-xl bg-red-800 px-5 py-3 font-black text-white disabled:opacity-60"
+                          disabled={acknowledgingOrderId !== null}
+                          onClick={() => void acknowledgeCancellation(cancellation)}
+                        >
+                          {acknowledgingOrderId === cancellation.orderId
+                            ? "Confirmando..."
+                            : "Confirmar cancelación"}
+                        </button>
+                      ) : (
+                        <p className="rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-semibold">
+                          Se requiere kitchen.manage para confirmar.
+                        </p>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </section>
+            )}
+            <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
             {columns.map(column => {
               const tickets = dispatches.filter(dispatch => dispatch.status === column.status);
               return (
                 <section
                   key={column.status}
-                  className={`min-h-48 rounded-2xl border border-slate-200 p-3 ${column.surface}`}
+                  className={`flex min-h-48 max-h-[calc(100vh-13rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 ${column.surface}`}
                   aria-labelledby={`kitchen-${column.status.toLowerCase()}`}
                 >
-                  <div className={`mb-3 flex items-center justify-between border-t-4 px-1 pt-3 ${column.accent}`}>
+                  <div className={`sticky top-0 z-10 flex items-center justify-between border-t-4 bg-inherit px-4 py-3 ${column.accent}`}>
                     <h2 id={`kitchen-${column.status.toLowerCase()}`} className="text-lg font-bold text-slate-900">
                       {column.title}
                     </h2>
@@ -328,11 +402,12 @@ export default function KitchenPage() {
                       Sin tickets
                     </p>
                   ) : (
-                    <div className="space-y-3">{tickets.map(renderTicket)}</div>
+                    <div className="space-y-3 overflow-y-auto px-3 pb-3">{tickets.map(renderTicket)}</div>
                   )}
                 </section>
               );
             })}
+            </div>
           </div>
         )}
       </div>

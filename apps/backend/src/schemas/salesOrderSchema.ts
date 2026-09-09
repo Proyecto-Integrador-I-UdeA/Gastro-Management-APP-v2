@@ -53,6 +53,14 @@ export const updateOrderGuestCountSchema = z.object({
 
 export const emptySalesMutationSchema = z.object({}).strict();
 
+export const cancelSalesOrderSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(1, 'El motivo de cancelación es obligatorio')
+    .max(500, 'El motivo de cancelación no puede superar 500 caracteres'),
+}).strict();
+
 export const createDiningTableSchema = z.object({
   code: diningTableCode,
   area: diningTableArea.optional(),
@@ -77,3 +85,4 @@ export type AddExistingOrderItemAdditionInput = z.infer<
 export type UpdateOrderItemInput = z.infer<typeof updateOrderItemSchema>;
 export type CreateDiningTableInput = z.infer<typeof createDiningTableSchema>;
 export type UpdateDiningTableInput = z.infer<typeof updateDiningTableSchema>;
+export type CancelSalesOrderInput = z.infer<typeof cancelSalesOrderSchema>;

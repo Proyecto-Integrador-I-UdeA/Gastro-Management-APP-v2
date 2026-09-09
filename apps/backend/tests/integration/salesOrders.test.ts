@@ -34,6 +34,17 @@ const kitchenMigrationStatements = kitchenMigrationSql
   .split(';')
   .map(statement => statement.trim())
   .filter(Boolean);
+const lifecycleMigrationSql = readFileSync(
+  resolve(
+    process.cwd(),
+    'prisma/migrations/20260909180000_kitchen_01c_service_traceability/migration.sql',
+  ),
+  'utf8',
+);
+const lifecycleMigrationStatements = lifecycleMigrationSql
+  .split(';')
+  .map(statement => statement.trim())
+  .filter(Boolean);
 
 let app: Express;
 let prisma: PrismaClient;
@@ -273,6 +284,9 @@ beforeAll(async () => {
     await prisma.$executeRawUnsafe(statement);
   }
   for (const statement of kitchenMigrationStatements) {
+    await prisma.$executeRawUnsafe(statement);
+  }
+  for (const statement of lifecycleMigrationStatements) {
     await prisma.$executeRawUnsafe(statement);
   }
 
@@ -1306,12 +1320,17 @@ describe('backend de mesas y pedidos SALES-02D', () => {
     expect(preparing.status).toBe(200);
     expect(preparing.body.status).toBe(KitchenDispatchStatus.PREPARING);
     expect(preparing.body.startedAt).toEqual(expect.any(String));
+    expect(preparing.body.startedBy).toEqual({
+      id: actorId,
+      fullName: 'Mesero de prueba',
+    });
     expect(preparing.body.readyAt).toBeNull();
     const preparingAgain = await request(app)
       .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
       .set('Authorization', auth(['kitchen.manage']))
       .send({ status: 'PREPARING' });
     expect(preparingAgain.body.startedAt).toBe(preparing.body.startedAt);
+    expect(preparingAgain.body.startedBy).toEqual(preparing.body.startedBy);
 
     const ready = await request(app)
       .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
@@ -1321,11 +1340,16 @@ describe('backend de mesas y pedidos SALES-02D', () => {
     expect(ready.body.status).toBe(KitchenDispatchStatus.READY);
     expect(ready.body.startedAt).toBe(preparing.body.startedAt);
     expect(ready.body.readyAt).toEqual(expect.any(String));
+    expect(ready.body.readyBy).toEqual({
+      id: actorId,
+      fullName: 'Mesero de prueba',
+    });
     const readyAgain = await request(app)
       .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
       .set('Authorization', auth(['kitchen.manage']))
       .send({ status: 'READY' });
     expect(readyAgain.body.readyAt).toBe(ready.body.readyAt);
+    expect(readyAgain.body.readyBy).toEqual(ready.body.readyBy);
 
     const backward = await request(app)
       .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
@@ -1346,8 +1370,623 @@ describe('backend de mesas y pedidos SALES-02D', () => {
     const liveQueue = await request(app)
       .get('/kitchen/dispatches')
       .set('Authorization', auth(['kitchen.read']));
-    expect(liveQueue.body.dispatches).not.toEqual(expect.arrayContaining([
+    expect(liveQueue.body.dispatches).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: dispatch.body.id }),
     ]));
+  });
+
+  it('serializa transiciones concurrentes y conserva un único actor/timestamp por etapa', async () => {
+    const otherActor = await prisma.user.create({
+      data: {
+        email: `concurrent-kitchen-${sequence}@example.test`,
+        passwordHash: 'not-used-by-test',
+        fullName: 'Cocinero concurrente',
+      },
+      select: { id: true },
+    });
+    const otherAuth = `Bearer ${createIntegrationToken(
+      ['kitchen.manage'],
+      otherActor.id,
+    )}`;
+    const order = await openOrder((await createTable()).id);
+    await addItem(order.id, { menuItemId: standardItemId, quantity: 1 });
+    const dispatch = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    const statusRoute = `/kitchen/dispatches/${dispatch.body.id}/status`;
+
+    const preparingResponses = await Promise.all([
+      request(app)
+        .patch(statusRoute)
+        .set('Authorization', auth(['kitchen.manage']))
+        .send({ status: 'PREPARING' }),
+      request(app)
+        .patch(statusRoute)
+        .set('Authorization', otherAuth)
+        .send({ status: 'PREPARING' }),
+    ]);
+    expect(preparingResponses.map(response => response.status)).toEqual([200, 200]);
+    expect(preparingResponses[0].body.startedAt).toBe(preparingResponses[1].body.startedAt);
+    expect(preparingResponses[0].body.startedBy).toEqual(
+      preparingResponses[1].body.startedBy,
+    );
+
+    const readyResponses = await Promise.all([
+      request(app)
+        .patch(statusRoute)
+        .set('Authorization', auth(['kitchen.manage']))
+        .send({ status: 'READY' }),
+      request(app)
+        .patch(statusRoute)
+        .set('Authorization', otherAuth)
+        .send({ status: 'READY' }),
+    ]);
+    expect(readyResponses.map(response => response.status)).toEqual([200, 200]);
+    expect(readyResponses[0].body.readyAt).toBe(readyResponses[1].body.readyAt);
+    expect(readyResponses[0].body.readyBy).toEqual(readyResponses[1].body.readyBy);
+  });
+
+  it('mantiene responsable por dispatch aunque una misma orden tenga envíos de usuarios distintos', async () => {
+    const otherWaiter = await prisma.user.create({
+      data: {
+        email: `dispatch-owner-${sequence}@example.test`,
+        passwordHash: 'not-used-by-test',
+        fullName: 'Mesero alterno',
+      },
+      select: { id: true },
+    });
+    const otherSalesAuth = `Bearer ${createIntegrationToken(
+      ['sales.read', 'sales.manage'],
+      otherWaiter.id,
+    )}`;
+    const order = await openOrder((await createTable()).id);
+
+    await addItem(order.id, { menuItemId: standardItemId, quantity: 1 });
+    const firstDispatch = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    await addItem(order.id, { menuItemId: standardItemId, quantity: 1 });
+    const secondDispatch = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', otherSalesAuth)
+      .send({});
+
+    for (const dispatchId of [firstDispatch.body.id, secondDispatch.body.id]) {
+      await request(app)
+        .patch(`/kitchen/dispatches/${dispatchId}/status`)
+        .set('Authorization', auth(['kitchen.manage']))
+        .send({ status: 'PREPARING' });
+      await request(app)
+        .patch(`/kitchen/dispatches/${dispatchId}/status`)
+        .set('Authorization', auth(['kitchen.manage']))
+        .send({ status: 'READY' });
+    }
+
+    const firstPickups = await request(app)
+      .get('/sales/kitchen-ready-pickups')
+      .set('Authorization', auth(['sales.read']));
+    const secondPickups = await request(app)
+      .get('/sales/kitchen-ready-pickups')
+      .set('Authorization', otherSalesAuth);
+    expect(firstPickups.body.pickups.map((pickup: { dispatchId: number }) => pickup.dispatchId))
+      .toEqual([firstDispatch.body.id]);
+    expect(secondPickups.body.pickups.map((pickup: { dispatchId: number }) => pickup.dispatchId))
+      .toEqual([secondDispatch.body.id]);
+
+    await request(app)
+      .post(`/sales/orders/${order.id}/kitchen-dispatches/${secondDispatch.body.id}/deliver`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    expect(await prisma.kitchenDispatch.findUniqueOrThrow({
+      where: { id: secondDispatch.body.id },
+      select: { dispatchedById: true, deliveredById: true },
+    })).toEqual({
+      dispatchedById: otherWaiter.id,
+      deliveredById: actorId,
+    });
+  });
+
+  it('expone recogidas solo al mesero responsable y entrega READY de forma idempotente', async () => {
+    const otherWaiter = await prisma.user.create({
+      data: {
+        email: `other-waiter-${sequence}@example.test`,
+        passwordHash: 'not-used-by-test',
+        fullName: 'Otro mesero',
+      },
+      select: { id: true },
+    });
+    const order = await openOrder((await createTable()).id);
+    await addItem(order.id, { menuItemId: standardItemId, quantity: 1 });
+    const dispatch = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+
+    const nextDelivery = await request(app)
+      .post(`/sales/orders/${order.id}/kitchen-dispatches/${dispatch.body.id}/deliver`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    expect(nextDelivery.status).toBe(409);
+    expect(nextDelivery.body.code).toBe('KITCHEN_DISPATCH_NOT_READY');
+
+    await request(app)
+      .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'PREPARING' });
+    const preparingDelivery = await request(app)
+      .post(`/sales/orders/${order.id}/kitchen-dispatches/${dispatch.body.id}/deliver`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    expect(preparingDelivery.status).toBe(409);
+    expect(preparingDelivery.body.code).toBe('KITCHEN_DISPATCH_NOT_READY');
+    await request(app)
+      .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'READY' });
+
+    expect((await request(app).get('/sales/kitchen-ready-pickups')).status).toBe(401);
+    expect((await request(app)
+      .get('/sales/kitchen-ready-pickups')
+      .set('Authorization', auth(['sales.manage']))).status).toBe(403);
+    const ownPickups = await request(app)
+      .get('/sales/kitchen-ready-pickups')
+      .set('Authorization', auth(['sales.read']));
+    expect(ownPickups.status).toBe(200);
+    expect(ownPickups.body.pickups).toEqual([
+      expect.objectContaining({
+        dispatchId: dispatch.body.id,
+        salesOrderId: order.id,
+        status: 'READY',
+        readyAt: expect.any(String),
+        deliveredAt: null,
+        cancelled: false,
+      }),
+    ]);
+    const unrelatedPickups = await request(app)
+      .get('/sales/kitchen-ready-pickups')
+      .set('Authorization', `Bearer ${createIntegrationToken(
+        ['sales.read'],
+        otherWaiter.id,
+      )}`);
+    expect(unrelatedPickups.body.pickups).toEqual([]);
+
+    const route = `/sales/orders/${order.id}/kitchen-dispatches/${dispatch.body.id}/deliver`;
+    expect((await request(app).post(route).send({})).status).toBe(401);
+    expect((await request(app)
+      .post(route)
+      .set('Authorization', auth(['sales.read']))
+      .send({})).status).toBe(403);
+    expect((await request(app)
+      .post(route)
+      .set('Authorization', auth(['sales.manage']))
+      .send({ deliveredAt: '2020-01-01T00:00:00.000Z' })).status).toBe(400);
+    const missingOrder = await request(app)
+      .post(`/sales/orders/999999/kitchen-dispatches/${dispatch.body.id}/deliver`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    expect(missingOrder.status).toBe(404);
+    expect(missingOrder.body.code).toBe('ORDER_NOT_FOUND');
+    const unrelatedOrder = await openOrder((await createTable()).id);
+    const mismatchedDispatch = await request(app)
+      .post(`/sales/orders/${unrelatedOrder.id}/kitchen-dispatches/${dispatch.body.id}/deliver`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    expect(mismatchedDispatch.status).toBe(404);
+    expect(mismatchedDispatch.body.code).toBe('KITCHEN_DISPATCH_NOT_FOUND');
+
+    const delivered = await request(app)
+      .post(route)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    expect(delivered.status).toBe(200);
+    expect(delivered.body).toMatchObject({
+      dispatchId: dispatch.body.id,
+      salesOrderId: order.id,
+      status: 'READY',
+      readyAt: expect.any(String),
+      deliveredAt: expect.any(String),
+      deliveredBy: { id: actorId, fullName: 'Mesero de prueba' },
+    });
+    const deliveredAgain = await request(app)
+      .post(route)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    expect(deliveredAgain.body.deliveredAt).toBe(delivered.body.deliveredAt);
+    expect(deliveredAgain.body.deliveredBy).toEqual(delivered.body.deliveredBy);
+
+    const queue = await request(app)
+      .get('/kitchen/dispatches')
+      .set('Authorization', auth(['kitchen.read']));
+    expect(queue.body.dispatches).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: dispatch.body.id }),
+    ]));
+    expect((await request(app)
+      .get('/sales/kitchen-ready-pickups')
+      .set('Authorization', auth(['sales.read']))).body.pickups).toEqual([]);
+    expect(await prisma.kitchenDispatch.findUnique({
+      where: { id: dispatch.body.id },
+      select: { readyAt: true, deliveredAt: true, deliveredById: true },
+    })).toMatchObject({
+      readyAt: expect.any(Date),
+      deliveredAt: expect.any(Date),
+      deliveredById: actorId,
+    });
+    expect(await prisma.salesOrder.findUniqueOrThrow({
+      where: { id: order.id },
+      select: { status: true, settledAt: true, settledById: true },
+    })).toEqual({
+      status: SalesOrderStatus.OPEN,
+      settledAt: null,
+      settledById: null,
+    });
+  });
+
+  it('serializa dos entregas concurrentes sin duplicar actor ni timestamp', async () => {
+    const otherWaiter = await prisma.user.create({
+      data: {
+        email: `concurrent-delivery-${sequence}@example.test`,
+        passwordHash: 'not-used-by-test',
+        fullName: 'Mesero concurrente',
+      },
+      select: { id: true },
+    });
+    const order = await openOrder((await createTable()).id);
+    await addItem(order.id, { menuItemId: standardItemId, quantity: 1 });
+    const dispatch = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    const statusRoute = `/kitchen/dispatches/${dispatch.body.id}/status`;
+    await request(app)
+      .patch(statusRoute)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'PREPARING' });
+    await request(app)
+      .patch(statusRoute)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'READY' });
+
+    const deliveryRoute = `/sales/orders/${order.id}/kitchen-dispatches/${dispatch.body.id}/deliver`;
+    const responses = await Promise.all([
+      request(app)
+        .post(deliveryRoute)
+        .set('Authorization', auth(['sales.manage']))
+        .send({}),
+      request(app)
+        .post(deliveryRoute)
+        .set('Authorization', `Bearer ${createIntegrationToken(
+          ['sales.manage'],
+          otherWaiter.id,
+        )}`)
+        .send({}),
+    ]);
+
+    expect(responses.map(response => response.status)).toEqual([200, 200]);
+    expect(responses[0].body.deliveredAt).toBe(responses[1].body.deliveredAt);
+    expect(responses[0].body.deliveredBy).toEqual(responses[1].body.deliveredBy);
+    expect([actorId, otherWaiter.id]).toContain(responses[0].body.deliveredBy.id);
+  });
+
+  it('serializa cancelación y entrega concurrentes sin crear un estado imposible', async () => {
+    const order = await openOrder((await createTable()).id);
+    await addItem(order.id, { menuItemId: standardItemId, quantity: 1 });
+    const dispatch = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    const statusRoute = `/kitchen/dispatches/${dispatch.body.id}/status`;
+    await request(app)
+      .patch(statusRoute)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'PREPARING' });
+    await request(app)
+      .patch(statusRoute)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'READY' });
+
+    const [delivery, cancellation] = await Promise.all([
+      request(app)
+        .post(`/sales/orders/${order.id}/kitchen-dispatches/${dispatch.body.id}/deliver`)
+        .set('Authorization', auth(['sales.manage']))
+        .send({}),
+      request(app)
+        .post(`/sales/orders/${order.id}/cancel`)
+        .set('Authorization', auth(['sales.manage']))
+        .send({ reason: 'Carrera controlada' }),
+    ]);
+    expect([delivery.status, cancellation.status].sort()).toEqual([200, 409]);
+    expect([delivery.status, cancellation.status]).not.toContain(500);
+
+    const persistedOrder = await prisma.salesOrder.findUniqueOrThrow({
+      where: { id: order.id },
+      select: { status: true, voidedAt: true },
+    });
+    const persistedDispatch = await prisma.kitchenDispatch.findUniqueOrThrow({
+      where: { id: dispatch.body.id },
+      select: { deliveredAt: true },
+    });
+    expect(
+      persistedOrder.status === SalesOrderStatus.VOIDED
+      && persistedDispatch.deliveredAt !== null,
+    ).toBe(false);
+    if (persistedOrder.status === SalesOrderStatus.VOIDED) {
+      expect(persistedOrder.voidedAt).toEqual(expect.any(Date));
+      expect(persistedDispatch.deliveredAt).toBeNull();
+      expect(delivery.body.code).toBe('ORDER_CANCELLED');
+    } else {
+      expect(persistedDispatch.deliveredAt).toEqual(expect.any(Date));
+      expect(cancellation.body.code).toBe('ORDER_HAS_DELIVERED_DISPATCHES');
+    }
+  });
+
+  it('cancela una orden sin entregas, alerta a Cocina y acusa una sola vez', async () => {
+    const order = await openOrder((await createTable()).id);
+    await addItem(order.id, { menuItemId: standardItemId, quantity: 1 });
+    const dispatch = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    const preparing = await request(app)
+      .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'PREPARING' });
+    const ready = await request(app)
+      .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'READY' });
+
+    const cancelRoute = `/sales/orders/${order.id}/cancel`;
+    expect((await request(app)
+      .post(cancelRoute)
+      .set('Authorization', auth(['sales.manage']))
+      .send({})).status).toBe(400);
+    expect((await request(app)
+      .post(cancelRoute)
+      .set('Authorization', auth(['sales.manage']))
+      .send({ reason: '   ' })).status).toBe(400);
+    expect((await request(app)
+      .post(cancelRoute)
+      .set('Authorization', auth(['sales.read']))
+      .send({ reason: 'Cliente se retiró' })).status).toBe(403);
+
+    const cancelled = await request(app)
+      .post(cancelRoute)
+      .set('Authorization', auth(['sales.manage']))
+      .send({ reason: '  Cliente se retiró  ' });
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.body).toMatchObject({
+      status: 'VOIDED',
+      cancelledAt: expect.any(String),
+      cancelledBy: { id: actorId, fullName: 'Mesero de prueba' },
+      cancellationReason: 'Cliente se retiró',
+      cancellationAcknowledgedAt: null,
+      cancellationAcknowledgedBy: null,
+    });
+    const persistedBeforeAck = await prisma.kitchenDispatch.findUniqueOrThrow({
+      where: { id: dispatch.body.id },
+      select: { startedAt: true, readyAt: true, deliveredAt: true },
+    });
+    expect(persistedBeforeAck).toEqual({
+      startedAt: new Date(preparing.body.startedAt),
+      readyAt: new Date(ready.body.readyAt),
+      deliveredAt: null,
+    });
+
+    const cancelledDelivery = await request(app)
+      .post(`/sales/orders/${order.id}/kitchen-dispatches/${dispatch.body.id}/deliver`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    expect(cancelledDelivery.status).toBe(409);
+    expect(cancelledDelivery.body.code).toBe('ORDER_CANCELLED');
+
+    const queueBeforeAck = await request(app)
+      .get('/kitchen/dispatches')
+      .set('Authorization', auth(['kitchen.read']));
+    expect(queueBeforeAck.body.dispatches).toEqual([]);
+    expect(queueBeforeAck.body.cancellations).toEqual([
+      expect.objectContaining({
+        orderId: order.id,
+        cancellationReason: 'Cliente se retiró',
+        affectedDispatches: [{ id: dispatch.body.id, status: 'READY' }],
+      }),
+    ]);
+
+    const ackRoute = `/kitchen/cancellations/${order.id}/acknowledge`;
+    expect((await request(app).post(ackRoute).send({})).status).toBe(401);
+    expect((await request(app)
+      .post(ackRoute)
+      .set('Authorization', auth(['kitchen.read']))
+      .send({})).status).toBe(403);
+    const acknowledged = await request(app)
+      .post(ackRoute)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({});
+    expect(acknowledged.status).toBe(200);
+    expect(acknowledged.body).toMatchObject({
+      cancellationAcknowledgedAt: expect.any(String),
+      cancellationAcknowledgedBy: {
+        id: actorId,
+        fullName: 'Mesero de prueba',
+      },
+    });
+    const acknowledgedAgain = await request(app)
+      .post(ackRoute)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({});
+    expect(acknowledgedAgain.body.cancellationAcknowledgedAt).toBe(
+      acknowledged.body.cancellationAcknowledgedAt,
+    );
+
+    const queueAfterAck = await request(app)
+      .get('/kitchen/dispatches')
+      .set('Authorization', auth(['kitchen.read']));
+    expect(queueAfterAck.body).toEqual({ dispatches: [], cancellations: [] });
+    expect(await prisma.salesOrder.findUnique({
+      where: { id: order.id },
+      select: {
+        status: true,
+        voidedAt: true,
+        cancelledById: true,
+        cancellationReason: true,
+        cancellationAcknowledgedAt: true,
+        cancellationAcknowledgedById: true,
+      },
+    })).toMatchObject({
+      status: SalesOrderStatus.VOIDED,
+      voidedAt: expect.any(Date),
+      cancelledById: actorId,
+      cancellationReason: 'Cliente se retiró',
+      cancellationAcknowledgedAt: expect.any(Date),
+      cancellationAcknowledgedById: actorId,
+    });
+    expect(await prisma.kitchenDispatch.count({
+      where: { id: dispatch.body.id },
+    })).toBe(1);
+  });
+
+  it('cancela varios dispatches como una alerta de orden y serializa el acuse concurrente', async () => {
+    const otherKitchenActor = await prisma.user.create({
+      data: {
+        email: `concurrent-ack-${sequence}@example.test`,
+        passwordHash: 'not-used-by-test',
+        fullName: 'Cocinero de relevo',
+      },
+      select: { id: true },
+    });
+    const otherKitchenAuth = `Bearer ${createIntegrationToken(
+      ['kitchen.manage'],
+      otherKitchenActor.id,
+    )}`;
+    const order = await openOrder((await createTable()).id);
+    const dispatchIds: number[] = [];
+    for (let index = 0; index < 3; index += 1) {
+      await addItem(order.id, { menuItemId: standardItemId, quantity: 1 });
+      const dispatch = await request(app)
+        .post(`/sales/orders/${order.id}/send-to-kitchen`)
+        .set('Authorization', auth(['sales.manage']))
+        .send({});
+      dispatchIds.push(dispatch.body.id);
+    }
+    await request(app)
+      .patch(`/kitchen/dispatches/${dispatchIds[1]}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'PREPARING' });
+    await request(app)
+      .patch(`/kitchen/dispatches/${dispatchIds[2]}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'PREPARING' });
+    await request(app)
+      .patch(`/kitchen/dispatches/${dispatchIds[2]}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'READY' });
+
+    const beforeCancellation = await prisma.kitchenDispatch.findMany({
+      where: { id: { in: dispatchIds } },
+      orderBy: { id: 'asc' },
+      select: { id: true, status: true, startedAt: true, readyAt: true },
+    });
+    const cancelled = await request(app)
+      .post(`/sales/orders/${order.id}/cancel`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({ reason: 'Cancelar toda la orden' });
+    expect(cancelled.status).toBe(200);
+
+    const queue = await request(app)
+      .get('/kitchen/dispatches')
+      .set('Authorization', auth(['kitchen.read']));
+    expect(queue.body.dispatches).toEqual([]);
+    expect(queue.body.cancellations).toHaveLength(1);
+    expect(queue.body.cancellations[0]).toMatchObject({
+      orderId: order.id,
+      cancellationReason: 'Cancelar toda la orden',
+    });
+    expect(queue.body.cancellations[0].affectedDispatches).toEqual([
+      { id: dispatchIds[0], status: 'NEXT' },
+      { id: dispatchIds[1], status: 'PREPARING' },
+      { id: dispatchIds[2], status: 'READY' },
+    ]);
+    expect(await prisma.kitchenDispatch.findMany({
+      where: { id: { in: dispatchIds } },
+      orderBy: { id: 'asc' },
+      select: { id: true, status: true, startedAt: true, readyAt: true },
+    })).toEqual(beforeCancellation);
+
+    for (const [dispatchId, status] of [
+      [dispatchIds[0], 'PREPARING'],
+      [dispatchIds[1], 'READY'],
+    ] as const) {
+      const transition = await request(app)
+        .patch(`/kitchen/dispatches/${dispatchId}/status`)
+        .set('Authorization', auth(['kitchen.manage']))
+        .send({ status });
+      expect(transition.status).toBe(409);
+      expect(transition.body.code).toBe('ORDER_CANCELLED');
+    }
+    const delivery = await request(app)
+      .post(`/sales/orders/${order.id}/kitchen-dispatches/${dispatchIds[2]}/deliver`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    expect(delivery.status).toBe(409);
+    expect(delivery.body.code).toBe('ORDER_CANCELLED');
+
+    const acknowledgeRoute = `/kitchen/cancellations/${order.id}/acknowledge`;
+    const acknowledgements = await Promise.all([
+      request(app)
+        .post(acknowledgeRoute)
+        .set('Authorization', auth(['kitchen.manage']))
+        .send({}),
+      request(app)
+        .post(acknowledgeRoute)
+        .set('Authorization', otherKitchenAuth)
+        .send({}),
+    ]);
+    expect(acknowledgements.map(response => response.status)).toEqual([200, 200]);
+    expect(acknowledgements[0].body.cancellationAcknowledgedAt).toBe(
+      acknowledgements[1].body.cancellationAcknowledgedAt,
+    );
+    expect(acknowledgements[0].body.cancellationAcknowledgedBy).toEqual(
+      acknowledgements[1].body.cancellationAcknowledgedBy,
+    );
+    expect([actorId, otherKitchenActor.id]).toContain(
+      acknowledgements[0].body.cancellationAcknowledgedBy.id,
+    );
+  });
+
+  it('rechaza cancelar completamente una orden que ya tuvo una entrega', async () => {
+    const order = await openOrder((await createTable()).id);
+    await addItem(order.id, { menuItemId: standardItemId, quantity: 1 });
+    const dispatch = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    await request(app)
+      .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'PREPARING' });
+    await request(app)
+      .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'READY' });
+    await request(app)
+      .post(`/sales/orders/${order.id}/kitchen-dispatches/${dispatch.body.id}/deliver`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+
+    const rejected = await request(app)
+      .post(`/sales/orders/${order.id}/cancel`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({ reason: 'Cliente se retiró' });
+    expect(rejected.status).toBe(409);
+    expect(rejected.body.code).toBe('ORDER_HAS_DELIVERED_DISPATCHES');
+    expect(await prisma.salesOrder.findUnique({
+      where: { id: order.id },
+      select: { status: true, voidedAt: true, cancellationReason: true },
+    })).toEqual({
+      status: SalesOrderStatus.OPEN,
+      voidedAt: null,
+      cancellationReason: null,
+    });
   });
 });
