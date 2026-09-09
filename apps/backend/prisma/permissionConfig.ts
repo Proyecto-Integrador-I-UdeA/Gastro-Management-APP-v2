@@ -48,6 +48,10 @@ export const businessPermissions: readonly PermissionDefinition[] = [
   { name: 'sales.tables.manage', description: 'Configurar mesas del restaurante' },
   { name: 'reports.read', description: 'Ver reportes' },
 
+  // COCINA
+  { name: 'kitchen.read', description: 'Consultar cola y detalle de cocina' },
+  { name: 'kitchen.manage', description: 'Administrar estados de preparación en cocina' },
+
   // INVENTARIO / LOGÍSTICA
   { name: 'inventory.read', description: 'Ver inventario' },
   { name: 'inventory.create', description: 'Registrar compras, mermas y consumos' },
@@ -82,6 +86,7 @@ export function createRolePermissions(
       'recipes.read', 'recipes.create', 'recipes.update',
       'products.read',
       'menu.read', 'menu.manage', 'menu.availability.manage',
+      'kitchen.read', 'kitchen.manage',
       'profile.update',
     ],
 

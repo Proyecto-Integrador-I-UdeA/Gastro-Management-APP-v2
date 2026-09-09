@@ -142,6 +142,7 @@ model User {
   openedSalesOrders     SalesOrder[]        @relation("SalesOrderOpenedBy")
   settledSalesOrders    SalesOrder[]        @relation("SalesOrderSettledBy")
   addedSalesOrderItems  SalesOrderItem[]     @relation("SalesOrderItemAddedBy")
+  dispatchedKitchenDispatches KitchenDispatch[] @relation("KitchenDispatchDispatchedBy")
   role                  Role?               @relation(fields: [roleId], references: [id])
 
   @@map("users")
@@ -423,6 +424,7 @@ model SalesOrder {
   openedBy        User              @relation("SalesOrderOpenedBy", fields: [openedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   settledBy       User?             @relation("SalesOrderSettledBy", fields: [settledById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   items           SalesOrderItem[]
+  kitchenDispatches KitchenDispatch[]
 
   @@index([diningTableId])
   @@index([status])
@@ -450,11 +452,54 @@ model SalesOrderItem {
   addedBy             User          @relation("SalesOrderItemAddedBy", fields: [addedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   parentItem          SalesOrderItem? @relation("SalesOrderItemAdditions", fields: [parentItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   additions           SalesOrderItem[] @relation("SalesOrderItemAdditions")
+  kitchenDispatchItem KitchenDispatchItem?
 
   @@index([salesOrderId])
   @@index([menuItemId])
   @@index([parentItemId])
   @@map("sales_order_items")
+}
+
+model KitchenDispatch {
+  id                      Int                   @id @default(autoincrement())
+  salesOrderId            Int
+  status                  KitchenDispatchStatus @default(NEXT)
+  dispatchedById          Int
+  dispatchedAt            DateTime              @default(now())
+  prepTimeMinutesSnapshot Int                   @default(15)
+  targetReadyAt           DateTime
+  startedAt               DateTime?
+  readyAt                 DateTime?
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @default(now()) @updatedAt
+  salesOrder              SalesOrder            @relation(fields: [salesOrderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  dispatchedBy            User                  @relation("KitchenDispatchDispatchedBy", fields: [dispatchedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  items                   KitchenDispatchItem[]
+
+  @@index([salesOrderId])
+  @@index([status, dispatchedAt, id])
+  @@map("kitchen_dispatches")
+}
+
+model KitchenDispatchItem {
+  id                          Int                   @id @default(autoincrement())
+  kitchenDispatchId           Int
+  salesOrderItemId            Int                   @unique
+  parentDispatchItemId        Int?
+  itemNameSnapshot            String
+  quantitySnapshot            Int
+  specialInstructionsSnapshot String?               @db.VarChar(500)
+  createdAt                   DateTime               @default(now())
+  updatedAt                   DateTime               @default(now()) @updatedAt
+  kitchenDispatch             KitchenDispatch       @relation(fields: [kitchenDispatchId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  salesOrderItem              SalesOrderItem         @relation(fields: [salesOrderItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  parentDispatchItem          KitchenDispatchItem?   @relation("KitchenDispatchItemAdditions", fields: [parentDispatchItemId, kitchenDispatchId], references: [id, kitchenDispatchId], onDelete: Restrict, onUpdate: Cascade)
+  additions                   KitchenDispatchItem[]  @relation("KitchenDispatchItemAdditions")
+
+  @@index([kitchenDispatchId])
+  @@index([parentDispatchItemId])
+  @@unique([id, kitchenDispatchId])
+  @@map("kitchen_dispatch_items")
 }
 
 model MenuItemComponent {
@@ -497,4 +542,10 @@ enum SalesOrderStatus {
   OPEN
   SETTLED
   VOIDED
+}
+
+enum KitchenDispatchStatus {
+  NEXT
+  PREPARING
+  READY
 }
