@@ -11,7 +11,6 @@ type KitchenClient = PrismaClient | Prisma.TransactionClient;
 
 export const KITCHEN_PREP_TIME_MINUTES = 15;
 export const KITCHEN_WARNING_THRESHOLD_MINUTES = 5;
-export const KITCHEN_READY_RETENTION_MINUTES = 120;
 
 const KITCHEN_STATUS_PRIORITY: Record<KitchenDispatchStatus, number> = {
   [KitchenDispatchStatus.NEXT]: 0,
@@ -26,7 +25,26 @@ const kitchenDispatchDetailSelect = {
   prepTimeMinutesSnapshot: true,
   targetReadyAt: true,
   startedAt: true,
+  startedBy: {
+    select: {
+      id: true,
+      fullName: true,
+    },
+  },
   readyAt: true,
+  readyBy: {
+    select: {
+      id: true,
+      fullName: true,
+    },
+  },
+  deliveredAt: true,
+  deliveredBy: {
+    select: {
+      id: true,
+      fullName: true,
+    },
+  },
   salesOrder: {
     select: {
       id: true,
@@ -99,7 +117,11 @@ export function toKitchenDispatchDto(dispatch: KitchenDispatchRecord) {
     warningThresholdMinutes: KITCHEN_WARNING_THRESHOLD_MINUTES,
     targetReadyAt: dispatch.targetReadyAt.toISOString(),
     startedAt: dispatch.startedAt?.toISOString() ?? null,
+    startedBy: dispatch.startedBy,
     readyAt: dispatch.readyAt?.toISOString() ?? null,
+    readyBy: dispatch.readyBy,
+    deliveredAt: dispatch.deliveredAt?.toISOString() ?? null,
+    deliveredBy: dispatch.deliveredBy,
     items: dispatch.items
       .filter(item => item.parentDispatchItemId === null)
       .map(item => ({
@@ -252,15 +274,10 @@ export async function sendSalesOrderToKitchen(
 }
 
 export async function listKitchenDispatches(client: KitchenClient = prisma) {
-  const readyCutoff = new Date(
-    Date.now() - KITCHEN_READY_RETENTION_MINUTES * 60_000,
-  );
   const dispatches = await client.kitchenDispatch.findMany({
     where: {
-      OR: [
-        { status: { in: [KitchenDispatchStatus.NEXT, KitchenDispatchStatus.PREPARING] } },
-        { status: KitchenDispatchStatus.READY, readyAt: { gte: readyCutoff } },
-      ],
+      deliveredAt: null,
+      salesOrder: { status: SalesOrderStatus.OPEN },
     },
     select: kitchenDispatchDetailSelect,
   });
@@ -273,6 +290,139 @@ export async function listKitchenDispatches(client: KitchenClient = prisma) {
     .map(toKitchenDispatchDto);
 }
 
+const kitchenCancellationSelect = {
+  id: true,
+  voidedAt: true,
+  cancellationReason: true,
+  cancellationAcknowledgedAt: true,
+  diningTable: {
+    select: {
+      id: true,
+      code: true,
+      area: true,
+    },
+  },
+  cancelledBy: {
+    select: {
+      id: true,
+      fullName: true,
+    },
+  },
+  cancellationAcknowledgedBy: {
+    select: {
+      id: true,
+      fullName: true,
+    },
+  },
+  kitchenDispatches: {
+    where: { deliveredAt: null },
+    orderBy: { id: 'asc' as const },
+    select: {
+      id: true,
+      status: true,
+    },
+  },
+} satisfies Prisma.SalesOrderSelect;
+
+type KitchenCancellationRecord = Prisma.SalesOrderGetPayload<{
+  select: typeof kitchenCancellationSelect;
+}>;
+
+function toKitchenCancellationDto(order: KitchenCancellationRecord) {
+  return {
+    orderId: order.id,
+    orderNumber: order.id,
+    table: order.diningTable,
+    cancelledAt: order.voidedAt?.toISOString() ?? null,
+    cancelledBy: order.cancelledBy,
+    cancellationReason: order.cancellationReason,
+    cancellationAcknowledgedAt:
+      order.cancellationAcknowledgedAt?.toISOString() ?? null,
+    cancellationAcknowledgedBy: order.cancellationAcknowledgedBy,
+    affectedDispatches: order.kitchenDispatches,
+  };
+}
+
+export async function listKitchenCancellationAlerts(
+  client: KitchenClient = prisma,
+) {
+  const orders = await client.salesOrder.findMany({
+    where: {
+      status: SalesOrderStatus.VOIDED,
+      voidedAt: { not: null },
+      cancelledById: { not: null },
+      cancellationReason: { not: null },
+      cancellationAcknowledgedAt: null,
+      kitchenDispatches: { some: { deliveredAt: null } },
+    },
+    orderBy: [{ voidedAt: 'asc' }, { id: 'asc' }],
+    select: kitchenCancellationSelect,
+  });
+  return orders.map(toKitchenCancellationDto);
+}
+
+async function requireKitchenCancellation(
+  orderId: number,
+  client: KitchenClient,
+) {
+  const order = await client.salesOrder.findUnique({
+    where: { id: orderId },
+    select: kitchenCancellationSelect,
+  });
+  if (
+    !order
+    || order.voidedAt === null
+    || order.cancellationReason === null
+    || order.kitchenDispatches.length === 0
+  ) {
+    throw new SalesOperationError(
+      'KITCHEN_CANCELLATION_NOT_FOUND',
+      404,
+      'Cancelación de cocina no encontrada',
+    );
+  }
+  return order;
+}
+
+export async function acknowledgeKitchenCancellation(
+  orderId: number,
+  acknowledgedById: number,
+) {
+  return prisma.$transaction(async transaction => {
+    const rows = await transaction.$queryRaw<Array<{
+      id: number;
+      status: SalesOrderStatus;
+      cancellationAcknowledgedAt: Date | null;
+    }>>`
+      SELECT "id", "status", "cancellationAcknowledgedAt"
+      FROM "sales_orders"
+      WHERE "id" = ${orderId}
+      FOR UPDATE
+    `;
+    if (rows.length === 0 || rows[0].status !== SalesOrderStatus.VOIDED) {
+      throw new SalesOperationError(
+        'KITCHEN_CANCELLATION_NOT_FOUND',
+        404,
+        'Cancelación de cocina no encontrada',
+      );
+    }
+
+    await requireKitchenCancellation(orderId, transaction);
+    if (rows[0].cancellationAcknowledgedAt === null) {
+      await transaction.salesOrder.update({
+        where: { id: orderId },
+        data: {
+          cancellationAcknowledgedAt: new Date(),
+          cancellationAcknowledgedById: acknowledgedById,
+        },
+      });
+    }
+    return toKitchenCancellationDto(
+      await requireKitchenCancellation(orderId, transaction),
+    );
+  });
+}
+
 export async function getKitchenDispatch(
   dispatchId: number,
   client: KitchenClient = prisma,
@@ -283,14 +433,43 @@ export async function getKitchenDispatch(
 export async function updateKitchenDispatchStatus(
   dispatchId: number,
   nextStatus: KitchenDispatchStatus,
+  actorId: number,
 ) {
   return prisma.$transaction(async transaction => {
+    const dispatchReference = await transaction.kitchenDispatch.findUnique({
+      where: { id: dispatchId },
+      select: { salesOrderId: true },
+    });
+    if (!dispatchReference) {
+      throw new SalesOperationError(
+        'KITCHEN_DISPATCH_NOT_FOUND',
+        404,
+        'Envío a cocina no encontrado',
+      );
+    }
+    const orderRows = await transaction.$queryRaw<Array<{
+      status: SalesOrderStatus;
+    }>>`
+      SELECT "status"
+      FROM "sales_orders"
+      WHERE "id" = ${dispatchReference.salesOrderId}
+      FOR UPDATE
+    `;
     const rows = await transaction.$queryRaw<Array<{
       status: KitchenDispatchStatus;
       startedAt: Date | null;
+      startedById: number | null;
       readyAt: Date | null;
+      readyById: number | null;
+      deliveredAt: Date | null;
     }>>`
-      SELECT "status", "startedAt", "readyAt"
+      SELECT
+        "status",
+        "startedAt",
+        "startedById",
+        "readyAt",
+        "readyById",
+        "deliveredAt"
       FROM "kitchen_dispatches"
       WHERE "id" = ${dispatchId}
       FOR UPDATE
@@ -305,6 +484,21 @@ export async function updateKitchenDispatchStatus(
     }
 
     const current = rows[0];
+    const orderStatus = orderRows[0]?.status;
+    if (orderStatus === SalesOrderStatus.VOIDED) {
+      throw new SalesOperationError(
+        'ORDER_CANCELLED',
+        409,
+        'La orden fue cancelada y no puede continuar en preparación',
+      );
+    }
+    if (orderStatus !== SalesOrderStatus.OPEN || current.deliveredAt !== null) {
+      throw new SalesOperationError(
+        'KITCHEN_DISPATCH_NOT_ACTIVE',
+        409,
+        'El envío ya no está activo en cocina',
+      );
+    }
     if (current.status === nextStatus) {
       return toKitchenDispatchDto(await requireKitchenDispatch(dispatchId, transaction));
     }
@@ -332,11 +526,14 @@ export async function updateKitchenDispatchStatus(
         ? {
             status: nextStatus,
             startedAt: current.startedAt ?? now,
+            startedById: current.startedById ?? actorId,
           }
         : {
             status: nextStatus,
             startedAt: current.startedAt ?? now,
+            startedById: current.startedById ?? actorId,
             readyAt: current.readyAt ?? now,
+            readyById: current.readyById ?? actorId,
           },
     });
 

@@ -99,6 +99,9 @@ const orderDetailSelect = {
   guestCount: true,
   openedAt: true,
   billRequestedAt: true,
+  voidedAt: true,
+  cancellationReason: true,
+  cancellationAcknowledgedAt: true,
   diningTable: {
     select: {
       id: true,
@@ -109,6 +112,18 @@ const orderDetailSelect = {
     },
   },
   openedBy: {
+    select: {
+      id: true,
+      fullName: true,
+    },
+  },
+  cancelledBy: {
+    select: {
+      id: true,
+      fullName: true,
+    },
+  },
+  cancellationAcknowledgedBy: {
     select: {
       id: true,
       fullName: true,
@@ -199,6 +214,12 @@ export function toSalesOrderDto(order: OrderDetailRecord) {
     guestCount: order.guestCount,
     openedAt: order.openedAt.toISOString(),
     billRequestedAt: order.billRequestedAt?.toISOString() ?? null,
+    cancelledAt: order.voidedAt?.toISOString() ?? null,
+    cancelledBy: order.cancelledBy,
+    cancellationReason: order.cancellationReason,
+    cancellationAcknowledgedAt:
+      order.cancellationAcknowledgedAt?.toISOString() ?? null,
+    cancellationAcknowledgedBy: order.cancellationAcknowledgedBy,
     openedBy: order.openedBy,
     ...kitchenSummary(order.items),
     items: order.items

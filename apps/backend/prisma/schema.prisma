@@ -141,8 +141,13 @@ model User {
   uploadedMediaAssets   MediaAsset[]
   openedSalesOrders     SalesOrder[]        @relation("SalesOrderOpenedBy")
   settledSalesOrders    SalesOrder[]        @relation("SalesOrderSettledBy")
+  cancelledSalesOrders  SalesOrder[]        @relation("SalesOrderCancelledBy")
+  acknowledgedSalesOrderCancellations SalesOrder[] @relation("SalesOrderCancellationAcknowledgedBy")
   addedSalesOrderItems  SalesOrderItem[]     @relation("SalesOrderItemAddedBy")
   dispatchedKitchenDispatches KitchenDispatch[] @relation("KitchenDispatchDispatchedBy")
+  startedKitchenDispatches KitchenDispatch[] @relation("KitchenDispatchStartedBy")
+  readiedKitchenDispatches KitchenDispatch[] @relation("KitchenDispatchReadyBy")
+  deliveredKitchenDispatches KitchenDispatch[] @relation("KitchenDispatchDeliveredBy")
   role                  Role?               @relation(fields: [roleId], references: [id])
 
   @@map("users")
@@ -418,16 +423,23 @@ model SalesOrder {
   settledAt       DateTime?
   settledById     Int?
   voidedAt        DateTime?
+  cancelledById   Int?
+  cancellationReason String?             @db.VarChar(500)
+  cancellationAcknowledgedAt DateTime?
+  cancellationAcknowledgedById Int?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @default(now()) @updatedAt
   diningTable     DiningTable       @relation(fields: [diningTableId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   openedBy        User              @relation("SalesOrderOpenedBy", fields: [openedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   settledBy       User?             @relation("SalesOrderSettledBy", fields: [settledById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cancelledBy     User?             @relation("SalesOrderCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cancellationAcknowledgedBy User?  @relation("SalesOrderCancellationAcknowledgedBy", fields: [cancellationAcknowledgedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   items           SalesOrderItem[]
   kitchenDispatches KitchenDispatch[]
 
   @@index([diningTableId])
   @@index([status])
+  @@index([status, cancellationAcknowledgedAt])
   @@map("sales_orders")
 }
 
@@ -469,15 +481,24 @@ model KitchenDispatch {
   prepTimeMinutesSnapshot Int                   @default(15)
   targetReadyAt           DateTime
   startedAt               DateTime?
+  startedById             Int?
   readyAt                 DateTime?
+  readyById               Int?
+  deliveredAt             DateTime?
+  deliveredById           Int?
   createdAt               DateTime              @default(now())
   updatedAt               DateTime              @default(now()) @updatedAt
   salesOrder              SalesOrder            @relation(fields: [salesOrderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   dispatchedBy            User                  @relation("KitchenDispatchDispatchedBy", fields: [dispatchedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  startedBy               User?                 @relation("KitchenDispatchStartedBy", fields: [startedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  readyBy                 User?                 @relation("KitchenDispatchReadyBy", fields: [readyById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  deliveredBy             User?                 @relation("KitchenDispatchDeliveredBy", fields: [deliveredById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   items                   KitchenDispatchItem[]
 
   @@index([salesOrderId])
   @@index([status, dispatchedAt, id])
+  @@index([dispatchedById, status, deliveredAt])
+  @@index([deliveredAt])
   @@map("kitchen_dispatches")
 }
 

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  acknowledgeCancellation,
   getDispatch,
   listDispatches,
   updateDispatchStatus,
@@ -15,6 +16,12 @@ router.patch(
   authenticate,
   authorize(['kitchen.manage']),
   updateDispatchStatus,
+);
+router.post(
+  '/cancellations/:orderId/acknowledge',
+  authenticate,
+  authorize(['kitchen.manage']),
+  acknowledgeCancellation,
 );
 
 export default router;

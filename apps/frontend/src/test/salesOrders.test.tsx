@@ -112,6 +112,16 @@ const requestedOrder = {
   billRequestedAt: '2026-09-08T13:00:00.000Z',
 };
 
+const cancelledOrder = {
+  ...order,
+  status: 'VOIDED',
+  cancelledAt: '2026-09-09T18:00:00.000Z',
+  cancelledBy: { id: 7, fullName: 'Laura' },
+  cancellationReason: 'Cliente se retiró',
+  cancellationAcknowledgedAt: null,
+  cancellationAcknowledgedBy: null,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.router.query = {};
@@ -121,6 +131,7 @@ beforeEach(() => {
     if (path === '/sales/orders/22' && !options?.method) return Promise.resolve(order);
     if (path === '/sales/tables/1/orders') return Promise.resolve(order);
     if (path === '/sales/orders/22/request-bill') return Promise.resolve(requestedOrder);
+    if (path === '/sales/orders/22/cancel') return Promise.resolve(cancelledOrder);
     if (path.startsWith('/sales/orders/22/')) return Promise.resolve(order);
     return Promise.resolve(order);
   });
@@ -366,6 +377,44 @@ describe('Mesas y pedidos', () => {
       '/sales/orders/22/guest-count',
       { method: 'PATCH', json: { guestCount: 3 } },
     ));
+  });
+
+  it('exige confirmación y motivo para cancelar un pedido abierto', async () => {
+    const user = userEvent.setup();
+    render(<SalesOrdersPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ver pedido' }));
+    await user.click(screen.getByRole('button', { name: 'Cancelar pedido' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Cancelar pedido' });
+    expect(dialog).toHaveTextContent('Cocina recibirá una alerta persistente');
+    const reason = within(dialog).getByRole('textbox', { name: 'Motivo de cancelación' });
+    expect(reason).toBeRequired();
+    await user.type(reason, '  Cliente se retiró  ');
+    await user.click(within(dialog).getByRole('button', { name: 'Confirmar cancelación' }));
+
+    await waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith(
+      '/sales/orders/22/cancel',
+      { method: 'POST', json: { reason: 'Cliente se retiró' } },
+    ));
+    expect(await screen.findByText('Cancelado')).toBeInTheDocument();
+    expect(screen.getByText('Motivo: Cliente se retiró')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Agregar productos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Enviar a cocina' })).not.toBeInTheDocument();
+  });
+
+  it('permite cerrar el diálogo de cancelación sin mutar el pedido', async () => {
+    const user = userEvent.setup();
+    render(<SalesOrdersPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ver pedido' }));
+    await user.click(screen.getByRole('button', { name: 'Cancelar pedido' }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Cancelar pedido' }))
+      .getByRole('button', { name: 'Volver' }));
+
+    expect(screen.queryByRole('dialog', { name: 'Cancelar pedido' })).not.toBeInTheDocument();
+    expect(mocks.apiFetch).not.toHaveBeenCalledWith(
+      '/sales/orders/22/cancel',
+      expect.anything(),
+    );
   });
 
   it('navega al único menú comercial con orderId', async () => {

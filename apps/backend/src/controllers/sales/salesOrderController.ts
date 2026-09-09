@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../../middlewares/auth';
 import {
   addExistingOrderItemAdditionSchema,
   addOrderItemSchema,
+  cancelSalesOrderSchema,
   createDiningTableSchema,
   emptySalesMutationSchema,
   openTableOrderSchema,
@@ -28,6 +29,11 @@ import {
   updateSalesTable,
 } from '../../services/sales/salesOrderService';
 import { sendSalesOrderToKitchen } from '../../services/kitchen/kitchenDispatchService';
+import {
+  cancelSalesOrder,
+  deliverKitchenDispatch,
+  listReadyKitchenPickups,
+} from '../../services/sales/salesOrderLifecycleService';
 
 function parseId(rawId: string, field: string, res: Response): number | null {
   const validation = positiveIdParamSchema.safeParse(rawId);
@@ -256,6 +262,63 @@ export const sendOrderToKitchen = async (
     return res.status(201).json(await sendSalesOrderToKitchen(
       orderId,
       dispatchedById,
+    ));
+  } catch (error) {
+    return handleSalesError(error, res);
+  }
+};
+
+export const listReadyPickups = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
+  const responsibleWaiterId = actorId(req, res);
+  if (responsibleWaiterId === null) return;
+  try {
+    return res.json({
+      pickups: await listReadyKitchenPickups(responsibleWaiterId),
+    });
+  } catch (error) {
+    return handleSalesError(error, res);
+  }
+};
+
+export const deliverDispatch = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
+  const orderId = parseId(req.params.orderId, 'orderId', res);
+  const dispatchId = parseId(req.params.dispatchId, 'dispatchId', res);
+  if (orderId === null || dispatchId === null) return;
+  if (!parseBody(emptySalesMutationSchema, req.body, res)) return;
+  const deliveredById = actorId(req, res);
+  if (deliveredById === null) return;
+  try {
+    return res.json(await deliverKitchenDispatch(
+      orderId,
+      dispatchId,
+      deliveredById,
+    ));
+  } catch (error) {
+    return handleSalesError(error, res);
+  }
+};
+
+export const cancelOrder = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
+  const orderId = parseId(req.params.orderId, 'orderId', res);
+  if (orderId === null) return;
+  const input = parseBody(cancelSalesOrderSchema, req.body, res);
+  if (!input) return;
+  const cancelledById = actorId(req, res);
+  if (cancelledById === null) return;
+  try {
+    return res.json(await cancelSalesOrder(
+      orderId,
+      input.reason,
+      cancelledById,
     ));
   } catch (error) {
     return handleSalesError(error, res);
