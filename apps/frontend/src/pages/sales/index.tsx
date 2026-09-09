@@ -10,6 +10,7 @@ type SalesModule = {
   description: string;
   path: string;
   available: boolean;
+  requiredPermission?: string;
 };
 
 const moduleGroups: Array<{
@@ -30,8 +31,9 @@ const moduleGroups: Array<{
       {
         title: "Cocina",
         description: "Monitorea preparación, tiempos y pedidos listos.",
-        path: "/sales/kitchen",
-        available: false,
+        path: "/kitchen",
+        available: true,
+        requiredPermission: "kitchen.read",
       },
     ],
   },
@@ -76,9 +78,12 @@ const moduleGroups: Array<{
 export default function SalesDashboardPage() {
   const router = useRouter();
   const [accessAllowed, setAccessAllowed] = useState<boolean | null>(null);
+  const [permissions, setPermissions] = useState<string[]>([]);
 
   useEffect(() => {
-    setAccessAllowed(getUserPermissions().includes("sales.read"));
+    const currentPermissions = getUserPermissions();
+    setPermissions(currentPermissions);
+    setAccessAllowed(currentPermissions.includes("sales.read"));
   }, []);
 
   return (
@@ -111,8 +116,13 @@ export default function SalesDashboardPage() {
                   <p className="mt-1 text-sm text-gray-600">{group.description}</p>
                 </div>
 
-                <div className="grid flex-1 grid-rows-2 gap-4">
-                  {group.modules.map(module => (
+                <div className="grid flex-1 auto-rows-fr gap-4">
+                  {group.modules
+                    .filter(module => (
+                      !module.requiredPermission
+                      || permissions.includes(module.requiredPermission)
+                    ))
+                    .map(module => (
                     <button
                       key={module.path}
                       type="button"
@@ -137,7 +147,7 @@ export default function SalesDashboardPage() {
                         {module.available ? "Disponible" : "Próximamente"}
                       </span>
                     </button>
-                  ))}
+                    ))}
                 </div>
               </section>
             ))}

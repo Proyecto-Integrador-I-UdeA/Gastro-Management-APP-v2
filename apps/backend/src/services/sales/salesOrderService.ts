@@ -1,4 +1,5 @@
 import {
+  KitchenDispatchStatus,
   MenuItemKind,
   Prisma,
   PrismaClient,
@@ -15,6 +16,70 @@ import type {
 import { currentPublishedMenuItemPriceWhere } from './salesCommercialPolicy';
 
 type SalesClient = PrismaClient | Prisma.TransactionClient;
+
+const kitchenDispatchItemStateSelect = {
+  kitchenDispatchId: true,
+  kitchenDispatch: {
+    select: {
+      status: true,
+      dispatchedAt: true,
+    },
+  },
+} satisfies Prisma.KitchenDispatchItemSelect;
+
+type KitchenAwareOrderItem = {
+  id: number;
+  parentItemId: number | null;
+  kitchenDispatchItem: {
+    kitchenDispatchId: number;
+    kitchenDispatch: {
+      status: KitchenDispatchStatus;
+      dispatchedAt: Date;
+    };
+  } | null;
+};
+
+function kitchenSummary(items: readonly KitchenAwareOrderItem[]) {
+  const dispatches = new Map<number, {
+    id: number;
+    status: KitchenDispatchStatus;
+    dispatchedAt: Date;
+  }>();
+
+  for (const item of items) {
+    if (item.kitchenDispatchItem) {
+      const { kitchenDispatchId, kitchenDispatch } = item.kitchenDispatchItem;
+      dispatches.set(kitchenDispatchId, {
+        id: kitchenDispatchId,
+        ...kitchenDispatch,
+      });
+    }
+  }
+
+  const orderedDispatches = Array.from(dispatches.values()).sort((left, right) => (
+    right.dispatchedAt.getTime() - left.dispatchedAt.getTime()
+    || right.id - left.id
+  ));
+  const latestDispatch = orderedDispatches[0] ?? null;
+  const aggregateKitchenStatus = dispatches.size === 0
+    ? null
+    : orderedDispatches.some(dispatch => dispatch.status === KitchenDispatchStatus.PREPARING)
+      ? KitchenDispatchStatus.PREPARING
+      : orderedDispatches.some(dispatch => dispatch.status === KitchenDispatchStatus.NEXT)
+        ? KitchenDispatchStatus.NEXT
+        : KitchenDispatchStatus.READY;
+  const pendingKitchenItemCount = items.filter(
+    item => item.kitchenDispatchItem === null,
+  ).length;
+
+  return {
+    hasPendingKitchenItems: pendingKitchenItemCount > 0,
+    pendingKitchenItemCount,
+    kitchenDispatchCount: dispatches.size,
+    latestKitchenStatus: aggregateKitchenStatus,
+    latestKitchenDispatchedAt: latestDispatch?.dispatchedAt.toISOString() ?? null,
+  };
+}
 
 export class SalesOperationError extends Error {
   constructor(
@@ -61,6 +126,9 @@ const orderDetailSelect = {
       currencySnapshot: true,
       taxIncludedSnapshot: true,
       parentItemId: true,
+      kitchenDispatchItem: {
+        select: kitchenDispatchItemStateSelect,
+      },
     },
   },
 } satisfies Prisma.SalesOrderSelect;
@@ -80,6 +148,7 @@ function lineSubtotal(item: OrderItemRecord): Prisma.Decimal {
 }
 
 function toAdditionDto(item: OrderItemRecord) {
+  const kitchenState = item.kitchenDispatchItem;
   return {
     id: item.id,
     menuItemId: item.menuItemId,
@@ -90,6 +159,11 @@ function toAdditionDto(item: OrderItemRecord) {
     currency: item.currencySnapshot,
     taxIncluded: item.taxIncludedSnapshot,
     lineSubtotal: lineSubtotal(item).toFixed(2),
+    kitchenDispatched: kitchenState !== null,
+    kitchenDispatchId: kitchenState?.kitchenDispatchId ?? null,
+    kitchenStatus: kitchenState?.kitchenDispatch.status ?? null,
+    kitchenDispatchedAt:
+      kitchenState?.kitchenDispatch.dispatchedAt.toISOString() ?? null,
   };
 }
 
@@ -126,6 +200,7 @@ export function toSalesOrderDto(order: OrderDetailRecord) {
     openedAt: order.openedAt.toISOString(),
     billRequestedAt: order.billRequestedAt?.toISOString() ?? null,
     openedBy: order.openedBy,
+    ...kitchenSummary(order.items),
     items: order.items
       .filter(item => item.parentItemId === null)
       .map(item => ({
@@ -360,6 +435,15 @@ const salesTableSelect = {
       openedAt: true,
       billRequestedAt: true,
       openedBy: { select: { id: true, fullName: true } },
+      items: {
+        select: {
+          id: true,
+          parentItemId: true,
+          kitchenDispatchItem: {
+            select: kitchenDispatchItemStateSelect,
+          },
+        },
+      },
     },
   },
 } satisfies Prisma.DiningTableSelect;
@@ -370,18 +454,23 @@ type SalesTableRecord = Prisma.DiningTableGetPayload<{
 
 function toSalesTableDto({ salesOrders, ...table }: SalesTableRecord) {
   const activeOrder = salesOrders[0] ?? null;
+  let activeOrderDto = null;
+  if (activeOrder) {
+    const { items, ...orderData } = activeOrder;
+    activeOrderDto = {
+      ...orderData,
+      openedAt: activeOrder.openedAt.toISOString(),
+      billRequestedAt: activeOrder.billRequestedAt?.toISOString() ?? null,
+      ...kitchenSummary(items),
+    };
+  }
+
   return {
     ...table,
     operationalStatus: activeOrder
       ? 'OCCUPIED'
       : table.active ? 'AVAILABLE' : 'OUT_OF_SERVICE',
-    activeOrder: activeOrder
-      ? {
-          ...activeOrder,
-          openedAt: activeOrder.openedAt.toISOString(),
-          billRequestedAt: activeOrder.billRequestedAt?.toISOString() ?? null,
-        }
-      : null,
+    activeOrder: activeOrderDto,
   };
 }
 

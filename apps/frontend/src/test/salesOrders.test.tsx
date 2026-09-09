@@ -42,6 +42,11 @@ const tables = {
         openedAt: '2026-09-08T12:00:00.000Z',
         billRequestedAt: null,
         openedBy: { id: 7, fullName: 'Laura' },
+        hasPendingKitchenItems: true,
+        pendingKitchenItemCount: 2,
+        kitchenDispatchCount: 0,
+        latestKitchenStatus: null,
+        latestKitchenDispatchedAt: null,
       },
     },
     {
@@ -64,6 +69,11 @@ const order = {
   openedAt: '2026-09-08T12:00:00.000Z',
   billRequestedAt: null,
   openedBy: { id: 7, fullName: 'Laura' },
+  hasPendingKitchenItems: true,
+  pendingKitchenItemCount: 2,
+  kitchenDispatchCount: 0,
+  latestKitchenStatus: null,
+  latestKitchenDispatchedAt: null,
   items: [{
     id: 100,
     menuItemId: 10,
@@ -74,6 +84,10 @@ const order = {
     currency: 'COP',
     taxIncluded: true,
     lineSubtotal: '20.20',
+    kitchenDispatched: false,
+    kitchenDispatchId: null,
+    kitchenStatus: null,
+    kitchenDispatchedAt: null,
     additions: [{
       id: 101,
       menuItemId: 11,
@@ -84,6 +98,10 @@ const order = {
       currency: 'COP',
       taxIncluded: true,
       lineSubtotal: '5.00',
+      kitchenDispatched: false,
+      kitchenDispatchId: null,
+      kitchenStatus: null,
+      kitchenDispatchedAt: null,
     }],
   }],
   totals: { subtotal: '25.20', total: '25.20', currency: 'COP' },
@@ -366,6 +384,149 @@ describe('Mesas y pedidos', () => {
     expect(mocks.apiFetch).toHaveBeenCalledWith('/sales/orders/22');
     expect(screen.getByText(/Sin cebolla/)).toBeInTheDocument();
     expect(screen.getByText(/Queso adicional/)).toBeInTheDocument();
+  });
+
+  it('envía pendientes a cocina, reconcilia la orden y bloquea controles despachados', async () => {
+    const user = userEvent.setup();
+    const dispatchedOrder = {
+      ...order,
+      hasPendingKitchenItems: false,
+      pendingKitchenItemCount: 0,
+      kitchenDispatchCount: 1,
+      latestKitchenStatus: 'NEXT',
+      latestKitchenDispatchedAt: '2026-09-08T12:10:00.000Z',
+      items: order.items.map(item => ({
+        ...item,
+        kitchenDispatched: true,
+        kitchenDispatchId: 901,
+        kitchenStatus: 'NEXT',
+        kitchenDispatchedAt: '2026-09-08T12:10:00.000Z',
+        additions: item.additions.map(addition => ({
+          ...addition,
+          kitchenDispatched: true,
+          kitchenDispatchId: 901,
+          kitchenStatus: 'NEXT',
+          kitchenDispatchedAt: '2026-09-08T12:10:00.000Z',
+        })),
+      })),
+    };
+    let sent = false;
+    mocks.apiFetch.mockImplementation((path: string, options?: RequestInit & { json?: unknown }) => {
+      if (path === '/sales/tables') return Promise.resolve(tables);
+      if (path === '/sales/orders/22/send-to-kitchen' && options?.method === 'POST') {
+        sent = true;
+        return Promise.resolve({ id: 901 });
+      }
+      if (path === '/sales/orders/22' && !options?.method) {
+        return Promise.resolve(sent ? dispatchedOrder : order);
+      }
+      return Promise.resolve(order);
+    });
+
+    render(<SalesOrdersPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ver pedido' }));
+    await user.click(await screen.findByRole('button', { name: 'Enviar a cocina' }));
+
+    await waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith(
+      '/sales/orders/22/send-to-kitchen',
+      { method: 'POST', json: {} },
+    ));
+    expect(await screen.findByRole('status')).toHaveTextContent('Pedido enviado a cocina correctamente');
+    expect(screen.getByRole('button', { name: 'Todo enviado a cocina' })).toBeDisabled();
+    expect(screen.getAllByText('Cocina: Próximo').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('textbox', { name: 'Indicaciones para Hamburguesa' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Eliminar' })).not.toBeInTheDocument();
+  });
+
+  it('mantiene editables y enviables solo las líneas nuevas tras un despacho previo', async () => {
+    const user = userEvent.setup();
+    const mixedOrder = {
+      ...order,
+      hasPendingKitchenItems: true,
+      pendingKitchenItemCount: 1,
+      kitchenDispatchCount: 1,
+      latestKitchenStatus: 'PREPARING',
+      latestKitchenDispatchedAt: '2026-09-08T12:10:00.000Z',
+      items: [
+        {
+          ...order.items[0],
+          kitchenDispatched: true,
+          kitchenDispatchId: 901,
+          kitchenStatus: 'PREPARING',
+          kitchenDispatchedAt: '2026-09-08T12:10:00.000Z',
+          additions: order.items[0].additions.map(addition => ({
+            ...addition,
+            kitchenDispatched: true,
+            kitchenDispatchId: 901,
+            kitchenStatus: 'PREPARING',
+            kitchenDispatchedAt: '2026-09-08T12:10:00.000Z',
+          })),
+        },
+        {
+          ...order.items[0],
+          id: 102,
+          name: 'Ensalada nueva',
+          specialInstructions: null,
+          kitchenDispatched: false,
+          kitchenDispatchId: null,
+          kitchenStatus: null,
+          kitchenDispatchedAt: null,
+          additions: [],
+        },
+      ],
+    };
+    mocks.apiFetch.mockImplementation((path: string) => {
+      if (path === '/sales/tables') return Promise.resolve(tables);
+      if (path === '/sales/orders/22') return Promise.resolve(mixedOrder);
+      return Promise.resolve(mixedOrder);
+    });
+
+    render(<SalesOrdersPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ver pedido' }));
+
+    expect(screen.getAllByText('Cocina: En preparación').length).toBeGreaterThan(0);
+    expect(screen.getByText('Pendiente de enviar')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Indicaciones para Ensalada nueva' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Indicaciones para Hamburguesa' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enviar a cocina' })).toBeEnabled();
+  });
+
+  it('permite enviar una orden OPEN aunque la cuenta ya haya sido solicitada', async () => {
+    const user = userEvent.setup();
+    mocks.apiFetch.mockImplementation((path: string) => {
+      if (path === '/sales/tables') return Promise.resolve(tables);
+      if (path === '/sales/orders/22') return Promise.resolve(requestedOrder);
+      return Promise.resolve(requestedOrder);
+    });
+
+    render(<SalesOrdersPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ver pedido' }));
+
+    expect(screen.getByText('Cuenta solicitada')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enviar a cocina' })).toBeEnabled();
+  });
+
+  it('presenta conflictos de cocina con un mensaje operativo', async () => {
+    const user = userEvent.setup();
+    const conflict = Object.assign(new Error('conflict'), {
+      body: { code: 'NO_PENDING_KITCHEN_ITEMS' },
+    });
+    mocks.apiFetch.mockImplementation((path: string, options?: RequestInit) => {
+      if (path === '/sales/tables') return Promise.resolve(tables);
+      if (path === '/sales/orders/22/send-to-kitchen' && options?.method === 'POST') {
+        return Promise.reject(conflict);
+      }
+      if (path === '/sales/orders/22') return Promise.resolve(order);
+      return Promise.resolve(order);
+    });
+
+    render(<SalesOrdersPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ver pedido' }));
+    await user.click(screen.getByRole('button', { name: 'Enviar a cocina' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Todos los productos ya fueron enviados a cocina.',
+    );
   });
 
   it('revalida al recuperar foco sin perder el pedido seleccionado', async () => {

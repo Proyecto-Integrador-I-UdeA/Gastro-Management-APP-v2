@@ -19,6 +19,7 @@ export default function Breadcrumb() {
       costs: "Costos",
       others: "Otros Costos",
       price: "Precio",
+      kitchen: "Cocina",
     };
 
     return map[seg] || seg;

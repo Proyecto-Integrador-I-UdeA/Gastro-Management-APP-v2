@@ -1083,6 +1083,128 @@ describe('backend de mesas y pedidos SALES-02D', () => {
     })).toBe(2);
   });
 
+  it('expone a Sales estado derivado por línea y resumen de múltiples despachos', async () => {
+    const table = await createTable();
+    const order = await openOrder(table.id);
+    const initial = await addItem(order.id, {
+      menuItemId: standardItemId,
+      quantity: 1,
+      additions: [{ menuItemId: additionItemId, quantity: 2 }],
+    });
+
+    expect(initial.body).toMatchObject({
+      hasPendingKitchenItems: true,
+      pendingKitchenItemCount: 2,
+      kitchenDispatchCount: 0,
+      latestKitchenStatus: null,
+      latestKitchenDispatchedAt: null,
+      items: [{
+        kitchenDispatched: false,
+        kitchenDispatchId: null,
+        kitchenStatus: null,
+        kitchenDispatchedAt: null,
+        additions: [{ kitchenDispatched: false }],
+      }],
+    });
+
+    const tableBeforeSend = await request(app)
+      .get('/sales/tables')
+      .set('Authorization', auth(['sales.read']));
+    expect(tableBeforeSend.body.tables.find(
+      (candidate: { id: number }) => candidate.id === table.id,
+    ).activeOrder).toMatchObject({
+      hasPendingKitchenItems: true,
+      pendingKitchenItemCount: 2,
+      kitchenDispatchCount: 0,
+    });
+
+    const firstDispatch = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    expect(firstDispatch.status).toBe(201);
+
+    const afterFirst = await request(app)
+      .get(`/sales/orders/${order.id}`)
+      .set('Authorization', auth(['sales.read']));
+    expect(afterFirst.body).toMatchObject({
+      hasPendingKitchenItems: false,
+      pendingKitchenItemCount: 0,
+      kitchenDispatchCount: 1,
+      latestKitchenStatus: 'NEXT',
+      latestKitchenDispatchedAt: expect.any(String),
+      items: [{
+        kitchenDispatched: true,
+        kitchenDispatchId: firstDispatch.body.id,
+        kitchenStatus: 'NEXT',
+        kitchenDispatchedAt: expect.any(String),
+        additions: [{
+          kitchenDispatched: true,
+          kitchenDispatchId: firstDispatch.body.id,
+        }],
+      }],
+    });
+
+    await request(app)
+      .patch(`/kitchen/dispatches/${firstDispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'PREPARING' });
+    const withNewPendingLine = await addItem(order.id, {
+      menuItemId: standardItemId,
+      quantity: 1,
+    });
+    expect(withNewPendingLine.body).toMatchObject({
+      hasPendingKitchenItems: true,
+      pendingKitchenItemCount: 1,
+      kitchenDispatchCount: 1,
+      latestKitchenStatus: 'PREPARING',
+    });
+    expect(withNewPendingLine.body.items.map((item: {
+      kitchenDispatched: boolean;
+    }) => item.kitchenDispatched)).toEqual([true, false]);
+
+    const secondDispatch = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    expect(secondDispatch.status).toBe(201);
+    const afterSecond = await request(app)
+      .get(`/sales/orders/${order.id}`)
+      .set('Authorization', auth(['sales.read']));
+    expect(afterSecond.body).toMatchObject({
+      hasPendingKitchenItems: false,
+      pendingKitchenItemCount: 0,
+      kitchenDispatchCount: 2,
+      latestKitchenStatus: 'PREPARING',
+    });
+
+    await request(app)
+      .patch(`/kitchen/dispatches/${secondDispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'PREPARING' });
+    await request(app)
+      .patch(`/kitchen/dispatches/${secondDispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'READY' });
+    const mixedReadySummary = await request(app)
+      .get(`/sales/orders/${order.id}`)
+      .set('Authorization', auth(['sales.read']));
+    expect(mixedReadySummary.body.latestKitchenStatus).toBe('PREPARING');
+
+    await request(app)
+      .patch(`/kitchen/dispatches/${firstDispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'READY' });
+    const allReadySummary = await request(app)
+      .get(`/sales/orders/${order.id}`)
+      .set('Authorization', auth(['sales.read']));
+    expect(allReadySummary.body.latestKitchenStatus).toBe('READY');
+
+    expect((await request(app)
+      .get('/kitchen/dispatches')
+      .set('Authorization', auth(['sales.read']))).status).toBe(403);
+  });
+
   it('protege cola y detalle, devuelve DTO anidado y ordena por estado, fecha e id', async () => {
     const order = await openOrder((await createTable()).id);
     const firstLine = await addItem(order.id, {
