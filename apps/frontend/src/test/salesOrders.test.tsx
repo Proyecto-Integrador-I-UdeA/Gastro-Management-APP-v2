@@ -8,11 +8,12 @@ const mocks = vi.hoisted(() => ({
   apiFetch: vi.fn(),
   getUserPermissions: vi.fn(),
   push: vi.fn(),
+  router: { query: {} as Record<string, string>, isReady: true },
 }));
 
 vi.mock('@/utils/apiFetch', () => ({ apiFetch: mocks.apiFetch }));
 vi.mock('@/utils/permissions', () => ({ getUserPermissions: mocks.getUserPermissions }));
-vi.mock('next/router', () => ({ useRouter: () => ({ push: mocks.push }) }));
+vi.mock('next/router', () => ({ useRouter: () => ({ ...mocks.router, push: mocks.push }) }));
 vi.mock('@/components/layouts/DashboardLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
@@ -78,12 +79,11 @@ const order = {
       menuItemId: 11,
       name: 'Queso adicional',
       quantity: 2,
-      specialInstructions: null,
+      specialInstructions: 'Bien fundido',
       unitPrice: '2.50',
       currency: 'COP',
       taxIncluded: true,
       lineSubtotal: '5.00',
-      additions: [],
     }],
   }],
   totals: { subtotal: '25.20', total: '25.20', currency: 'COP' },
@@ -96,6 +96,7 @@ const requestedOrder = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.router.query = {};
   mocks.getUserPermissions.mockReturnValue(['sales.read', 'sales.manage']);
   mocks.apiFetch.mockImplementation((path: string, options?: RequestInit & { json?: unknown }) => {
     if (path === '/sales/tables') return Promise.resolve(tables);
@@ -203,8 +204,100 @@ describe('Mesas y pedidos', () => {
     expect((await screen.findAllByText('Pedido #22')).length).toBeGreaterThan(0);
     expect(screen.getByText(/Sin cebolla/)).toBeInTheDocument();
     expect(screen.getByText(/Queso adicional/)).toBeInTheDocument();
+    expect(screen.getByText(/Bien fundido/)).toBeInTheDocument();
+    expect(screen.getByText(/2 × COP 2,50/)).toBeInTheDocument();
+    expect(screen.getByText('COP 5')).toBeInTheDocument();
     expect(screen.getAllByText(/25[,.]20/).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Terraza').length).toBeGreaterThan(0);
+  });
+
+  it('renderiza de forma segura un producto principal sin adiciones', async () => {
+    const user = userEvent.setup();
+    const orderWithoutAdditions = {
+      ...order,
+      items: [{ ...order.items[0], additions: [] }],
+    };
+    mocks.apiFetch.mockImplementation((path: string) => {
+      if (path === '/sales/tables') return Promise.resolve(tables);
+      if (path === '/sales/orders/22') return Promise.resolve(orderWithoutAdditions);
+      return Promise.resolve(orderWithoutAdditions);
+    });
+
+    render(<SalesOrdersPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ver pedido' }));
+
+    expect(await screen.findByText('Hamburguesa')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Adiciones de Hamburguesa' })).not.toBeInTheDocument();
+  });
+
+  it('renderiza varias adiciones en un solo nivel sin exigir adiciones anidadas', async () => {
+    const user = userEvent.setup();
+    const orderWithSeveralAdditions = {
+      ...order,
+      items: [{
+        ...order.items[0],
+        additions: [
+          order.items[0].additions[0],
+          {
+            id: 102,
+            menuItemId: 12,
+            name: 'Aguacate adicional',
+            quantity: 1,
+            specialInstructions: null,
+            unitPrice: '3.00',
+            currency: 'COP',
+            taxIncluded: true,
+            lineSubtotal: '3.00',
+          },
+        ],
+      }],
+      totals: { subtotal: '28.20', total: '28.20', currency: 'COP' },
+    };
+    mocks.apiFetch.mockImplementation((path: string) => {
+      if (path === '/sales/tables') return Promise.resolve(tables);
+      if (path === '/sales/orders/22') return Promise.resolve(orderWithSeveralAdditions);
+      return Promise.resolve(orderWithSeveralAdditions);
+    });
+
+    render(<SalesOrdersPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ver pedido' }));
+
+    const additions = await screen.findByRole('list', { name: 'Adiciones de Hamburguesa' });
+    expect(within(additions).getByText(/Queso adicional/)).toBeInTheDocument();
+    expect(within(additions).getByText(/Aguacate adicional/)).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Adiciones de Queso adicional' })).not.toBeInTheDocument();
+  });
+
+  it('edita y elimina una adición usando el id de la línea hija', async () => {
+    const user = userEvent.setup();
+    render(<SalesOrdersPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ver pedido' }));
+
+    const additions = await screen.findByRole('list', { name: 'Adiciones de Hamburguesa' });
+    const additionRow = within(additions).getByText(/Queso adicional/).closest('li');
+    expect(additionRow).not.toBeNull();
+    const addition = within(additionRow as HTMLElement);
+
+    await user.click(addition.getByRole('button', { name: '+' }));
+    await waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith(
+      '/sales/orders/22/items/101',
+      { method: 'PATCH', json: { quantity: 3 } },
+    ));
+
+    const instructions = addition.getByRole('textbox', { name: 'Indicaciones para Queso adicional' });
+    await user.clear(instructions);
+    await user.type(instructions, 'Poco fundido');
+    await user.click(addition.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith(
+      '/sales/orders/22/items/101',
+      { method: 'PATCH', json: { specialInstructions: 'Poco fundido' } },
+    ));
+
+    await user.click(addition.getByRole('button', { name: 'Eliminar' }));
+    await waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith(
+      '/sales/orders/22/items/101',
+      { method: 'DELETE' },
+    ));
   });
 
   it('usa respuestas canónicas para cantidad, indicaciones, eliminación y cuenta', async () => {
@@ -263,6 +356,16 @@ describe('Mesas y pedidos', () => {
     await user.click(await screen.findByRole('button', { name: 'Ver pedido' }));
     await user.click(screen.getByRole('button', { name: 'Agregar productos' }));
     expect(mocks.push).toHaveBeenCalledWith('/sales/menu?orderId=22');
+  });
+
+  it('reabre directamente el pedido indicado por orderId', async () => {
+    mocks.router.query = { orderId: '22' };
+    render(<SalesOrdersPage />);
+
+    expect((await screen.findAllByText('Pedido #22')).length).toBeGreaterThan(0);
+    expect(mocks.apiFetch).toHaveBeenCalledWith('/sales/orders/22');
+    expect(screen.getByText(/Sin cebolla/)).toBeInTheDocument();
+    expect(screen.getByText(/Queso adicional/)).toBeInTheDocument();
   });
 
   it('revalida al recuperar foco sin perder el pedido seleccionado', async () => {

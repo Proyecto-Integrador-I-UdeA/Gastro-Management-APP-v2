@@ -26,7 +26,7 @@ type SalesTable = {
 
 type SalesTablesResponse = { tables: SalesTable[] };
 
-type SalesOrderItem = {
+type SalesOrderLine = {
   id: number;
   menuItemId: number;
   name: string;
@@ -36,7 +36,12 @@ type SalesOrderItem = {
   currency: string;
   taxIncluded: boolean;
   lineSubtotal: string;
-  additions: SalesOrderItem[];
+};
+
+type SalesOrderAddition = SalesOrderLine;
+
+type SalesOrderItem = SalesOrderLine & {
+  additions?: SalesOrderAddition[];
 };
 
 type SalesOrder = {
@@ -118,6 +123,7 @@ export default function SalesOrdersPage() {
   const [mutationKey, setMutationKey] = useState("");
   const [instructionDrafts, setInstructionDrafts] = useState<Record<number, string>>({});
   const pollingRef = useRef(false);
+  const handledDeepLinkRef = useRef<number | null>(null);
 
   const canRead = permissions.includes("sales.read");
   const canManage = permissions.includes("sales.manage");
@@ -145,9 +151,13 @@ export default function SalesOrdersPage() {
     setLoadingOrder(true);
     setOrderError("");
     try {
-      setOrder(await apiFetch<SalesOrder>(`/sales/orders/${orderId}`));
+      const canonicalOrder = await apiFetch<SalesOrder>(`/sales/orders/${orderId}`);
+      setOrder(canonicalOrder);
+      setSelectedTableId(canonicalOrder.table.id);
+      return canonicalOrder;
     } catch (error) {
       setOrderError(errorMessage(error, "No fue posible cargar el pedido."));
+      return null;
     } finally {
       setLoadingOrder(false);
     }
@@ -172,6 +182,16 @@ export default function SalesOrdersPage() {
   }, [canRead, loadTables, permissionReady]);
 
   useEffect(() => {
+    if (!permissionReady || !canRead || router.isReady === false) return;
+    const rawOrderId = router.query?.orderId;
+    if (typeof rawOrderId !== "string" || !/^[1-9]\d*$/.test(rawOrderId)) return;
+    const requestedOrderId = Number(rawOrderId);
+    if (!Number.isSafeInteger(requestedOrderId) || handledDeepLinkRef.current === requestedOrderId) return;
+    handledDeepLinkRef.current = requestedOrderId;
+    void loadOrder(requestedOrderId);
+  }, [canRead, loadOrder, permissionReady, router.isReady, router.query?.orderId]);
+
+  useEffect(() => {
     if (!order) {
       setInstructionDrafts({});
       return;
@@ -179,7 +199,7 @@ export default function SalesOrdersPage() {
     const drafts: Record<number, string> = {};
     for (const item of order.items) {
       drafts[item.id] = item.specialInstructions ?? "";
-      for (const addition of item.additions) drafts[addition.id] = addition.specialInstructions ?? "";
+      for (const addition of item.additions ?? []) drafts[addition.id] = addition.specialInstructions ?? "";
     }
     setInstructionDrafts(drafts);
     setOrderGuestCountDraft(order.guestCount === null ? "" : String(order.guestCount));
@@ -264,7 +284,7 @@ export default function SalesOrdersPage() {
     }
   }
 
-  function updateQuantity(item: SalesOrderItem, quantity: number) {
+  function updateQuantity(item: SalesOrderLine, quantity: number) {
     if (!order || quantity <= 0 || !canManage) return;
     void applyOrderMutation(
       `quantity-${item.id}`,
@@ -276,7 +296,7 @@ export default function SalesOrdersPage() {
     );
   }
 
-  function saveInstructions(item: SalesOrderItem) {
+  function saveInstructions(item: SalesOrderLine) {
     if (!order || !canManage) return;
     void applyOrderMutation(
       `instructions-${item.id}`,
@@ -288,7 +308,7 @@ export default function SalesOrdersPage() {
     );
   }
 
-  function removeItem(item: SalesOrderItem) {
+  function removeItem(item: SalesOrderLine) {
     if (!order || !canManage) return;
     void applyOrderMutation(
       `delete-${item.id}`,
@@ -326,12 +346,14 @@ export default function SalesOrdersPage() {
     );
   }
 
-  function renderOrderItem(item: SalesOrderItem, addition = false) {
+  function renderOrderItem(item: SalesOrderItem | SalesOrderAddition, isAddition = false) {
+    const additions = !isAddition && "additions" in item ? item.additions ?? [] : [];
+
     return (
-      <li key={item.id} className={addition ? "ml-5 border-l-2 border-slate-200 pl-4" : ""}>
+      <li key={item.id} className={isAddition ? "ml-5 border-l-2 border-slate-200 pl-4" : ""}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-semibold text-slate-900">{addition ? "+ " : ""}{item.name}</p>
+            <p className="font-semibold text-slate-900">{isAddition ? "+ " : ""}{item.name}</p>
             <p className="text-sm text-slate-600">
               {item.quantity} × {formatMoney(item.unitPrice, item.currency)}
             </p>
@@ -386,9 +408,9 @@ export default function SalesOrdersPage() {
             >Guardar</button>
           </div>
         )}
-        {item.additions.length > 0 && (
+        {!isAddition && additions.length > 0 && (
           <ul className="mt-3 space-y-3" aria-label={`Adiciones de ${item.name}`}>
-            {item.additions.map(addition => renderOrderItem(addition, true))}
+            {additions.map(addition => renderOrderItem(addition, true))}
           </ul>
         )}
       </li>

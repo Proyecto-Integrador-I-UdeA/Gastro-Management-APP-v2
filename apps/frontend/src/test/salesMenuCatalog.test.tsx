@@ -7,6 +7,7 @@ import SalesMenuCatalogPage from '@/pages/sales/menu';
 const mocks = vi.hoisted(() => ({
   apiFetch: vi.fn(),
   getUserPermissions: vi.fn(),
+  router: { query: {} as Record<string, string>, isReady: true, push: vi.fn() },
 }));
 
 vi.mock('@/utils/apiFetch', () => ({ apiFetch: mocks.apiFetch }));
@@ -16,6 +17,7 @@ vi.mock('@/config/apiBaseUrl', () => ({
 vi.mock('@/utils/permissions', () => ({
   getUserPermissions: mocks.getUserPermissions,
 }));
+vi.mock('next/router', () => ({ useRouter: () => mocks.router }));
 vi.mock('@/components/layouts/DashboardLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
@@ -50,6 +52,7 @@ const catalog = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.router.query = {};
   mocks.getUserPermissions.mockReturnValue(['sales.read']);
   mocks.apiFetch.mockResolvedValue(catalog);
 });
