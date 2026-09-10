@@ -31,6 +31,7 @@ export const ROUTES = {
     suppliersCatalog: '/reports/suppliers',
     transfersSummary: '/reports/transfers',
     productionSummary: '/reports/production',
+    costsSummary: '/reports/costs',
   },
   transfers: {
     list: '/transfers',

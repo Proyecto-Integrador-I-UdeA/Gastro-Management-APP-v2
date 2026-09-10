@@ -1,5 +1,6 @@
 import { apiFetch } from '@/utils/apiFetch';
 import type {
+  CostsReportResponse,
   ProductsInventoryRiskResponse,
   ProductionReportResponse,
   SuppliersCatalogResponse,
@@ -24,4 +25,8 @@ export async function fetchTransfersReportSummary(params: {
 
 export async function fetchProductionReport(): Promise<ProductionReportResponse> {
   return apiFetch<ProductionReportResponse>('/reports/production/summary');
+}
+
+export async function fetchCostsReport(): Promise<CostsReportResponse> {
+  return apiFetch<CostsReportResponse>('/reports/costs/summary');
 }

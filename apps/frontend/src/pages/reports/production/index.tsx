@@ -7,7 +7,6 @@ import {
   Badge,
   BarChart,
   Card,
-  DonutChart,
   Metric,
   Tab,
   TabGroup,
@@ -61,23 +60,6 @@ function costClassificationLabel(value: string | null): string {
   }
 }
 
-function nutritionRoleLabel(value: string | null): string {
-  switch (value) {
-    case 'CARB_BASE':
-      return 'Base carbohidratos';
-    case 'PROTEIN_BASE':
-      return 'Base proteína';
-    case 'FAT_BASE':
-      return 'Base grasa';
-    case 'BALANCED':
-      return 'Balanceado';
-    case 'SIN_ROL':
-      return 'Sin rol';
-    default:
-      return value ?? '—';
-  }
-}
-
 function RecipeCostTooltip({ active, payload }: CustomTooltipProps) {
   if (!active || !payload?.length) return null;
   const row = payload[0]?.payload as { nombre?: string; 'Costo/porción'?: number } | undefined;
@@ -115,10 +97,6 @@ export default function ReportsProductionPage() {
   const [kpis, setKpis] = useState<ProductionReportResponse['kpis'] | null>(null);
   const [recipes, setRecipes] = useState<ProductionRecipeRow[]>([]);
   const [menuItems, setMenuItems] = useState<ProductionMenuRow[]>([]);
-  const [costClassification, setCostClassification] = useState<
-    { classification: string; count: number }[]
-  >([]);
-  const [nutritionRole, setNutritionRole] = useState<{ role: string; count: number }[]>([]);
   const [topExpensiveRecipes, setTopExpensiveRecipes] = useState<ProductionRecipeRow[]>([]);
   const [topExpensiveMenuItems, setTopExpensiveMenuItems] = useState<ProductionMenuRow[]>([]);
   const [longestProcessRecipes, setLongestProcessRecipes] = useState<ProductionRecipeRow[]>([]);
@@ -136,8 +114,6 @@ export default function ReportsProductionPage() {
       setKpis(data.kpis);
       setRecipes(data.recipes);
       setMenuItems(data.menuItems);
-      setCostClassification(data.distributions.costClassification);
-      setNutritionRole(data.distributions.nutritionRole);
       setTopExpensiveRecipes(data.rankings.topExpensiveRecipes);
       setTopExpensiveMenuItems(data.rankings.topExpensiveMenuItems);
       setLongestProcessRecipes(data.rankings.longestProcessRecipes);
@@ -158,24 +134,6 @@ export default function ReportsProductionPage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  const costClassDonut = useMemo(
-    () =>
-      costClassification.map((d) => ({
-        name: costClassificationLabel(d.classification),
-        value: d.count,
-      })),
-    [costClassification]
-  );
-
-  const nutritionRoleDonut = useMemo(
-    () =>
-      nutritionRole.map((d) => ({
-        name: nutritionRoleLabel(d.role),
-        value: d.count,
-      })),
-    [nutritionRole]
-  );
 
   const topRecipeChartData = useMemo(
     () =>
@@ -262,68 +220,6 @@ export default function ReportsProductionPage() {
                 <Text className="text-xs text-gray-500 mt-1">
                   Activas y no vinculadas a platos
                 </Text>
-              </Card>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-              <Card className={kpiCardClass} decoration="top" decorationColor="emerald">
-                <Text className="font-bold">Costo prom. por porción (receta)</Text>
-                <Metric className={`${kpiMetricClass} !text-2xl sm:!text-3xl`}>
-                  {kpis.avgRecipeCostPerPortion != null
-                    ? currency.format(kpis.avgRecipeCostPerPortion)
-                    : '—'}
-                </Metric>
-              </Card>
-              <Card className={kpiCardClass} decoration="top" decorationColor="indigo">
-                <Text className="font-bold">Costo prom. por plato</Text>
-                <Metric className={`${kpiMetricClass} !text-2xl sm:!text-3xl`}>
-                  {kpis.avgMenuItemCost != null
-                    ? currency.format(kpis.avgMenuItemCost)
-                    : '—'}
-                </Metric>
-              </Card>
-              <Card className={kpiCardClass} decoration="top" decorationColor="orange">
-                <Text className="font-bold">Platos sin componentes</Text>
-                <Metric className={kpiMetricClass}>{ni.format(kpis.incompleteMenuItems)}</Metric>
-              </Card>
-              <Card className={kpiCardClass} decoration="top" decorationColor="rose">
-                <Text className="font-bold">Platos activos sin costo</Text>
-                <Metric className={kpiMetricClass}>{ni.format(kpis.menuItemsWithoutCost)}</Metric>
-              </Card>
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              <Card>
-                <Title className="text-base">Clasificación de costo (recetas activas)</Title>
-                {costClassDonut.every((d) => d.value === 0) ? (
-                  <Text className="mt-6">Sin datos.</Text>
-                ) : (
-                  <DonutChart
-                    className="mt-4 h-56"
-                    data={costClassDonut}
-                    category="value"
-                    index="name"
-                    colors={['emerald', 'cyan', 'amber', 'orange', 'rose', 'gray']}
-                    valueFormatter={(v) => ni.format(v)}
-                    showLabel={true}
-                  />
-                )}
-              </Card>
-              <Card>
-                <Title className="text-base">Rol nutricional (recetas activas)</Title>
-                {nutritionRoleDonut.every((d) => d.value === 0) ? (
-                  <Text className="mt-6">Sin datos.</Text>
-                ) : (
-                  <DonutChart
-                    className="mt-4 h-56"
-                    data={nutritionRoleDonut}
-                    category="value"
-                    index="name"
-                    colors={['cyan', 'indigo', 'amber', 'emerald', 'gray']}
-                    valueFormatter={(v) => ni.format(v)}
-                    showLabel={true}
-                  />
-                )}
               </Card>
             </div>
 
