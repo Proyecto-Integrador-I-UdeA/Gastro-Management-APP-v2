@@ -23,9 +23,28 @@ const kitchenDispatchItemStateSelect = {
     select: {
       status: true,
       dispatchedAt: true,
+      deliveredAt: true,
     },
   },
 } satisfies Prisma.KitchenDispatchItemSelect;
+
+const lifecycleActorSelect = {
+  id: true,
+  fullName: true,
+} satisfies Prisma.UserSelect;
+
+const kitchenDispatchTraceSelect = {
+  id: true,
+  status: true,
+  dispatchedAt: true,
+  dispatchedBy: { select: lifecycleActorSelect },
+  startedAt: true,
+  startedBy: { select: lifecycleActorSelect },
+  readyAt: true,
+  readyBy: { select: lifecycleActorSelect },
+  deliveredAt: true,
+  deliveredBy: { select: lifecycleActorSelect },
+} satisfies Prisma.KitchenDispatchSelect;
 
 type KitchenAwareOrderItem = {
   id: number;
@@ -35,6 +54,7 @@ type KitchenAwareOrderItem = {
     kitchenDispatch: {
       status: KitchenDispatchStatus;
       dispatchedAt: Date;
+      deliveredAt: Date | null;
     };
   } | null;
 };
@@ -44,6 +64,7 @@ function kitchenSummary(items: readonly KitchenAwareOrderItem[]) {
     id: number;
     status: KitchenDispatchStatus;
     dispatchedAt: Date;
+    deliveredAt: Date | null;
   }>();
 
   for (const item of items) {
@@ -68,6 +89,24 @@ function kitchenSummary(items: readonly KitchenAwareOrderItem[]) {
       : orderedDispatches.some(dispatch => dispatch.status === KitchenDispatchStatus.NEXT)
         ? KitchenDispatchStatus.NEXT
         : KitchenDispatchStatus.READY;
+  const kitchenServiceStatus = dispatches.size === 0
+    ? null
+    : orderedDispatches.some(dispatch => (
+        dispatch.deliveredAt === null
+        && dispatch.status === KitchenDispatchStatus.PREPARING
+      ))
+      ? KitchenDispatchStatus.PREPARING
+      : orderedDispatches.some(dispatch => (
+          dispatch.deliveredAt === null
+          && dispatch.status === KitchenDispatchStatus.NEXT
+        ))
+        ? KitchenDispatchStatus.NEXT
+        : orderedDispatches.some(dispatch => (
+            dispatch.deliveredAt === null
+            && dispatch.status === KitchenDispatchStatus.READY
+          ))
+          ? KitchenDispatchStatus.READY
+          : 'DELIVERED';
   const pendingKitchenItemCount = items.filter(
     item => item.kitchenDispatchItem === null,
   ).length;
@@ -77,6 +116,7 @@ function kitchenSummary(items: readonly KitchenAwareOrderItem[]) {
     pendingKitchenItemCount,
     kitchenDispatchCount: dispatches.size,
     latestKitchenStatus: aggregateKitchenStatus,
+    kitchenServiceStatus,
     latestKitchenDispatchedAt: latestDispatch?.dispatchedAt.toISOString() ?? null,
   };
 }
@@ -129,6 +169,10 @@ const orderDetailSelect = {
       fullName: true,
     },
   },
+  kitchenDispatches: {
+    orderBy: [{ dispatchedAt: 'asc' as const }, { id: 'asc' as const }],
+    select: kitchenDispatchTraceSelect,
+  },
   items: {
     orderBy: { id: 'asc' as const },
     select: {
@@ -179,6 +223,26 @@ function toAdditionDto(item: OrderItemRecord) {
     kitchenStatus: kitchenState?.kitchenDispatch.status ?? null,
     kitchenDispatchedAt:
       kitchenState?.kitchenDispatch.dispatchedAt.toISOString() ?? null,
+    kitchenDeliveredAt:
+      kitchenState?.kitchenDispatch.deliveredAt?.toISOString() ?? null,
+  };
+}
+
+function toKitchenDispatchTraceDto(
+  dispatch: OrderDetailRecord['kitchenDispatches'][number],
+) {
+  return {
+    id: dispatch.id,
+    dispatchNumber: dispatch.id,
+    status: dispatch.status,
+    dispatchedAt: dispatch.dispatchedAt.toISOString(),
+    dispatchedBy: dispatch.dispatchedBy,
+    startedAt: dispatch.startedAt?.toISOString() ?? null,
+    startedBy: dispatch.startedBy,
+    readyAt: dispatch.readyAt?.toISOString() ?? null,
+    readyBy: dispatch.readyBy,
+    deliveredAt: dispatch.deliveredAt?.toISOString() ?? null,
+    deliveredBy: dispatch.deliveredBy,
   };
 }
 
@@ -222,6 +286,7 @@ export function toSalesOrderDto(order: OrderDetailRecord) {
     cancellationAcknowledgedBy: order.cancellationAcknowledgedBy,
     openedBy: order.openedBy,
     ...kitchenSummary(order.items),
+    kitchenDispatches: order.kitchenDispatches.map(toKitchenDispatchTraceDto),
     items: order.items
       .filter(item => item.parentItemId === null)
       .map(item => ({

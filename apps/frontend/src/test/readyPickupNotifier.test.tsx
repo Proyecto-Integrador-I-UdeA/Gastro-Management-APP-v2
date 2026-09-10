@@ -80,8 +80,22 @@ describe("notificador global de pedidos listos", () => {
     expect(notice).toHaveTextContent("Pedido listo para recoger");
     expect(notice).toHaveTextContent("Mesa 3");
     expect(notice).toHaveTextContent("Pedido #123");
-    expect(mocks.speak).not.toHaveBeenCalled();
+    expect(mocks.speak).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Activar alertas sonoras" }))
+      .not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Marcar como entregado" }))
+      .not.toBeInTheDocument();
+  });
+
+  it("conserva el aviso visual si el navegador bloquea la voz automática", async () => {
+    mocks.speak.mockImplementationOnce(() => {
+      throw new Error("Autoplay bloqueado");
+    });
+    render(<ReadyPickupNotifier />);
+
+    expect(await screen.findByLabelText("Pedido listo de mesa 3")).toBeInTheDocument();
+    expect(screen.queryByText("Autoplay bloqueado")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Activar alertas sonoras" }))
       .not.toBeInTheDocument();
   });
 
@@ -99,33 +113,91 @@ describe("notificador global de pedidos listos", () => {
     expect(mocks.apiFetch).not.toHaveBeenCalled();
   });
 
-  it("habla una sola vez por dispatchId + readyAt e incluye la mesa", async () => {
+  it("anuncia READY automáticamente un máximo de tres veces a los 0, 30 y 60 segundos", async () => {
     vi.useFakeTimers();
     render(<ReadyPickupNotifier />);
-    await act(async () => Promise.resolve());
-
-    const soundButton = screen.getByRole("button", {
-      name: "Activar alertas sonoras",
+    await act(async () => {
+      await Promise.resolve();
     });
-    fireEvent.click(soundButton);
-    await act(async () => Promise.resolve());
+
     expect(mocks.speak).toHaveBeenCalledTimes(1);
     const firstMessage = mocks.speak.mock.calls[0][0] as SpeechMessage;
     expect(firstMessage.text).toBe("El pedido de la mesa 3 está listo para recoger.");
     expect(firstMessage.lang).toBe("es-CO");
 
     await act(async () => {
-      vi.advanceTimersByTime(10_000);
+      await vi.advanceTimersByTimeAsync(29_999);
+    });
+    expect(mocks.speak).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(mocks.speak).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(mocks.speak).toHaveBeenCalledTimes(3);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(mocks.speak).toHaveBeenCalledTimes(3);
+  });
+
+  it("detiene las repeticiones cuando el dispatch deja de estar pendiente de entrega", async () => {
+    vi.useFakeTimers();
+    mocks.apiFetch
+      .mockResolvedValueOnce({ pickups: [pickup] })
+      .mockResolvedValue({ pickups: [] });
+    render(<ReadyPickupNotifier />);
+    await act(async () => {
       await Promise.resolve();
+    });
+    expect(mocks.speak).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
     });
     expect(mocks.speak).toHaveBeenCalledTimes(1);
   });
 
+  it("detiene las repeticiones si el pedido aparece cancelado", async () => {
+    vi.useFakeTimers();
+    mocks.apiFetch
+      .mockResolvedValueOnce({ pickups: [pickup] })
+      .mockResolvedValue({ pickups: [{ ...pickup, cancelled: true }] });
+    render(<ReadyPickupNotifier />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(mocks.speak).toHaveBeenCalledTimes(1);
+  });
+
+  it("no reinicia la secuencia por rerender ni por recibir el mismo READY", async () => {
+    vi.useFakeTimers();
+    const view = render(<ReadyPickupNotifier />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    view.rerender(<ReadyPickupNotifier />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mocks.speak).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(70_000);
+    });
+    expect(mocks.speak).toHaveBeenCalledTimes(3);
+  });
+
   it("no suprime un nuevo READY del mismo dispatch con otro readyAt", async () => {
-    sessionStorage.setItem(
-      "gma:kitchen-ready-sound-enabled",
-      "true",
-    );
     sessionStorage.setItem(
       "gma:kitchen-ready-announced",
       JSON.stringify([`${pickup.dispatchId}:${pickup.readyAt}`]),
@@ -138,7 +210,6 @@ describe("notificador global de pedidos listos", () => {
   });
 
   it("no anuncia desde una instancia desmontada durante navegación", async () => {
-    sessionStorage.setItem("gma:kitchen-ready-sound-enabled", "true");
     let resolveFirst: ((value: { pickups: ReadyKitchenPickup[] }) => void) | undefined;
     mocks.apiFetch.mockImplementationOnce(() => new Promise(resolve => {
       resolveFirst = resolve;
@@ -160,15 +231,26 @@ describe("notificador global de pedidos listos", () => {
   });
 
   it("confirma la entrega con el id correcto y retira el aviso", async () => {
-    const user = userEvent.setup();
+    vi.useFakeTimers();
     render(<ReadyPickupNotifier />);
-    await user.click(await screen.findByRole("button", { name: "Marcar como entregado" }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Marcar como entregado" }));
 
-    await waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith(
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mocks.apiFetch).toHaveBeenCalledWith(
       "/sales/orders/123/kitchen-dispatches/25/deliver",
       { method: "POST", json: {} },
-    ));
+    );
     expect(screen.queryByLabelText("Pedido listo de mesa 3")).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(mocks.speak).toHaveBeenCalledTimes(1);
   });
 
   it("navega al pedido profundo desde la notificación", async () => {

@@ -1111,12 +1111,15 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       pendingKitchenItemCount: 2,
       kitchenDispatchCount: 0,
       latestKitchenStatus: null,
+      kitchenServiceStatus: null,
       latestKitchenDispatchedAt: null,
+      kitchenDispatches: [],
       items: [{
         kitchenDispatched: false,
         kitchenDispatchId: null,
         kitchenStatus: null,
         kitchenDispatchedAt: null,
+        kitchenDeliveredAt: null,
         additions: [{ kitchenDispatched: false }],
       }],
     });
@@ -1131,6 +1134,9 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       pendingKitchenItemCount: 2,
       kitchenDispatchCount: 0,
     });
+    expect(tableBeforeSend.body.tables.find(
+      (candidate: { id: number }) => candidate.id === table.id,
+    ).activeOrder).not.toHaveProperty('kitchenDispatches');
 
     const firstDispatch = await request(app)
       .post(`/sales/orders/${order.id}/send-to-kitchen`)
@@ -1146,12 +1152,27 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       pendingKitchenItemCount: 0,
       kitchenDispatchCount: 1,
       latestKitchenStatus: 'NEXT',
+      kitchenServiceStatus: 'NEXT',
       latestKitchenDispatchedAt: expect.any(String),
+      kitchenDispatches: [{
+        id: firstDispatch.body.id,
+        dispatchNumber: firstDispatch.body.id,
+        status: 'NEXT',
+        dispatchedAt: expect.any(String),
+        dispatchedBy: { id: actorId, fullName: 'Mesero de prueba' },
+        startedAt: null,
+        startedBy: null,
+        readyAt: null,
+        readyBy: null,
+        deliveredAt: null,
+        deliveredBy: null,
+      }],
       items: [{
         kitchenDispatched: true,
         kitchenDispatchId: firstDispatch.body.id,
         kitchenStatus: 'NEXT',
         kitchenDispatchedAt: expect.any(String),
+        kitchenDeliveredAt: null,
         additions: [{
           kitchenDispatched: true,
           kitchenDispatchId: firstDispatch.body.id,
@@ -1172,6 +1193,7 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       pendingKitchenItemCount: 1,
       kitchenDispatchCount: 1,
       latestKitchenStatus: 'PREPARING',
+      kitchenServiceStatus: 'PREPARING',
     });
     expect(withNewPendingLine.body.items.map((item: {
       kitchenDispatched: boolean;
@@ -1190,6 +1212,7 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       pendingKitchenItemCount: 0,
       kitchenDispatchCount: 2,
       latestKitchenStatus: 'PREPARING',
+      kitchenServiceStatus: 'PREPARING',
     });
 
     await request(app)
@@ -1204,6 +1227,7 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       .get(`/sales/orders/${order.id}`)
       .set('Authorization', auth(['sales.read']));
     expect(mixedReadySummary.body.latestKitchenStatus).toBe('PREPARING');
+    expect(mixedReadySummary.body.kitchenServiceStatus).toBe('PREPARING');
 
     await request(app)
       .patch(`/kitchen/dispatches/${firstDispatch.body.id}/status`)
@@ -1213,6 +1237,67 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       .get(`/sales/orders/${order.id}`)
       .set('Authorization', auth(['sales.read']));
     expect(allReadySummary.body.latestKitchenStatus).toBe('READY');
+    expect(allReadySummary.body.kitchenServiceStatus).toBe('READY');
+
+    await request(app)
+      .post(`/sales/orders/${order.id}/kitchen-dispatches/${firstDispatch.body.id}/deliver`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    const oneReadyOneDelivered = await request(app)
+      .get(`/sales/orders/${order.id}`)
+      .set('Authorization', auth(['sales.read']));
+    expect(oneReadyOneDelivered.body.kitchenServiceStatus).toBe('READY');
+
+    await request(app)
+      .post(`/sales/orders/${order.id}/kitchen-dispatches/${secondDispatch.body.id}/deliver`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    const allDelivered = await request(app)
+      .get(`/sales/orders/${order.id}`)
+      .set('Authorization', auth(['sales.read']));
+    expect(allDelivered.body.kitchenServiceStatus).toBe('DELIVERED');
+    expect(allDelivered.body.kitchenDispatches).toHaveLength(2);
+    expect(allDelivered.body.kitchenDispatches).toEqual([
+      expect.objectContaining({
+        id: firstDispatch.body.id,
+        dispatchedAt: expect.any(String),
+        startedAt: expect.any(String),
+        readyAt: expect.any(String),
+        deliveredAt: expect.any(String),
+        dispatchedBy: { id: actorId, fullName: 'Mesero de prueba' },
+        startedBy: { id: actorId, fullName: 'Mesero de prueba' },
+        readyBy: { id: actorId, fullName: 'Mesero de prueba' },
+        deliveredBy: { id: actorId, fullName: 'Mesero de prueba' },
+      }),
+      expect.objectContaining({
+        id: secondDispatch.body.id,
+        deliveredAt: expect.any(String),
+      }),
+    ]);
+    expect(Object.keys(allDelivered.body.kitchenDispatches[0].deliveredBy).sort())
+      .toEqual(['fullName', 'id']);
+    expect(allDelivered.body.items.every((item: { kitchenDeliveredAt: string | null }) => (
+      item.kitchenDeliveredAt !== null
+    ))).toBe(true);
+
+    const tableAfterDelivery = await request(app)
+      .get('/sales/tables')
+      .set('Authorization', auth(['sales.read']));
+    const compactActiveOrder = tableAfterDelivery.body.tables.find(
+      (candidate: { id: number }) => candidate.id === table.id,
+    ).activeOrder;
+    expect(compactActiveOrder.kitchenServiceStatus).toBe('DELIVERED');
+    expect(compactActiveOrder).not.toHaveProperty('kitchenDispatches');
+
+    const deliveredWithNewPendingLine = await addItem(order.id, {
+      menuItemId: standardItemId,
+      quantity: 1,
+    });
+    expect(deliveredWithNewPendingLine.body).toMatchObject({
+      kitchenServiceStatus: 'DELIVERED',
+      pendingKitchenItemCount: 1,
+      hasPendingKitchenItems: true,
+    });
 
     expect((await request(app)
       .get('/kitchen/dispatches')
@@ -1763,6 +1848,19 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       cancellationReason: 'Cliente se retiró',
       cancellationAcknowledgedAt: null,
       cancellationAcknowledgedBy: null,
+      kitchenDispatches: [{
+        id: dispatch.body.id,
+        dispatchNumber: dispatch.body.id,
+        status: 'READY',
+        dispatchedAt: expect.any(String),
+        dispatchedBy: { id: actorId, fullName: 'Mesero de prueba' },
+        startedAt: preparing.body.startedAt,
+        startedBy: { id: actorId, fullName: 'Mesero de prueba' },
+        readyAt: ready.body.readyAt,
+        readyBy: { id: actorId, fullName: 'Mesero de prueba' },
+        deliveredAt: null,
+        deliveredBy: null,
+      }],
     });
     const persistedBeforeAck = await prisma.kitchenDispatch.findUniqueOrThrow({
       where: { id: dispatch.body.id },

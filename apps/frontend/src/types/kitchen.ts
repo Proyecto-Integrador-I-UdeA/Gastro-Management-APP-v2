@@ -1,4 +1,10 @@
 export type KitchenDispatchStatus = "NEXT" | "PREPARING" | "READY";
+export type KitchenServiceStatus = KitchenDispatchStatus | "DELIVERED";
+
+export type LifecycleActor = {
+  id: number;
+  fullName: string | null;
+};
 
 export type KitchenDispatchAddition = {
   id: number;
@@ -84,6 +90,20 @@ export type ReadyKitchenPickupsResponse = {
   pickups: ReadyKitchenPickup[];
 };
 
+export type SalesKitchenDispatchTrace = {
+  id: number;
+  dispatchNumber: number;
+  status: KitchenDispatchStatus;
+  dispatchedAt: string;
+  dispatchedBy: LifecycleActor;
+  startedAt: string | null;
+  startedBy: LifecycleActor | null;
+  readyAt: string | null;
+  readyBy: LifecycleActor | null;
+  deliveredAt: string | null;
+  deliveredBy: LifecycleActor | null;
+};
+
 export type KitchenStatusUpdateInput = {
   status: KitchenDispatchStatus;
 };
@@ -93,6 +113,7 @@ export type KitchenOrderSummary = {
   pendingKitchenItemCount: number;
   kitchenDispatchCount: number;
   latestKitchenStatus: KitchenDispatchStatus | null;
+  kitchenServiceStatus: KitchenServiceStatus | null;
   latestKitchenDispatchedAt: string | null;
 };
 
@@ -101,4 +122,5 @@ export type KitchenOrderLineState = {
   kitchenDispatchId: number | null;
   kitchenStatus: KitchenDispatchStatus | null;
   kitchenDispatchedAt: string | null;
+  kitchenDeliveredAt: string | null;
 };

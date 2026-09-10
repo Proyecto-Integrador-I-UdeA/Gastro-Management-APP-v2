@@ -9,8 +9,14 @@ import type {
 import { apiFetch } from "@/utils/apiFetch";
 import { getUserPermissions } from "@/utils/permissions";
 
-const SOUND_ENABLED_KEY = "gma:kitchen-ready-sound-enabled";
 const ANNOUNCED_EVENTS_KEY = "gma:kitchen-ready-announced";
+const ALERT_RETRY_MS = 30_000;
+const MAX_ALERT_ATTEMPTS = 3;
+
+type AlertSequence = {
+  startedAt: number;
+  attempts: number;
+};
 
 function pickupEventKey(pickup: ReadyKitchenPickup): string {
   return `${pickup.dispatchId}:${pickup.readyAt}`;
@@ -40,35 +46,75 @@ function formatReadyAt(value: string): string {
   }).format(new Date(value));
 }
 
+function isRelevantPickup(pickup: ReadyKitchenPickup): boolean {
+  return pickup.status === "READY"
+    && pickup.deliveredAt === null
+    && !pickup.cancelled;
+}
+
+function tryAnnouncePickup(pickup: ReadyKitchenPickup) {
+  if (
+    !("speechSynthesis" in window)
+    || typeof SpeechSynthesisUtterance === "undefined"
+  ) return;
+
+  try {
+    const message = new SpeechSynthesisUtterance(
+      `El pedido de la mesa ${pickup.table.code} está listo para recoger.`,
+    );
+    message.lang = "es-CO";
+    window.speechSynthesis.speak(message);
+  } catch {
+    // El aviso visual permanece disponible si el navegador bloquea la voz.
+  }
+}
+
 export default function ReadyPickupNotifier() {
   const router = useRouter();
   const [pickups, setPickups] = useState<ReadyKitchenPickup[]>([]);
-  const [soundEnabled, setSoundEnabled] = useState(false);
   const [error, setError] = useState("");
   const [deliveringId, setDeliveringId] = useState<number | null>(null);
   const requestInFlight = useRef(false);
   const mountedRef = useRef(false);
   const announcedEventsRef = useRef<Set<string>>(new Set());
+  const alertSequencesRef = useRef<Map<string, AlertSequence>>(new Map());
   const permissions = getUserPermissions();
   const active = router.pathname.startsWith("/sales")
     && permissions.includes("sales.read");
   const canDeliver = permissions.includes("sales.manage");
 
-  const announceNewPickups = useCallback((nextPickups: ReadyKitchenPickup[]) => {
-    if (!soundEnabled || !("speechSynthesis" in window)) return;
+  const announceReadyPickups = useCallback((nextPickups: ReadyKitchenPickup[]) => {
+    const relevantPickups = nextPickups.filter(isRelevantPickup);
+    const relevantKeys = new Set(relevantPickups.map(pickupEventKey));
+    alertSequencesRef.current.forEach((_sequence, key) => {
+      if (!relevantKeys.has(key)) alertSequencesRef.current.delete(key);
+    });
+
     const announced = announcedEventsRef.current;
-    for (const pickup of nextPickups) {
+    const now = Date.now();
+    let changedStoredEvents = false;
+
+    for (const pickup of relevantPickups) {
       const key = pickupEventKey(pickup);
-      if (announced.has(key)) continue;
-      const message = new SpeechSynthesisUtterance(
-        `El pedido de la mesa ${pickup.table.code} está listo para recoger.`,
-      );
-      message.lang = "es-CO";
-      window.speechSynthesis.speak(message);
-      announced.add(key);
+      let sequence = alertSequencesRef.current.get(key);
+
+      if (!sequence) {
+        if (announced.has(key)) continue;
+        sequence = { startedAt: now, attempts: 0 };
+        alertSequencesRef.current.set(key, sequence);
+        announced.add(key);
+        changedStoredEvents = true;
+      }
+
+      const nextAttemptAt = sequence.startedAt + sequence.attempts * ALERT_RETRY_MS;
+      if (sequence.attempts >= MAX_ALERT_ATTEMPTS || now < nextAttemptAt) continue;
+
+      tryAnnouncePickup(pickup);
+      sequence.attempts += 1;
     }
-    rememberAnnouncedEvents(announced);
-  }, [soundEnabled]);
+
+    if (changedStoredEvents) rememberAnnouncedEvents(announced);
+  }, []);
 
   const loadPickups = useCallback(async () => {
     if (!active || requestInFlight.current) return;
@@ -79,7 +125,7 @@ export default function ReadyPickupNotifier() {
       );
       if (!mountedRef.current) return;
       setPickups(response.pickups);
-      announceNewPickups(response.pickups);
+      announceReadyPickups(response.pickups);
       setError("");
     } catch (requestError) {
       if (!mountedRef.current) return;
@@ -89,18 +135,14 @@ export default function ReadyPickupNotifier() {
     } finally {
       requestInFlight.current = false;
     }
-  }, [active, announceNewPickups]);
+  }, [active, announceReadyPickups]);
 
   useEffect(() => {
     mountedRef.current = true;
     announcedEventsRef.current = readAnnouncedEvents();
-    try {
-      setSoundEnabled(sessionStorage.getItem(SOUND_ENABLED_KEY) === "true");
-    } catch {
-      setSoundEnabled(false);
-    }
     return () => {
       mountedRef.current = false;
+      alertSequencesRef.current.clear();
     };
   }, []);
 
@@ -114,19 +156,6 @@ export default function ReadyPickupNotifier() {
     return () => window.clearInterval(interval);
   }, [active, loadPickups]);
 
-  function enableSound() {
-    setSoundEnabled(true);
-    try {
-      sessionStorage.setItem(SOUND_ENABLED_KEY, "true");
-    } catch {
-      // La preferencia puede quedar solo en memoria durante esta vista.
-    }
-  }
-
-  useEffect(() => {
-    if (soundEnabled) announceNewPickups(pickups);
-  }, [announceNewPickups, pickups, soundEnabled]);
-
   async function deliver(pickup: ReadyKitchenPickup) {
     if (deliveringId !== null) return;
     setDeliveringId(pickup.dispatchId);
@@ -136,6 +165,7 @@ export default function ReadyPickupNotifier() {
         `/sales/orders/${pickup.salesOrderId}/kitchen-dispatches/${pickup.dispatchId}/deliver`,
         { method: "POST", json: {} },
       );
+      alertSequencesRef.current.delete(pickupEventKey(pickup));
       setPickups(current => current.filter(
         item => item.dispatchId !== pickup.dispatchId,
       ));
@@ -156,15 +186,6 @@ export default function ReadyPickupNotifier() {
       aria-label="Pedidos listos para recoger"
       className="fixed right-4 top-20 z-40 w-[min(24rem,calc(100vw-2rem))] space-y-3"
     >
-      {!soundEnabled && (
-        <button
-          type="button"
-          className="ml-auto block rounded-full border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-[#001F3F] shadow"
-          onClick={enableSound}
-        >
-          Activar alertas sonoras
-        </button>
-      )}
       {error && (
         <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 shadow-lg">
           {error}

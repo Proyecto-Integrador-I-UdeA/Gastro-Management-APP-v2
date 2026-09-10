@@ -3,11 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
+import ServiceTraceability from "@/components/sales/ServiceTraceability";
 import type {
   KitchenDispatch,
   KitchenDispatchStatus,
   KitchenOrderLineState,
   KitchenOrderSummary,
+  KitchenServiceStatus,
+  SalesKitchenDispatchTrace,
 } from "@/types/kitchen";
 import { apiFetch } from "@/utils/apiFetch";
 import { getUserPermissions } from "@/utils/permissions";
@@ -63,6 +66,7 @@ type SalesOrder = KitchenOrderSummary & {
   cancellationAcknowledgedAt: string | null;
   cancellationAcknowledgedBy: { id: number; fullName: string | null } | null;
   openedBy: { id: number; fullName: string | null };
+  kitchenDispatches: SalesKitchenDispatchTrace[];
   items: SalesOrderItem[];
   totals: { subtotal: string; total: string; currency: string | null };
 };
@@ -121,12 +125,17 @@ const statusClasses: Record<OperationalStatus, string> = {
 const kitchenStatusLabels: Record<KitchenDispatchStatus, string> = {
   NEXT: "Próximo",
   PREPARING: "En preparación",
-  READY: "Listo",
+  READY: "Listo para recoger",
+};
+
+const kitchenServiceStatusLabels: Record<KitchenServiceStatus, string> = {
+  ...kitchenStatusLabels,
+  DELIVERED: "Entregado",
 };
 
 function kitchenSummaryLabel(summary: KitchenOrderSummary): string | null {
-  const status = summary.latestKitchenStatus
-    ? kitchenStatusLabels[summary.latestKitchenStatus]
+  const status = summary.kitchenServiceStatus
+    ? kitchenServiceStatusLabels[summary.kitchenServiceStatus]
     : null;
   const pending = summary.pendingKitchenItemCount > 0
     ? `${summary.pendingKitchenItemCount} pendiente${summary.pendingKitchenItemCount === 1 ? "" : "s"}`
@@ -430,6 +439,13 @@ export default function SalesOrdersPage() {
 
   function renderOrderItem(item: SalesOrderItem | SalesOrderAddition, isAddition = false) {
     const additions = !isAddition && "additions" in item ? item.additions ?? [] : [];
+    const lineKitchenLabel = item.kitchenDeliveredAt
+      ? "Entregado"
+      : item.kitchenStatus === "READY"
+        ? "Listo para recoger"
+        : item.kitchenStatus
+          ? `Cocina: ${kitchenStatusLabels[item.kitchenStatus]}`
+          : "Enviado a cocina";
 
     return (
       <li key={item.id} className={isAddition ? "ml-5 border-l-2 border-slate-200 pl-4" : ""}>
@@ -454,9 +470,7 @@ export default function SalesOrdersPage() {
               : "bg-amber-100 text-amber-900"
           }`}>
             {item.kitchenDispatched
-              ? item.kitchenStatus
-                ? `Cocina: ${kitchenStatusLabels[item.kitchenStatus]}`
-                : "Enviado a cocina"
+              ? lineKitchenLabel
               : "Pendiente de enviar"}
           </span>
         </div>
@@ -685,14 +699,6 @@ export default function SalesOrdersPage() {
                     )}
                     <p>Abierto: {formatDate(order.openedAt)}</p>
                     {order.billRequestedAt && <p className="font-semibold text-amber-700">Cuenta solicitada</p>}
-                    {order.status === "VOIDED" && (
-                      <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3 text-red-900">
-                        <p className="font-bold">Pedido cancelado</p>
-                        <p>Motivo: {order.cancellationReason}</p>
-                        {order.cancelledAt && <p>Cancelado: {formatDate(order.cancelledAt)}</p>}
-                        <p>Por: {order.cancelledBy?.fullName ?? "Usuario"}</p>
-                      </div>
-                    )}
                     {kitchenSummaryLabel(order) && (
                       <p className="font-semibold text-violet-700">
                         Cocina: {kitchenSummaryLabel(order)}
@@ -711,6 +717,16 @@ export default function SalesOrdersPage() {
                   ) : (
                     <ul className="my-5 space-y-5">{order.items.map(item => renderOrderItem(item))}</ul>
                   )}
+                  <ServiceTraceability
+                    dispatches={order.kitchenDispatches}
+                    cancellation={{
+                      cancelledAt: order.cancelledAt,
+                      cancelledBy: order.cancelledBy,
+                      cancellationReason: order.cancellationReason,
+                      cancellationAcknowledgedAt: order.cancellationAcknowledgedAt,
+                      cancellationAcknowledgedBy: order.cancellationAcknowledgedBy,
+                    }}
+                  />
                   <div className="border-t border-slate-200 pt-4">
                     <div className="flex justify-between text-sm text-slate-600"><span>Subtotal</span><span>{formatMoney(order.totals.subtotal, order.totals.currency)}</span></div>
                     <div className="mt-1 flex justify-between text-lg font-bold text-slate-900"><span>Total</span><span>{formatMoney(order.totals.total, order.totals.currency)}</span></div>
