@@ -46,6 +46,7 @@ const tables = {
         pendingKitchenItemCount: 2,
         kitchenDispatchCount: 0,
         latestKitchenStatus: null,
+        kitchenServiceStatus: null,
         latestKitchenDispatchedAt: null,
       },
     },
@@ -68,12 +69,19 @@ const order = {
   guestCount: 2,
   openedAt: '2026-09-08T12:00:00.000Z',
   billRequestedAt: null,
+  cancelledAt: null,
+  cancelledBy: null,
+  cancellationReason: null,
+  cancellationAcknowledgedAt: null,
+  cancellationAcknowledgedBy: null,
   openedBy: { id: 7, fullName: 'Laura' },
   hasPendingKitchenItems: true,
   pendingKitchenItemCount: 2,
   kitchenDispatchCount: 0,
   latestKitchenStatus: null,
+  kitchenServiceStatus: null,
   latestKitchenDispatchedAt: null,
+  kitchenDispatches: [],
   items: [{
     id: 100,
     menuItemId: 10,
@@ -88,6 +96,7 @@ const order = {
     kitchenDispatchId: null,
     kitchenStatus: null,
     kitchenDispatchedAt: null,
+    kitchenDeliveredAt: null,
     additions: [{
       id: 101,
       menuItemId: 11,
@@ -102,6 +111,7 @@ const order = {
       kitchenDispatchId: null,
       kitchenStatus: null,
       kitchenDispatchedAt: null,
+      kitchenDeliveredAt: null,
     }],
   }],
   totals: { subtotal: '25.20', total: '25.20', currency: 'COP' },
@@ -112,14 +122,72 @@ const requestedOrder = {
   billRequestedAt: '2026-09-08T13:00:00.000Z',
 };
 
+const deliveredTrace = {
+  id: 12,
+  dispatchNumber: 12,
+  status: 'READY',
+  dispatchedAt: '2026-09-08T12:00:00.000Z',
+  dispatchedBy: { id: 7, fullName: 'Laura Mesera' },
+  startedAt: '2026-09-08T12:02:05.000Z',
+  startedBy: { id: 8, fullName: 'Carlos Cocina' },
+  readyAt: '2026-09-08T12:13:33.000Z',
+  readyBy: { id: 8, fullName: 'Carlos Cocina' },
+  deliveredAt: '2026-09-08T12:16:07.000Z',
+  deliveredBy: { id: 7, fullName: 'Laura Mesera' },
+} as const;
+
+const deliveredOrder = {
+  ...order,
+  hasPendingKitchenItems: false,
+  pendingKitchenItemCount: 0,
+  kitchenDispatchCount: 1,
+  latestKitchenStatus: 'READY',
+  kitchenServiceStatus: 'DELIVERED',
+  latestKitchenDispatchedAt: deliveredTrace.dispatchedAt,
+  kitchenDispatches: [deliveredTrace],
+  items: order.items.map(item => ({
+    ...item,
+    kitchenDispatched: true,
+    kitchenDispatchId: deliveredTrace.id,
+    kitchenStatus: 'READY',
+    kitchenDispatchedAt: deliveredTrace.dispatchedAt,
+    kitchenDeliveredAt: deliveredTrace.deliveredAt,
+    additions: item.additions.map(addition => ({
+      ...addition,
+      kitchenDispatched: true,
+      kitchenDispatchId: deliveredTrace.id,
+      kitchenStatus: 'READY',
+      kitchenDispatchedAt: deliveredTrace.dispatchedAt,
+      kitchenDeliveredAt: deliveredTrace.deliveredAt,
+    })),
+  })),
+};
+
 const cancelledOrder = {
   ...order,
   status: 'VOIDED',
   cancelledAt: '2026-09-09T18:00:00.000Z',
   cancelledBy: { id: 7, fullName: 'Laura' },
   cancellationReason: 'Cliente se retiró',
-  cancellationAcknowledgedAt: null,
-  cancellationAcknowledgedBy: null,
+  cancellationAcknowledgedAt: '2026-09-09T18:01:00.000Z',
+  cancellationAcknowledgedBy: { id: 8, fullName: 'Carlos Cocina' },
+  kitchenDispatchCount: 1,
+  latestKitchenStatus: 'PREPARING',
+  kitchenServiceStatus: 'PREPARING',
+  latestKitchenDispatchedAt: '2026-09-09T17:50:00.000Z',
+  kitchenDispatches: [{
+    id: 31,
+    dispatchNumber: 31,
+    status: 'PREPARING',
+    dispatchedAt: '2026-09-09T17:50:00.000Z',
+    dispatchedBy: { id: 7, fullName: 'Laura' },
+    startedAt: '2026-09-09T17:52:00.000Z',
+    startedBy: { id: 8, fullName: 'Carlos Cocina' },
+    readyAt: null,
+    readyBy: null,
+    deliveredAt: null,
+    deliveredBy: null,
+  }],
 };
 
 beforeEach(() => {
@@ -238,6 +306,115 @@ describe('Mesas y pedidos', () => {
     expect(screen.getByText('COP 5')).toBeInTheDocument();
     expect(screen.getAllByText(/25[,.]20/).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Terraza').length).toBeGreaterThan(0);
+  });
+
+  it('muestra el ciclo entregado, actores y tiempos derivados con solo sales.read', async () => {
+    mocks.getUserPermissions.mockReturnValue(['sales.read']);
+    mocks.apiFetch.mockImplementation((path: string) => {
+      if (path === '/sales/tables') return Promise.resolve(tables);
+      if (path === '/sales/orders/22') return Promise.resolve(deliveredOrder);
+      return Promise.resolve(deliveredOrder);
+    });
+    const user = userEvent.setup();
+    render(<SalesOrdersPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ver pedido' }));
+
+    expect(screen.queryByRole('heading', { name: 'Trazabilidad del servicio' }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Trazabilidad del ticket 12')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Ver trazabilidad' }));
+    const heading = await screen.findByRole('heading', { name: 'Trazabilidad del servicio' });
+    const traceability = within(heading.closest('section') as HTMLElement);
+    const ticket = traceability.getByLabelText('Trazabilidad del ticket 12');
+    const expectedDispatchedAt = new Intl.DateTimeFormat('es-CO', {
+      dateStyle: 'short',
+      timeStyle: 'medium',
+    }).format(new Date(deliveredTrace.dispatchedAt));
+
+    expect(within(ticket).getAllByText('Entregado')).toHaveLength(2);
+    expect(within(ticket).getByText(expectedDispatchedAt)).toBeInTheDocument();
+    expect(within(ticket).getAllByText('Laura Mesera')).toHaveLength(2);
+    expect(within(ticket).getAllByText('Carlos Cocina')).toHaveLength(2);
+    expect(within(ticket).getByText('11 min 28 s')).toBeInTheDocument();
+    expect(within(ticket).getByText('2 min 34 s')).toBeInTheDocument();
+    expect(within(ticket).getByText('16 min 7 s')).toBeInTheDocument();
+    expect(screen.getAllByText('Entregado').length).toBeGreaterThan(1);
+    expect(screen.queryByRole('button', { name: 'Marcar como entregado' }))
+      .not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Ocultar trazabilidad' }));
+    expect(screen.queryByLabelText('Trazabilidad del ticket 12')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ver trazabilidad' })).toBeInTheDocument();
+  });
+
+  it('mantiene varios dispatches separados y representa timestamps nulos sin Invalid Date', async () => {
+    const multiDispatchOrder = {
+      ...deliveredOrder,
+      hasPendingKitchenItems: true,
+      pendingKitchenItemCount: 1,
+      kitchenDispatchCount: 2,
+      kitchenServiceStatus: 'NEXT',
+      kitchenDispatches: [
+        deliveredTrace,
+        {
+          ...deliveredTrace,
+          id: 28,
+          dispatchNumber: 28,
+          status: 'NEXT',
+          dispatchedAt: '2026-09-08T12:29:00.000Z',
+          startedAt: null,
+          startedBy: null,
+          readyAt: null,
+          readyBy: null,
+          deliveredAt: null,
+          deliveredBy: null,
+        },
+      ],
+    };
+    mocks.apiFetch.mockImplementation((path: string) => {
+      if (path === '/sales/tables') return Promise.resolve(tables);
+      if (path === '/sales/orders/22') return Promise.resolve(multiDispatchOrder);
+      return Promise.resolve(multiDispatchOrder);
+    });
+    const user = userEvent.setup();
+    render(<SalesOrdersPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ver pedido' }));
+    await user.click(screen.getByRole('button', { name: 'Ver trazabilidad' }));
+
+    expect(await screen.findByLabelText('Trazabilidad del ticket 12')).toBeInTheDocument();
+    const nextTicket = screen.getByLabelText('Trazabilidad del ticket 28');
+    expect(within(nextTicket).getByText('Próximo')).toBeInTheDocument();
+    expect(within(nextTicket).getAllByText('Pendiente').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Invalid Date/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Cocina: Próximo · 1 pendiente')).toBeInTheDocument();
+  });
+
+  it('resume una mesa totalmente entregada sin cargar la cronología completa', async () => {
+    const deliveredTables = {
+      tables: tables.tables.map(table => table.id === 2
+        ? {
+            ...table,
+            activeOrder: {
+              ...table.activeOrder,
+              hasPendingKitchenItems: true,
+              pendingKitchenItemCount: 1,
+              kitchenDispatchCount: 2,
+              latestKitchenStatus: 'READY',
+              kitchenServiceStatus: 'DELIVERED',
+              latestKitchenDispatchedAt: deliveredTrace.dispatchedAt,
+            },
+          }
+        : table),
+    };
+    mocks.apiFetch.mockImplementation((path: string) => {
+      if (path === '/sales/tables') return Promise.resolve(deliveredTables);
+      return Promise.resolve(deliveredOrder);
+    });
+    render(<SalesOrdersPage />);
+
+    expect(await screen.findByText('Cocina: Entregado · 1 pendiente')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Trazabilidad del servicio' }))
+      .not.toBeInTheDocument();
   });
 
   it('renderiza de forma segura un producto principal sin adiciones', async () => {
@@ -396,8 +573,18 @@ describe('Mesas y pedidos', () => {
       '/sales/orders/22/cancel',
       { method: 'POST', json: { reason: 'Cliente se retiró' } },
     ));
-    expect(await screen.findByText('Cancelado')).toBeInTheDocument();
-    expect(screen.getByText('Motivo: Cliente se retiró')).toBeInTheDocument();
+    expect((await screen.findAllByText('Cancelado')).length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('button', { name: 'Ver trazabilidad' }));
+    const cancellationTrace = screen.getByLabelText('Trazabilidad de cancelación');
+    expect(cancellationTrace).toHaveTextContent('Cliente se retiró');
+    expect(cancellationTrace).toHaveTextContent('Laura');
+    expect(cancellationTrace).toHaveTextContent('Cocina confirmó');
+    expect(cancellationTrace).toHaveTextContent('Carlos Cocina');
+    const kitchenTrace = screen.getByLabelText('Trazabilidad del ticket 31');
+    expect(kitchenTrace).toHaveTextContent('Enviado a cocina');
+    expect(kitchenTrace).toHaveTextContent('Inicio preparación');
+    expect(kitchenTrace).toHaveTextContent('Cancelación del pedido');
+    expect(kitchenTrace).not.toHaveTextContent('Invalid Date');
     expect(screen.queryByRole('button', { name: 'Agregar productos' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Enviar a cocina' })).not.toBeInTheDocument();
   });
@@ -443,6 +630,7 @@ describe('Mesas y pedidos', () => {
       pendingKitchenItemCount: 0,
       kitchenDispatchCount: 1,
       latestKitchenStatus: 'NEXT',
+      kitchenServiceStatus: 'NEXT',
       latestKitchenDispatchedAt: '2026-09-08T12:10:00.000Z',
       items: order.items.map(item => ({
         ...item,
@@ -450,12 +638,14 @@ describe('Mesas y pedidos', () => {
         kitchenDispatchId: 901,
         kitchenStatus: 'NEXT',
         kitchenDispatchedAt: '2026-09-08T12:10:00.000Z',
+        kitchenDeliveredAt: null,
         additions: item.additions.map(addition => ({
           ...addition,
           kitchenDispatched: true,
           kitchenDispatchId: 901,
           kitchenStatus: 'NEXT',
           kitchenDispatchedAt: '2026-09-08T12:10:00.000Z',
+          kitchenDeliveredAt: null,
         })),
       })),
     };
@@ -495,6 +685,7 @@ describe('Mesas y pedidos', () => {
       pendingKitchenItemCount: 1,
       kitchenDispatchCount: 1,
       latestKitchenStatus: 'PREPARING',
+      kitchenServiceStatus: 'PREPARING',
       latestKitchenDispatchedAt: '2026-09-08T12:10:00.000Z',
       items: [
         {
@@ -503,12 +694,14 @@ describe('Mesas y pedidos', () => {
           kitchenDispatchId: 901,
           kitchenStatus: 'PREPARING',
           kitchenDispatchedAt: '2026-09-08T12:10:00.000Z',
+          kitchenDeliveredAt: null,
           additions: order.items[0].additions.map(addition => ({
             ...addition,
             kitchenDispatched: true,
             kitchenDispatchId: 901,
             kitchenStatus: 'PREPARING',
             kitchenDispatchedAt: '2026-09-08T12:10:00.000Z',
+            kitchenDeliveredAt: null,
           })),
         },
         {
@@ -520,6 +713,7 @@ describe('Mesas y pedidos', () => {
           kitchenDispatchId: null,
           kitchenStatus: null,
           kitchenDispatchedAt: null,
+          kitchenDeliveredAt: null,
           additions: [],
         },
       ],
