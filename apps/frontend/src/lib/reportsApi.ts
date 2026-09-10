@@ -1,6 +1,8 @@
 import { apiFetch } from '@/utils/apiFetch';
 import type {
+  CostsReportResponse,
   ProductsInventoryRiskResponse,
+  ProductionReportResponse,
   SuppliersCatalogResponse,
   TransfersReportResponse,
 } from '@/types/reports';
@@ -19,4 +21,12 @@ export async function fetchTransfersReportSummary(params: {
 }): Promise<TransfersReportResponse> {
   const q = new URLSearchParams(params).toString();
   return apiFetch<TransfersReportResponse>(`/reports/transfers/summary?${q}`);
+}
+
+export async function fetchProductionReport(): Promise<ProductionReportResponse> {
+  return apiFetch<ProductionReportResponse>('/reports/production/summary');
+}
+
+export async function fetchCostsReport(): Promise<CostsReportResponse> {
+  return apiFetch<CostsReportResponse>('/reports/costs/summary');
 }

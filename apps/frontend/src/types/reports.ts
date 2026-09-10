@@ -112,3 +112,143 @@ export interface TransfersReportResponse {
   routes: TransfersReportRouteRow[];
   details: TransfersReportDetailRow[];
 }
+
+export interface ProductionRecipeRow {
+  recipeId: number;
+  internalCode: string;
+  name: string;
+  active: boolean;
+  portions: number;
+  itemCount: number;
+  processCount: number;
+  totalProcessMinutes: number;
+  costPerPortion: number | null;
+  nutritionScore: number | null;
+  nutritionRole: string | null;
+  costClassification: string | null;
+  usedInMenuCount: number;
+  incomplete: boolean;
+  missingProcesses: boolean;
+}
+
+export interface ProductionMenuRow {
+  menuItemId: number;
+  name: string;
+  active: boolean;
+  componentCount: number;
+  recipeComponentCount: number;
+  productComponentCount: number;
+  totalCost: number | null;
+  caloriesPerPortion: number | null;
+  nutritionScore: number | null;
+  hasDrink: boolean;
+  hasDessert: boolean;
+  incomplete: boolean;
+}
+
+export interface ProductionReportKpis {
+  totalRecipes: number;
+  activeRecipes: number;
+  inactiveRecipes: number;
+  incompleteRecipes: number;
+  recipesMissingProcesses: number;
+  recipesNotInMenu: number;
+  totalMenuItems: number;
+  activeMenuItems: number;
+  inactiveMenuItems: number;
+  incompleteMenuItems: number;
+  menuItemsWithoutCost: number;
+  avgRecipeCostPerPortion: number | null;
+  avgMenuItemCost: number | null;
+}
+
+export interface ProductionReportResponse {
+  kpis: ProductionReportKpis;
+  recipes: ProductionRecipeRow[];
+  menuItems: ProductionMenuRow[];
+  distributions: {
+    costClassification: { classification: string; count: number }[];
+    nutritionRole: { role: string; count: number }[];
+  };
+  rankings: {
+    topExpensiveRecipes: ProductionRecipeRow[];
+    topExpensiveMenuItems: ProductionMenuRow[];
+    longestProcessRecipes: ProductionRecipeRow[];
+    standardizationGaps: ProductionRecipeRow[];
+    orphanRecipes: ProductionRecipeRow[];
+    incompleteMenu: ProductionMenuRow[];
+  };
+}
+
+export type OverheadStatus = 'healthy' | 'review' | 'high' | 'none';
+
+export interface CostsOperationalRow {
+  id: number;
+  month: string;
+  fixedCosts: number;
+  variableCosts: number;
+  payroll: number;
+  monthlyProduction: number | null;
+  totalMonthly: number;
+  costPerUnit: number | null;
+  createdAt: string;
+}
+
+export interface CostsMenuRow {
+  menuItemId: number;
+  name: string;
+  active: boolean;
+  baseCost: number;
+  indirectCost: number;
+  totalCost: number;
+  indirectSharePct: number;
+  suggestedPrice: number;
+  estimatedUtility: number;
+  foodCostPct: number;
+}
+
+export interface CostsRecipeRow {
+  recipeId: number;
+  internalCode: string;
+  name: string;
+  active: boolean;
+  portions: number;
+  ingredientsCost: number;
+  costPerPortion: number;
+}
+
+export interface CostsReportKpis {
+  hasOperationalConfig: boolean;
+  configMonth: string | null;
+  totalMonthlyOperational: number | null;
+  indirectCostPerUnit: number | null;
+  monthlyProduction: number | null;
+  overheadStatus: OverheadStatus;
+  configCount: number;
+  activeMenuItems: number;
+  activeRecipes: number;
+  avgMenuTotalCost: number | null;
+  avgMenuBaseCost: number | null;
+  avgRecipeCostPerPortion: number | null;
+  menuItemsWithZeroCost: number;
+  highFoodCostItems: number;
+}
+
+export interface CostsReportResponse {
+  defaults: { margin: number; tax: number };
+  kpis: CostsReportKpis;
+  operational: {
+    latest: CostsOperationalRow | null;
+    history: CostsOperationalRow[];
+    breakdown: { name: string; value: number }[];
+  };
+  menuItems: CostsMenuRow[];
+  recipes: CostsRecipeRow[];
+  rankings: {
+    topExpensiveMenu: CostsMenuRow[];
+    highestIndirectShare: CostsMenuRow[];
+    highestFoodCost: CostsMenuRow[];
+    topExpensiveRecipes: CostsRecipeRow[];
+    zeroCostMenu: CostsMenuRow[];
+  };
+}

@@ -72,6 +72,10 @@ export default function Sidebar() {
     safePath === "/reports/suppliers" || safePath.startsWith("/reports/suppliers");
   const reportsTransfersActive =
     safePath === "/reports/transfers" || safePath.startsWith("/reports/transfers");
+  const reportsProductionActive =
+    safePath === "/reports/production" || safePath.startsWith("/reports/production");
+  const reportsCostsActive =
+    safePath === "/reports/costs" || safePath.startsWith("/reports/costs");
 
   const can = (perm: string) =>
     permissions.includes(perm.trim().toLowerCase());
@@ -279,6 +283,26 @@ export default function Sidebar() {
                   >
                     <span className="text-xl">↔️</span>
                     <span className="text-lg">Traslados · Resumen</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={itemClass(reportsProductionActive)}
+                    onClick={() =>
+                      handleNavigate("/reports/production", "reports.read")
+                    }
+                  >
+                    <span className="text-xl">🍳</span>
+                    <span className="text-lg">Producción · Recetas y menú</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={itemClass(reportsCostsActive)}
+                    onClick={() =>
+                      handleNavigate("/reports/costs", "reports.read")
+                    }
+                  >
+                    <span className="text-xl">💰</span>
+                    <span className="text-lg">Costos · Food cost y overhead</span>
                   </button>
                 </>
               )}
