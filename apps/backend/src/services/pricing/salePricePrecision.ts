@@ -70,7 +70,7 @@ export function normalizeMenuItemCostForPricing(
   );
 
   return {
-    menuItemId: cost.menuItemId,
+    ...cost,
     baseCost,
     indirectCost,
     totalCost,

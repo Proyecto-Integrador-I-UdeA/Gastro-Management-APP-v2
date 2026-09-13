@@ -11,6 +11,7 @@ import {
 } from './salePriceCalculator';
 import { MenuItemCostNotFoundError } from './pricingErrors';
 import { normalizeMenuItemCostForPricing } from './salePricePrecision';
+import { getGlobalWastePercent } from './globalWasteService';
 
 export type SalePriceRates = {
   marginRate: string;
@@ -48,6 +49,7 @@ export async function publishMenuItemPrice(
   rates: SalePriceRates,
   actorId: number,
 ): Promise<SalePricePreview> {
+  const globalWastePercent = await getGlobalWastePercent();
   return prisma.$transaction(async transaction => {
     const lockedMenuItems = await transaction.$queryRaw<Array<{ id: number }>>`
       SELECT "id"
@@ -63,7 +65,7 @@ export async function publishMenuItemPrice(
     const cost = normalizeMenuItemCostForPricing(
       await calculateMenuItemCost(
         menuItemId,
-        createPrismaMenuItemCostDataSource(transaction),
+        createPrismaMenuItemCostDataSource(transaction, globalWastePercent),
       ),
     );
     const pricing = calculateSalePrice({

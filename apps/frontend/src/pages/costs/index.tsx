@@ -8,6 +8,12 @@ export default function CostsModule() {
 
   const leftCards = [
     {
+      title: "Merma general estimada",
+      description:
+        "Configura el factor global aplicado al costo y al consumo teórico de las recetas",
+      path: "/costs/settings",
+    },
+    {
       title: "Costos Operativos",
       description:
         "Gestiona arriendo, servicios, nómina y otros costos indirectos",

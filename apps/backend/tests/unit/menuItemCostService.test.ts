@@ -23,6 +23,7 @@ function sourceFor(options: {
   components?: CostMenuItemComponent[];
   recipes?: CostRecipe[];
   config?: Awaited<ReturnType<MenuItemCostDataSource['getLatestOperationalCostConfig']>>;
+  wastePercent?: string;
 } = {}): MenuItemCostDataSource {
   const recipes = new Map((options.recipes ?? []).map(recipe => [recipe.id, recipe]));
   return {
@@ -34,6 +35,9 @@ function sourceFor(options: {
     },
     async getLatestOperationalCostConfig() {
       return options.config ?? null;
+    },
+    async getGlobalWastePercent() {
+      return options.wastePercent ?? '0';
     },
   };
 }
@@ -134,6 +138,30 @@ describe('motor Decimal de costos de MenuItem', () => {
     }));
 
     expect(result.baseCost.toString()).toBe('3600');
+  });
+
+  it('aplica la misma merma global al costo teórico', async () => {
+    const result = await calculateMenuItemCost(1, sourceFor({
+      components: [{
+        id: 1,
+        quantity: '200',
+        productId: 1,
+        recipeId: null,
+        product: {
+          id: 1,
+          inputUnit: 'kg',
+          unitOfMeasure: 'g',
+          inputUnitQuantity: '1',
+          unitCost: '18000',
+        },
+      }],
+      wastePercent: '8',
+    }));
+
+    expect(result.theoreticalBaseCost.toString()).toBe('3600');
+    expect(result.wastePercent.toString()).toBe('8');
+    expect(result.wasteCost.toString()).toBe('288');
+    expect(result.baseCost.toString()).toBe('3888');
   });
 
   it('ignora totales históricos de recetas y suma el caso real del plato', async () => {

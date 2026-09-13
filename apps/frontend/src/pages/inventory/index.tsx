@@ -170,10 +170,11 @@ export default function InventoryPage() {
                 ) : (
                   filtered.map((r) => {
                     const low = rowLowStock(r);
+                    const negative = r.quantity < 0;
                     return (
                       <tr
                         key={r.id}
-                        className="border-b border-gray-200/50 hover:bg-white/30"
+                        className={`border-b border-gray-200/50 ${negative ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-white/30'}`}
                       >
                         <td className="py-2 pr-3 whitespace-nowrap">{r.warehouse.name}</td>
                         <td className="py-2 pr-3 font-mono text-xs">{r.product.internalCode}</td>
@@ -195,7 +196,11 @@ export default function InventoryPage() {
                           {r.product.maxStock}
                         </td>
                         <td className="py-2">
-                          {low ? (
+                          {negative ? (
+                            <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-red-800">
+                              Requiere revisión
+                            </span>
+                          ) : low ? (
                             <span className="text-red-700 font-medium text-xs uppercase tracking-wide">
                               Bajo mínimo
                             </span>

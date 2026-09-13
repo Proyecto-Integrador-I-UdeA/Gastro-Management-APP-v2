@@ -187,19 +187,22 @@ export async function cancelSalesOrder(
       throw new SalesOperationError('ORDER_NOT_OPEN', 409, 'La orden ya no está abierta');
     }
 
-    const delivered = await transaction.kitchenDispatch.findFirst({
+    const prepared = await transaction.kitchenDispatch.findFirst({
       where: {
         salesOrderId: orderId,
-        deliveredAt: { not: null },
+        OR: [
+          { status: KitchenDispatchStatus.READY },
+          { deliveredAt: { not: null } },
+        ],
       },
-      select: { id: true },
+      select: { id: true, status: true, deliveredAt: true },
     });
-    if (delivered) {
+    if (prepared) {
       throw new SalesOperationError(
-        'ORDER_HAS_DELIVERED_DISPATCHES',
+        'ORDER_HAS_READY_DISPATCHES',
         409,
-        'No se puede cancelar completamente una orden con entregas confirmadas',
-        { dispatchId: delivered.id },
+        'No se puede cancelar una orden con productos que ya llegaron a Listo',
+        { dispatchId: prepared.id },
       );
     }
 

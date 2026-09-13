@@ -106,6 +106,8 @@ function errorMessage(error: unknown, fallback: string): string {
     ORDER_ITEM_ALREADY_SENT_TO_KITCHEN: "Uno de los productos ya fue enviado a cocina.",
     ORDER_HAS_DELIVERED_DISPATCHES:
       "No se puede cancelar completamente un pedido que ya tuvo entregas.",
+    ORDER_HAS_READY_DISPATCHES:
+      "No se puede cancelar un pedido con productos que ya llegaron a Listo.",
   };
   return (code && messages[code]) || apiError.message || fallback;
 }
@@ -526,6 +528,10 @@ export default function SalesOrdersPage() {
     );
   }
 
+  const orderHasReadyWork = order?.kitchenDispatches.some(dispatch => (
+    dispatch.status === "READY" || dispatch.deliveredAt !== null
+  )) ?? false;
+
   if (!permissionReady) {
     return <DashboardLayout><div className="p-6 text-slate-600">Cargando mesas...</div></DashboardLayout>;
   }
@@ -759,7 +765,7 @@ export default function SalesOrdersPage() {
                         onClick={requestBill}
                       >Pedir cuenta</button>
                     )}
-                    {canManage && order.status === "OPEN" && (
+                    {canManage && order.status === "OPEN" && !orderHasReadyWork && (
                       <button
                         type="button"
                         className="rounded-lg border border-red-600 px-4 py-3 font-semibold text-red-700"

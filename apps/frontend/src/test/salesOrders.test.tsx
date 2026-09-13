@@ -604,6 +604,97 @@ describe('Mesas y pedidos', () => {
     );
   });
 
+  it('oculta la cancelación ordinaria cuando un dispatch ya está READY', async () => {
+    const readyOrder = {
+      ...deliveredOrder,
+      kitchenServiceStatus: 'READY',
+      kitchenDispatches: deliveredOrder.kitchenDispatches.map(dispatch => ({
+        ...dispatch,
+        deliveredAt: null,
+        deliveredBy: null,
+      })),
+    };
+    mocks.apiFetch.mockImplementation((path: string) => {
+      if (path === '/sales/tables') return Promise.resolve(tables);
+      if (path === '/sales/orders/22') return Promise.resolve(readyOrder);
+      return Promise.resolve(readyOrder);
+    });
+
+    const user = userEvent.setup();
+    render(<SalesOrdersPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ver pedido' }));
+
+    expect(screen.getByText(/Cocina:.*Listo para recoger/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancelar pedido' })).not.toBeInTheDocument();
+  });
+
+  it('mantiene eliminable una línea pendiente aunque otra línea de la orden ya esté READY', async () => {
+    const readyTrace = {
+      ...deliveredTrace,
+      deliveredAt: null,
+      deliveredBy: null,
+    };
+    const mixedReadyOrder = {
+      ...order,
+      hasPendingKitchenItems: true,
+      pendingKitchenItemCount: 1,
+      kitchenDispatchCount: 1,
+      latestKitchenStatus: 'READY',
+      kitchenServiceStatus: 'READY',
+      latestKitchenDispatchedAt: readyTrace.dispatchedAt,
+      kitchenDispatches: [readyTrace],
+      items: [
+        {
+          ...order.items[0],
+          kitchenDispatched: true,
+          kitchenDispatchId: readyTrace.id,
+          kitchenStatus: 'READY',
+          kitchenDispatchedAt: readyTrace.dispatchedAt,
+          kitchenDeliveredAt: null,
+          additions: order.items[0].additions.map(addition => ({
+            ...addition,
+            kitchenDispatched: true,
+            kitchenDispatchId: readyTrace.id,
+            kitchenStatus: 'READY',
+            kitchenDispatchedAt: readyTrace.dispatchedAt,
+            kitchenDeliveredAt: null,
+          })),
+        },
+        {
+          ...order.items[0],
+          id: 102,
+          name: 'Ensalada pendiente',
+          specialInstructions: null,
+          kitchenDispatched: false,
+          kitchenDispatchId: null,
+          kitchenStatus: null,
+          kitchenDispatchedAt: null,
+          kitchenDeliveredAt: null,
+          additions: [],
+        },
+      ],
+    };
+    mocks.apiFetch.mockImplementation((path: string) => {
+      if (path === '/sales/tables') return Promise.resolve(tables);
+      if (path === '/sales/orders/22') return Promise.resolve(mixedReadyOrder);
+      return Promise.resolve(mixedReadyOrder);
+    });
+
+    const user = userEvent.setup();
+    render(<SalesOrdersPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ver pedido' }));
+
+    expect(screen.getByText('Ensalada pendiente')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancelar pedido' })).not.toBeInTheDocument();
+    const deleteButtons = screen.getAllByRole('button', { name: 'Eliminar' });
+    expect(deleteButtons).toHaveLength(1);
+    await user.click(deleteButtons[0]);
+    expect(mocks.apiFetch).toHaveBeenCalledWith(
+      '/sales/orders/22/items/102',
+      { method: 'DELETE' },
+    );
+  });
+
   it('navega al único menú comercial con orderId', async () => {
     const user = userEvent.setup();
     render(<SalesOrdersPage />);

@@ -69,6 +69,7 @@ model Product {
   MenuItemComponent  MenuItemComponent[]
   inventories        Inventory[]
   inventoryMovements InventoryMovement[]
+  kitchenConsumptionItems KitchenInventoryConsumptionItem[]
   catalog            IngredientCatalog?  @relation(fields: [catalogId], references: [id])
   supplier           Supplier            @relation(fields: [supplierId], references: [id])
   recipeItems        RecipeItem[]        @relation("ProductRecipeItems")
@@ -88,6 +89,7 @@ model Warehouse {
   inventories       Inventory[]
   movementsAsDest   InventoryMovement[] @relation("DestinationWarehouse")
   movementsAsSource InventoryMovement[] @relation("SourceWarehouse")
+  kitchenConsumptions KitchenInventoryConsumption[]
 
   @@map("warehouses")
 }
@@ -123,6 +125,7 @@ model InventoryMovement {
   product                Product      @relation(fields: [productId], references: [id])
   sourceWarehouse        Warehouse?   @relation("SourceWarehouse", fields: [sourceWarehouseId], references: [id])
   user                   User         @relation(fields: [userId], references: [id])
+  kitchenConsumptionItem KitchenInventoryConsumptionItem?
 
   @@map("inventory_movements")
 }
@@ -148,6 +151,8 @@ model User {
   startedKitchenDispatches KitchenDispatch[] @relation("KitchenDispatchStartedBy")
   readiedKitchenDispatches KitchenDispatch[] @relation("KitchenDispatchReadyBy")
   deliveredKitchenDispatches KitchenDispatch[] @relation("KitchenDispatchDeliveredBy")
+  updatedGlobalWasteConfigs           GlobalWasteConfig[]      @relation("GlobalWasteConfigUpdatedBy")
+  globalWasteConfigAudits             GlobalWasteConfigAudit[] @relation("GlobalWasteConfigAuditChangedBy")
   role                  Role?               @relation(fields: [roleId], references: [id])
 
   @@map("users")
@@ -213,6 +218,7 @@ model Recipe {
   items              RecipeItem[]        @relation("ParentRecipe")
   usedAsSubRecipe    RecipeItem[]        @relation("SubRecipeReference")
   processes          RecipeProcess[]
+  kitchenConsumptionItems KitchenInventoryConsumptionItem[]
 
   @@map("recipes")
 }
@@ -261,6 +267,32 @@ model Config {
   value String
 
   @@map("config")
+}
+
+model GlobalWasteConfig {
+  id           Int                      @id @default(1)
+  wastePercent Decimal                  @default(0) @db.Decimal(5, 2)
+  updatedById  Int?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @default(now()) @updatedAt
+  updatedBy    User?                    @relation("GlobalWasteConfigUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  audits       GlobalWasteConfigAudit[]
+
+  @@map("global_waste_config")
+}
+
+model GlobalWasteConfigAudit {
+  id              Int               @id @default(autoincrement())
+  configId        Int
+  previousPercent Decimal           @db.Decimal(5, 2)
+  newPercent      Decimal           @db.Decimal(5, 2)
+  changedById     Int
+  changedAt       DateTime          @default(now())
+  config          GlobalWasteConfig @relation(fields: [configId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  changedBy       User              @relation("GlobalWasteConfigAuditChangedBy", fields: [changedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([configId, changedAt])
+  @@map("global_waste_config_audits")
 }
 
 model OperationalCostConfig {
@@ -494,6 +526,7 @@ model KitchenDispatch {
   readyBy                 User?                 @relation("KitchenDispatchReadyBy", fields: [readyById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   deliveredBy             User?                 @relation("KitchenDispatchDeliveredBy", fields: [deliveredById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   items                   KitchenDispatchItem[]
+  inventoryConsumption    KitchenInventoryConsumption?
 
   @@index([salesOrderId])
   @@index([status, dispatchedAt, id])
@@ -516,11 +549,57 @@ model KitchenDispatchItem {
   salesOrderItem              SalesOrderItem         @relation(fields: [salesOrderItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   parentDispatchItem          KitchenDispatchItem?   @relation("KitchenDispatchItemAdditions", fields: [parentDispatchItemId, kitchenDispatchId], references: [id, kitchenDispatchId], onDelete: Restrict, onUpdate: Cascade)
   additions                   KitchenDispatchItem[]  @relation("KitchenDispatchItemAdditions")
+  inventoryConsumptionItems   KitchenInventoryConsumptionItem[]
 
   @@index([kitchenDispatchId])
   @@index([parentDispatchItemId])
   @@unique([id, kitchenDispatchId])
   @@map("kitchen_dispatch_items")
+}
+
+model KitchenInventoryConsumption {
+  id                   Int                               @id @default(autoincrement())
+  kitchenDispatchId    Int                               @unique
+  warehouseId          Int?
+  wastePercentSnapshot Decimal                           @db.Decimal(5, 2)
+  theoreticalCost      Decimal                           @db.Decimal(18, 4)
+  wasteCost            Decimal                           @db.Decimal(18, 4)
+  totalCost            Decimal                           @db.Decimal(18, 4)
+  issues               Json?
+  createdAt            DateTime                          @default(now())
+  kitchenDispatch      KitchenDispatch                   @relation(fields: [kitchenDispatchId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  warehouse            Warehouse?                        @relation(fields: [warehouseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  items                KitchenInventoryConsumptionItem[]
+
+  @@index([warehouseId, createdAt])
+  @@map("kitchen_inventory_consumptions")
+}
+
+model KitchenInventoryConsumptionItem {
+  id                    Int                         @id @default(autoincrement())
+  consumptionId         Int
+  kitchenDispatchItemId Int
+  productId             Int
+  recipeId              Int?
+  inventoryMovementId   Int                         @unique
+  theoreticalQuantity   Decimal                     @db.Decimal(18, 6)
+  adjustedQuantity      Decimal                     @db.Decimal(18, 6)
+  unit                  ProductBaseUnit
+  unitCostSnapshot      Decimal                     @db.Decimal(18, 6)
+  theoreticalCost       Decimal                     @db.Decimal(18, 4)
+  wasteCost             Decimal                     @db.Decimal(18, 4)
+  totalCost             Decimal                     @db.Decimal(18, 4)
+  createdAt             DateTime                    @default(now())
+  consumption           KitchenInventoryConsumption @relation(fields: [consumptionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  kitchenDispatchItem   KitchenDispatchItem         @relation(fields: [kitchenDispatchItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  product               Product                     @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  recipe                Recipe?                     @relation(fields: [recipeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  inventoryMovement     InventoryMovement           @relation(fields: [inventoryMovementId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([consumptionId, kitchenDispatchItemId, productId])
+  @@index([productId, createdAt])
+  @@index([recipeId])
+  @@map("kitchen_inventory_consumption_items")
 }
 
 model MenuItemComponent {

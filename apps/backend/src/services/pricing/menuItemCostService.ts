@@ -8,6 +8,7 @@ import {
   RecipeCycleError,
 } from './pricingErrors';
 import { ingredientCost } from './productUnitCost';
+import { applyWasteFactor, getGlobalWastePercent } from './globalWasteService';
 
 type DecimalValue = Prisma.Decimal.Value;
 
@@ -55,10 +56,14 @@ export interface MenuItemCostDataSource {
   } | null>;
   getRecipe(id: number): Promise<CostRecipe | null>;
   getLatestOperationalCostConfig(): Promise<OperationalCostValues | null>;
+  getGlobalWastePercent?(): Promise<DecimalValue>;
 }
 
 export type MenuItemCostResult = {
   menuItemId: number;
+  theoreticalBaseCost: Prisma.Decimal;
+  wastePercent: Prisma.Decimal;
+  wasteCost: Prisma.Decimal;
   baseCost: Prisma.Decimal;
   indirectCost: Prisma.Decimal;
   totalCost: Prisma.Decimal;
@@ -66,6 +71,9 @@ export type MenuItemCostResult = {
 
 export type RecipeCostResult = {
   recipeId: number;
+  theoreticalTotalCost: Prisma.Decimal;
+  wastePercent: Prisma.Decimal;
+  wasteCost: Prisma.Decimal;
   totalCost: Prisma.Decimal;
   costPerPortion: Prisma.Decimal;
 };
@@ -101,6 +109,7 @@ function calculateProductCost(
 
 export function createPrismaMenuItemCostDataSource(
   client: CostPrismaClient = prisma,
+  globalWastePercentOverride?: DecimalValue,
 ): MenuItemCostDataSource {
   return {
     async getMenuItem(id) {
@@ -165,14 +174,20 @@ export function createPrismaMenuItemCostDataSource(
         },
       });
     },
+    async getGlobalWastePercent() {
+      if (globalWastePercentOverride !== undefined) {
+        return globalWastePercentOverride;
+      }
+      return getGlobalWastePercent(client);
+    },
   };
 }
 
-async function calculateRecipe(
+async function calculateRecipeTheoretical(
   recipeId: number,
   source: MenuItemCostDataSource,
   ancestry: readonly number[],
-): Promise<RecipeCostResult> {
+): Promise<{ recipeId: number; totalCost: Prisma.Decimal; costPerPortion: Prisma.Decimal }> {
   if (ancestry.includes(recipeId)) {
     throw new RecipeCycleError([...ancestry, recipeId]);
   }
@@ -205,7 +220,7 @@ async function calculateRecipe(
       continue;
     }
 
-    const subRecipe = await calculateRecipe(item.subRecipeId!, source, nextAncestry);
+    const subRecipe = await calculateRecipeTheoretical(item.subRecipeId!, source, nextAncestry);
     const quantity = positiveDecimal(item.quantity, `RecipeItem ${item.id}.quantity`);
     totalCost = totalCost.plus(subRecipe.costPerPortion.mul(quantity));
   }
@@ -221,7 +236,21 @@ export function calculateRecipeCost(
   recipeId: number,
   source: MenuItemCostDataSource = createPrismaMenuItemCostDataSource(),
 ): Promise<RecipeCostResult> {
-  return calculateRecipe(recipeId, source, []);
+  return Promise.all([
+    calculateRecipeTheoretical(recipeId, source, []),
+    source.getGlobalWastePercent?.() ?? Promise.resolve(0),
+  ]).then(([theoretical, percentValue]) => {
+    const wastePercent = new Prisma.Decimal(percentValue);
+    const totalCost = applyWasteFactor(theoretical.totalCost, wastePercent);
+    return {
+      recipeId,
+      theoreticalTotalCost: theoretical.totalCost,
+      wastePercent,
+      wasteCost: totalCost.minus(theoretical.totalCost),
+      totalCost,
+      costPerPortion: applyWasteFactor(theoretical.costPerPortion, wastePercent),
+    };
+  });
 }
 
 function calculateIndirectCost(
@@ -257,7 +286,7 @@ function calculateIndirectCost(
   return production.gt(0) ? monthlyOverhead.div(production) : new Prisma.Decimal(0);
 }
 
-export async function calculateMenuItemBaseCost(
+async function calculateMenuItemTheoreticalBaseCost(
   menuItemId: number,
   source: MenuItemCostDataSource = createPrismaMenuItemCostDataSource(),
 ): Promise<Prisma.Decimal> {
@@ -290,7 +319,7 @@ export async function calculateMenuItemBaseCost(
       continue;
     }
 
-    const recipe = await calculateRecipe(component.recipeId!, source, []);
+    const recipe = await calculateRecipeTheoretical(component.recipeId!, source, []);
     const quantity = positiveDecimal(
       component.quantity,
       `MenuItemComponent ${component.id}.quantity`,
@@ -301,11 +330,27 @@ export async function calculateMenuItemBaseCost(
   return baseCost;
 }
 
+export async function calculateMenuItemBaseCost(
+  menuItemId: number,
+  source: MenuItemCostDataSource = createPrismaMenuItemCostDataSource(),
+): Promise<Prisma.Decimal> {
+  const [theoreticalBaseCost, percent] = await Promise.all([
+    calculateMenuItemTheoreticalBaseCost(menuItemId, source),
+    source.getGlobalWastePercent?.() ?? Promise.resolve(0),
+  ]);
+  return applyWasteFactor(theoreticalBaseCost, percent);
+}
+
 export async function calculateMenuItemCost(
   menuItemId: number,
   source: MenuItemCostDataSource = createPrismaMenuItemCostDataSource(),
 ): Promise<MenuItemCostResult> {
-  const baseCost = await calculateMenuItemBaseCost(menuItemId, source);
+  const [theoreticalBaseCost, percentValue] = await Promise.all([
+    calculateMenuItemTheoreticalBaseCost(menuItemId, source),
+    source.getGlobalWastePercent?.() ?? Promise.resolve(0),
+  ]);
+  const wastePercent = new Prisma.Decimal(percentValue);
+  const baseCost = applyWasteFactor(theoreticalBaseCost, wastePercent);
 
   const indirectCost = calculateIndirectCost(
     await source.getLatestOperationalCostConfig(),
@@ -313,6 +358,9 @@ export async function calculateMenuItemCost(
 
   return {
     menuItemId,
+    theoreticalBaseCost,
+    wastePercent,
+    wasteCost: baseCost.minus(theoreticalBaseCost),
     baseCost,
     indirectCost,
     totalCost: baseCost.plus(indirectCost),
