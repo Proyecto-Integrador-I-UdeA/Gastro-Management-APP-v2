@@ -13,8 +13,15 @@ import {
   publishSalePrice,
 } from '../../controllers/cost/salePriceController';
 import { authenticate, authorize, authorizeAny } from '../../middlewares/auth';
+import {
+  getGlobalWaste,
+  updateGlobalWaste,
+} from '../../controllers/cost/globalWasteController';
 
 const router = Router();
+
+router.get('/settings/waste', authenticate, authorize(['costs.read']), getGlobalWaste);
+router.put('/settings/waste', authenticate, authorize(['costs.update']), updateGlobalWaste);
 
 // 🔥 COSTOS DE RECETA
 router.get(

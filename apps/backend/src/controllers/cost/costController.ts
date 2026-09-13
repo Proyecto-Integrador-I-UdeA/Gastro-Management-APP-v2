@@ -40,7 +40,9 @@ export const calculateRecipeCost = async (req: Request, res: Response) => {
     const cost = await calculateRecipeCostWithDecimal(recipeId);
     return res.json({
       recipeId,
-      ingredientsCost: cost.totalCost.toNumber(),
+      ingredientsCost: cost.theoreticalTotalCost.toNumber(),
+      wastePercent: cost.wastePercent.toNumber(),
+      wasteCost: cost.wasteCost.toNumber(),
       totalCost: cost.totalCost.toNumber(),
       costPerPortion: cost.costPerPortion.toNumber(),
     });
@@ -60,6 +62,9 @@ export const calculateMenuItemCost = async (req: Request, res: Response) => {
     const cost = await calculateMenuItemCostWithDecimal(menuItemId);
     return res.json({
       menuItemId,
+      theoreticalBaseCost: cost.theoreticalBaseCost.toNumber(),
+      wastePercent: cost.wastePercent.toNumber(),
+      wasteCost: cost.wasteCost.toNumber(),
       baseCost: cost.baseCost.toNumber(),
       indirectCost: cost.indirectCost.toNumber(),
       totalCost: cost.totalCost.toNumber(),

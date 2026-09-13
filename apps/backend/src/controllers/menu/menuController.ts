@@ -21,6 +21,7 @@ import {
   RecipeCostNotFoundError,
   RecipeCycleError,
 } from '../../services/pricing/pricingErrors';
+import { getGlobalWastePercent } from '../../services/pricing/globalWasteService';
 import { getMediaStorage, MediaStorageConfigurationError } from '../../services/media/mediaStorageProvider';
 import {
   assertMediaAssetAttachable,
@@ -218,6 +219,7 @@ export const createMenuItem = async (req: Request, res: Response) => {
     if (typeof validatedCategoryId === 'number') {
       await ensureMenuCategoryExists(validatedCategoryId);
     }
+    const globalWastePercent = await getGlobalWastePercent();
 
     const newItem = await prisma.$transaction(async tx => {
       if (typeof validatedImageAssetId === 'number') {
@@ -259,7 +261,7 @@ export const createMenuItem = async (req: Request, res: Response) => {
       }
       const baseCost = await calculateMenuItemBaseCost(
         created.id,
-        createPrismaMenuItemCostDataSource(tx),
+        createPrismaMenuItemCostDataSource(tx, globalWastePercent),
       );
 
       return tx.menuItem.update({
@@ -369,6 +371,7 @@ export const updateMenuItem = async (req: Request, res: Response) => {
     if (typeof validatedCategoryId === 'number') {
       await ensureMenuCategoryExists(validatedCategoryId);
     }
+    const globalWastePercent = await getGlobalWastePercent();
 
     const { item: updated, cleanupAssetId } = await prisma.$transaction(async tx => {
       const existing = await tx.menuItem.findUnique({
@@ -438,7 +441,7 @@ export const updateMenuItem = async (req: Request, res: Response) => {
 
       const baseCost = await calculateMenuItemBaseCost(
         menuItem.id,
-        createPrismaMenuItemCostDataSource(tx),
+        createPrismaMenuItemCostDataSource(tx, globalWastePercent),
       );
       const item = await tx.menuItem.update({
         where: { id },

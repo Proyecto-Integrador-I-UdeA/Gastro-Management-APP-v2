@@ -6,6 +6,7 @@ import {
 } from '@prisma/client';
 import prisma from '../../lib/prisma';
 import { SalesOperationError } from '../sales/salesOrderService';
+import { consumeKitchenDispatchInventory } from './kitchenInventoryConsumptionService';
 
 type KitchenClient = PrismaClient | Prisma.TransactionClient;
 
@@ -520,6 +521,9 @@ export async function updateKitchenDispatchStatus(
     }
 
     const now = new Date();
+    if (nextStatus === KitchenDispatchStatus.READY) {
+      await consumeKitchenDispatchInventory(transaction, dispatchId, actorId);
+    }
     await transaction.kitchenDispatch.update({
       where: { id: dispatchId },
       data: nextStatus === KitchenDispatchStatus.PREPARING

@@ -19,6 +19,8 @@ export type MovementPayload = {
   notes?: string | null;
   sourceWarehouseId?: number | null;
   destinationWarehouseId?: number | null;
+  /** Solo para consumos automáticos que reflejan producción física ya realizada. */
+  allowNegativeStock?: boolean;
 };
 
 /**
@@ -39,6 +41,7 @@ export async function applyInventoryMovement(
     notes,
     sourceWarehouseId,
     destinationWarehouseId,
+    allowNegativeStock = false,
   } = payload;
 
   if (quantity <= 0) {
@@ -143,7 +146,7 @@ export async function applyInventoryMovement(
           },
         },
       });
-      if (!sourceRow || sourceRow.quantity < quantity) {
+      if (!allowNegativeStock && (!sourceRow || sourceRow.quantity < quantity)) {
         throw new KardexError('Stock insuficiente; no se permiten saldos negativos');
       }
 
@@ -161,14 +164,19 @@ export async function applyInventoryMovement(
         },
       });
 
-      await tx.inventory.update({
+      await tx.inventory.upsert({
         where: {
           productId_warehouseId: {
             productId,
             warehouseId: sourceWarehouseId,
           },
         },
-        data: { quantity: { decrement: quantity } },
+        create: {
+          productId,
+          warehouseId: sourceWarehouseId,
+          quantity: -quantity,
+        },
+        update: { quantity: { decrement: quantity } },
       });
 
       return movement;

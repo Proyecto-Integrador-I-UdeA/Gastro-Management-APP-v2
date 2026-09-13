@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import {
   KitchenDispatchStatus,
   MenuItemKind,
+  MovementType,
   PrismaClient,
   SalesOrderStatus,
 } from '@prisma/client';
@@ -42,6 +43,17 @@ const lifecycleMigrationSql = readFileSync(
   'utf8',
 );
 const lifecycleMigrationStatements = lifecycleMigrationSql
+  .split(';')
+  .map(statement => statement.trim())
+  .filter(Boolean);
+const inventoryConsumptionMigrationSql = readFileSync(
+  resolve(
+    process.cwd(),
+    'prisma/migrations/20260910120000_kitchen_01d_ready_inventory_consumption/migration.sql',
+  ),
+  'utf8',
+);
+const inventoryConsumptionMigrationStatements = inventoryConsumptionMigrationSql
   .split(';')
   .map(statement => statement.trim())
   .filter(Boolean);
@@ -159,6 +171,10 @@ async function addItem(
 }
 
 async function clearOrders() {
+  await prisma.kitchenInventoryConsumptionItem.deleteMany();
+  await prisma.kitchenInventoryConsumption.deleteMany();
+  await prisma.inventoryMovement.deleteMany({ where: { type: 'CONSUMPTION' } });
+  await prisma.inventory.deleteMany();
   await prisma.kitchenDispatchItem.deleteMany({
     where: { parentDispatchItemId: { not: null } },
   });
@@ -173,6 +189,8 @@ async function clearOrders() {
 async function createBaseSchema(client: PrismaClient) {
   const statements = [
     `CREATE TYPE "MenuItemKind" AS ENUM ('STANDARD', 'ADDITION')`,
+    `CREATE TYPE "ProductBaseUnit" AS ENUM ('g', 'ml', 'und')`,
+    `CREATE TYPE "MovementType" AS ENUM ('PURCHASE', 'TRANSFER', 'WASTE', 'CONSUMPTION')`,
     `CREATE TABLE "users" (
       "id" SERIAL PRIMARY KEY,
       "email" TEXT NOT NULL UNIQUE,
@@ -258,6 +276,86 @@ async function createBaseSchema(client: PrismaClient) {
       "validUntil" TIMESTAMP(3),
       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE "warehouses" (
+      "id" SERIAL PRIMARY KEY,
+      "name" TEXT NOT NULL UNIQUE,
+      "description" TEXT,
+      "isMain" BOOLEAN NOT NULL DEFAULT false,
+      "active" BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE "products" (
+      "id" SERIAL PRIMARY KEY,
+      "internalCode" TEXT NOT NULL UNIQUE,
+      "name" TEXT NOT NULL,
+      "category" TEXT NOT NULL DEFAULT '',
+      "isIngredient" BOOLEAN NOT NULL DEFAULT false,
+      "isSupply" BOOLEAN NOT NULL DEFAULT false,
+      "isFinishedProduct" BOOLEAN NOT NULL DEFAULT false,
+      "presentation" TEXT NOT NULL,
+      "inputUnit" TEXT NOT NULL DEFAULT 'g',
+      "inputUnitQuantity" DOUBLE PRECISION NOT NULL DEFAULT 1,
+      "minStock" DOUBLE PRECISION NOT NULL,
+      "maxStock" DOUBLE PRECISION NOT NULL,
+      "currentStock" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "unitCost" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "active" BOOLEAN NOT NULL DEFAULT true,
+      "supplierId" INTEGER NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "unitOfMeasure" "ProductBaseUnit" NOT NULL DEFAULT 'g'
+    )`,
+    `CREATE TABLE "recipes" (
+      "id" SERIAL PRIMARY KEY,
+      "internalCode" TEXT NOT NULL UNIQUE,
+      "active" BOOLEAN NOT NULL DEFAULT true,
+      "name" TEXT NOT NULL,
+      "description" TEXT,
+      "batchQuantity" DOUBLE PRECISION NOT NULL,
+      "portions" INTEGER NOT NULL,
+      "totalCost" DECIMAL(10,2),
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE "recipe_items" (
+      "id" SERIAL PRIMARY KEY,
+      "recipeId" INTEGER NOT NULL,
+      "productId" INTEGER,
+      "quantity" DOUBLE PRECISION NOT NULL,
+      "unitCost" DECIMAL(10,2) NOT NULL,
+      "totalCost" DECIMAL(10,2) NOT NULL,
+      "subRecipeId" INTEGER
+    )`,
+    `CREATE TABLE "MenuItemComponent" (
+      "id" SERIAL PRIMARY KEY,
+      "menuItemId" INTEGER NOT NULL,
+      "productId" INTEGER,
+      "recipeId" INTEGER,
+      "quantity" DOUBLE PRECISION NOT NULL
+    )`,
+    `CREATE TABLE "inventories" (
+      "id" SERIAL PRIMARY KEY,
+      "quantity" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "productId" INTEGER NOT NULL,
+      "warehouseId" INTEGER NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE ("productId", "warehouseId")
+    )`,
+    `CREATE TABLE "inventory_movements" (
+      "id" SERIAL PRIMARY KEY,
+      "type" "MovementType" NOT NULL,
+      "quantity" DOUBLE PRECISION NOT NULL,
+      "unitCost" DECIMAL(10,2),
+      "expirationDate" TIMESTAMP(3),
+      "notes" TEXT,
+      "productId" INTEGER NOT NULL,
+      "sourceWarehouseId" INTEGER,
+      "destinationWarehouseId" INTEGER,
+      "userId" INTEGER NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
   ];
 
   for (const statement of statements) {
@@ -289,6 +387,9 @@ beforeAll(async () => {
   for (const statement of lifecycleMigrationStatements) {
     await prisma.$executeRawUnsafe(statement);
   }
+  for (const statement of inventoryConsumptionMigrationStatements) {
+    await prisma.$executeRawUnsafe(statement);
+  }
 
   process.env.DATABASE_URL = schemaUrl.toString();
   app = (await import('../../src/app')).default;
@@ -303,6 +404,9 @@ beforeAll(async () => {
     select: { id: true },
   });
   actorId = actor.id;
+  await prisma.warehouse.create({
+    data: { name: 'Bodega Principal', isMain: true, active: true },
+  });
   activeCategoryId = (await createCategory('Platos activos')).id;
   inactiveCategoryId = (await createCategory('Categoría inactiva', false)).id;
 
@@ -1429,6 +1533,16 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       id: actorId,
       fullName: 'Mesero de prueba',
     });
+    const consumptionWithoutRecipe = await prisma.kitchenInventoryConsumption.findUniqueOrThrow({
+      where: { kitchenDispatchId: dispatch.body.id },
+      select: { warehouseId: true, issues: true, items: true },
+    });
+    expect(consumptionWithoutRecipe.warehouseId).toBeNull();
+    expect(consumptionWithoutRecipe.items).toEqual([]);
+    expect(consumptionWithoutRecipe.issues).toEqual([{
+      code: 'MENU_ITEM_WITHOUT_CONSUMABLE_COMPONENTS',
+      kitchenDispatchItemId: dispatch.body.items[0].id,
+    }]);
     const readyAgain = await request(app)
       .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
       .set('Authorization', auth(['kitchen.manage']))
@@ -1458,6 +1572,380 @@ describe('backend de mesas y pedidos SALES-02D', () => {
     expect(liveQueue.body.dispatches).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: dispatch.body.id }),
     ]));
+  });
+
+  it('consume inventario una sola vez al llegar a READY, aplica merma y permite saldo negativo', async () => {
+    expect((await request(app).get('/costs/settings/waste')).status).toBe(401);
+    const initialConfig = await request(app)
+      .get('/costs/settings/waste')
+      .set('Authorization', auth(['costs.read']));
+    expect(initialConfig.status).toBe(200);
+    expect(initialConfig.body.wastePercent).toBe(0);
+    expect((await request(app)
+      .put('/costs/settings/waste')
+      .set('Authorization', auth(['costs.read']))
+      .send({ wastePercent: 8 })).status).toBe(403);
+    expect((await request(app)
+      .put('/costs/settings/waste')
+      .set('Authorization', auth(['costs.update']))
+      .send({ wastePercent: 101 })).status).toBe(400);
+    expect((await request(app)
+      .put('/costs/settings/waste')
+      .set('Authorization', auth(['costs.update']))
+      .send({ wastePercent: ' ' })).status).toBe(400);
+    expect((await request(app)
+      .put('/costs/settings/waste')
+      .set('Authorization', auth(['costs.update']))
+      .send({ wastePercent: 8.001 })).status).toBe(400);
+    const configured = await request(app)
+      .put('/costs/settings/waste')
+      .set('Authorization', auth(['costs.update']))
+      .send({ wastePercent: 8 });
+    expect(configured.status).toBe(200);
+    expect(configured.body.wastePercent).toBe(8);
+    const loadedConfig = await request(app)
+      .get('/costs/settings/waste')
+      .set('Authorization', auth(['costs.read']));
+    expect(loadedConfig.body.wastePercent).toBe(8);
+
+    const productRows = await prisma.$queryRaw<Array<{ id: number }>>`
+      INSERT INTO "products" (
+        "internalCode", "name", "presentation", "inputUnit", "inputUnitQuantity",
+        "minStock", "maxStock", "unitCost", "supplierId", "unitOfMeasure"
+      ) VALUES (
+        ${`POLLO-${sequence}`}, 'Pechuga de pollo', 'Bolsa 1 kg', 'kg', 1,
+        100, 1000, 18000, 1, 'g'
+      ) RETURNING "id"
+    `;
+    const productId = productRows[0].id;
+    const recipeRows = await prisma.$queryRaw<Array<{ id: number }>>`
+      INSERT INTO "recipes" ("internalCode", "name", "batchQuantity", "portions")
+      VALUES (${`REC-${sequence}`}, 'Pollo preparado', 1, 1)
+      RETURNING "id"
+    `;
+    const recipeId = recipeRows[0].id;
+    await prisma.$executeRaw`
+      INSERT INTO "recipe_items" (
+        "recipeId", "productId", "quantity", "unitCost", "totalCost"
+      ) VALUES (${recipeId}, ${productId}, 200, 0, 0)
+    `;
+    const authoritativeRecipeCost = await request(app)
+      .get(`/costs/recipe/${recipeId}`)
+      .set('Authorization', auth(['costs.read']));
+    expect(authoritativeRecipeCost.status).toBe(200);
+    expect(authoritativeRecipeCost.body).toMatchObject({
+      ingredientsCost: 3600,
+      wastePercent: 8,
+      wasteCost: 288,
+      totalCost: 3888,
+      costPerPortion: 3888,
+    });
+    const secondaryProductRows = await prisma.$queryRaw<Array<{ id: number }>>`
+      INSERT INTO "products" (
+        "internalCode", "name", "presentation", "inputUnit", "inputUnitQuantity",
+        "minStock", "maxStock", "unitCost", "supplierId", "unitOfMeasure"
+      ) VALUES (
+        ${`SAL-${sequence}`}, 'Sal', 'Bolsa 1 kg', 'kg', 1,
+        10, 100, 1000, 1, 'g'
+      ) RETURNING "id"
+    `;
+    const secondaryProductId = secondaryProductRows[0].id;
+    await prisma.$executeRaw`
+      INSERT INTO "recipe_items" (
+        "recipeId", "productId", "quantity", "unitCost", "totalCost"
+      ) VALUES (${recipeId}, ${secondaryProductId}, 10, 0, 0)
+    `;
+    const preparedMenuItem = await createMenuItem(`Plato con inventario ${sequence}`);
+    await prisma.$executeRaw`
+      INSERT INTO "MenuItemComponent" ("menuItemId", "recipeId", "quantity")
+      VALUES (${preparedMenuItem.id}, ${recipeId}, 1)
+    `;
+    await createPrice(preparedMenuItem.id, '10000');
+    const warehouse = await prisma.warehouse.findFirstOrThrow({ where: { isMain: true } });
+    await prisma.inventory.create({
+      data: { productId, warehouseId: warehouse.id, quantity: 150 },
+    });
+    await prisma.inventory.create({
+      data: { productId: secondaryProductId, warehouseId: warehouse.id, quantity: 100 },
+    });
+
+    const order = await openOrder((await createTable()).id);
+    const addedPreparedItem = await addItem(order.id, {
+      menuItemId: preparedMenuItem.id,
+      quantity: 2,
+    });
+    const preparedOrderItemId = addedPreparedItem.body.items[0].id as number;
+    const dispatch = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    await request(app)
+      .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'PREPARING' });
+
+    const readyRoute = `/kitchen/dispatches/${dispatch.body.id}/status`;
+    const [firstReady, retryReady] = await Promise.all([
+      request(app).patch(readyRoute).set('Authorization', auth(['kitchen.manage'])).send({ status: 'READY' }),
+      request(app).patch(readyRoute).set('Authorization', auth(['kitchen.manage'])).send({ status: 'READY' }),
+    ]);
+    expect([firstReady.status, retryReady.status]).toEqual([200, 200]);
+
+    const consumptions = await prisma.kitchenInventoryConsumption.findMany({
+      where: { kitchenDispatchId: dispatch.body.id },
+      include: { items: true },
+    });
+    expect(consumptions).toHaveLength(1);
+    expect(consumptions[0].issues).toBeNull();
+    expect(consumptions[0].wastePercentSnapshot.toString()).toBe('8');
+    expect(consumptions[0].theoreticalCost.toString()).toBe('7220');
+    expect(consumptions[0].wasteCost.toString()).toBe('577.6');
+    expect(consumptions[0].totalCost.toString()).toBe('7797.6');
+    expect(consumptions[0].items).toHaveLength(2);
+    const chickenConsumption = consumptions[0].items.find(item => item.productId === productId)!;
+    const saltConsumption = consumptions[0].items.find(item => item.productId === secondaryProductId)!;
+    expect(chickenConsumption.theoreticalQuantity.toString()).toBe('400');
+    expect(chickenConsumption.adjustedQuantity.toString()).toBe('432');
+    expect(chickenConsumption.unitCostSnapshot.toString()).toBe('18');
+    expect(saltConsumption.theoreticalQuantity.toString()).toBe('20');
+    expect(saltConsumption.adjustedQuantity.toString()).toBe('21.6');
+    expect(saltConsumption.unitCostSnapshot.toString()).toBe('1');
+
+    const balance = await prisma.inventory.findUniqueOrThrow({
+      where: { productId_warehouseId: { productId, warehouseId: warehouse.id } },
+    });
+    expect(balance.quantity).toBe(-282);
+    const inventoryMovements = await prisma.inventoryMovement.findMany({
+      where: { productId: { in: [productId, secondaryProductId] }, type: MovementType.CONSUMPTION },
+      select: { productId: true, quantity: true },
+    });
+    expect(inventoryMovements).toEqual(expect.arrayContaining([
+      { productId, quantity: 432 },
+      { productId: secondaryProductId, quantity: 21.6 },
+    ]));
+    expect(inventoryMovements).toHaveLength(2);
+
+    const readyLineDeletion = await request(app)
+      .delete(`/sales/orders/${order.id}/items/${preparedOrderItemId}`)
+      .set('Authorization', auth(['sales.manage']));
+    expect(readyLineDeletion.status).toBe(409);
+    expect(readyLineDeletion.body.code).toBe('ORDER_ITEM_ALREADY_SENT_TO_KITCHEN');
+
+    const addedPendingItem = await addItem(order.id, {
+      menuItemId: standardItemId,
+      quantity: 1,
+    });
+    expect(addedPendingItem.status).toBe(201);
+    const pendingOrderItemId = addedPendingItem.body.items.find(
+      (item: { menuItemId: number; kitchenDispatched: boolean }) => (
+        item.menuItemId === standardItemId && !item.kitchenDispatched
+      ),
+    ).id as number;
+    const deletedPendingItem = await request(app)
+      .delete(`/sales/orders/${order.id}/items/${pendingOrderItemId}`)
+      .set('Authorization', auth(['sales.manage']));
+    expect(deletedPendingItem.status).toBe(200);
+    expect(deletedPendingItem.body.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: preparedOrderItemId, kitchenStatus: 'READY' }),
+    ]));
+    expect(deletedPendingItem.body.items).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: pendingOrderItemId }),
+    ]));
+    expect(await prisma.inventoryMovement.count({
+      where: { productId: { in: [productId, secondaryProductId] }, type: MovementType.CONSUMPTION },
+    })).toBe(2);
+
+    await request(app)
+      .put('/costs/settings/waste')
+      .set('Authorization', auth(['costs.update']))
+      .send({ wastePercent: 10 });
+    const historical = await prisma.kitchenInventoryConsumption.findUniqueOrThrow({
+      where: { kitchenDispatchId: dispatch.body.id },
+    });
+    expect(historical.wastePercentSnapshot.toString()).toBe('8');
+    expect(await prisma.globalWasteConfigAudit.count()).toBeGreaterThan(0);
+
+    const cancelled = await request(app)
+      .post(`/sales/orders/${order.id}/cancel`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({ reason: 'Intento posterior a READY' });
+    expect(cancelled.status).toBe(409);
+    expect(cancelled.body.code).toBe('ORDER_HAS_READY_DISPATCHES');
+
+    await request(app)
+      .post(`/sales/orders/${order.id}/kitchen-dispatches/${dispatch.body.id}/deliver`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    const deliveredLineDeletion = await request(app)
+      .delete(`/sales/orders/${order.id}/items/${preparedOrderItemId}`)
+      .set('Authorization', auth(['sales.manage']));
+    expect(deliveredLineDeletion.status).toBe(409);
+    expect(deliveredLineDeletion.body.code).toBe('ORDER_ITEM_ALREADY_SENT_TO_KITCHEN');
+    expect(await prisma.inventoryMovement.count({
+      where: { productId, type: MovementType.CONSUMPTION },
+    })).toBe(1);
+  });
+
+  it('exige exactamente una bodega principal activa para consumir inventario en READY', async () => {
+    const productRows = await prisma.$queryRaw<Array<{ id: number }>>`
+      INSERT INTO "products" (
+        "internalCode", "name", "presentation", "inputUnit", "inputUnitQuantity",
+        "minStock", "maxStock", "unitCost", "supplierId", "unitOfMeasure"
+      ) VALUES (
+        ${`BODEGA-READY-${sequence}`}, 'Ingrediente para validar bodega', 'Bolsa 1 kg', 'kg', 1,
+        0, 1000, 1000, 1, 'g'
+      ) RETURNING "id"
+    `;
+    const productId = productRows[0].id;
+    const preparedMenuItem = await createMenuItem(`Plato para validar bodega ${sequence}`);
+    await prisma.$executeRaw`
+      INSERT INTO "MenuItemComponent" ("menuItemId", "productId", "quantity")
+      VALUES (${preparedMenuItem.id}, ${productId}, 100)
+    `;
+    await createPrice(preparedMenuItem.id, '5000');
+    const primaryWarehouse = await prisma.warehouse.findFirstOrThrow({
+      where: { name: 'Bodega Principal' },
+    });
+
+    const createPreparingDispatch = async () => {
+      const order = await openOrder((await createTable()).id);
+      await addItem(order.id, { menuItemId: preparedMenuItem.id, quantity: 1 });
+      const dispatch = await request(app)
+        .post(`/sales/orders/${order.id}/send-to-kitchen`)
+        .set('Authorization', auth(['sales.manage']))
+        .send({});
+      await request(app)
+        .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
+        .set('Authorization', auth(['kitchen.manage']))
+        .send({ status: 'PREPARING' });
+      return dispatch.body.id as number;
+    };
+
+    let extraWarehouseId: number | null = null;
+    try {
+      const withoutWarehouseDispatchId = await createPreparingDispatch();
+      await prisma.warehouse.update({
+        where: { id: primaryWarehouse.id },
+        data: { active: false },
+      });
+      const withoutWarehouse = await request(app)
+        .patch(`/kitchen/dispatches/${withoutWarehouseDispatchId}/status`)
+        .set('Authorization', auth(['kitchen.manage']))
+        .send({ status: 'READY' });
+      expect(withoutWarehouse.status).toBe(409);
+      expect(withoutWarehouse.body.code).toBe('KITCHEN_SOURCE_WAREHOUSE_INVALID');
+      expect(await prisma.kitchenDispatch.findUniqueOrThrow({
+        where: { id: withoutWarehouseDispatchId },
+        select: { status: true },
+      })).toEqual({ status: KitchenDispatchStatus.PREPARING });
+      expect(await prisma.kitchenInventoryConsumption.count({
+        where: { kitchenDispatchId: withoutWarehouseDispatchId },
+      })).toBe(0);
+
+      await prisma.warehouse.update({
+        where: { id: primaryWarehouse.id },
+        data: { active: true, isMain: true },
+      });
+      const singleWarehouseDispatchId = await createPreparingDispatch();
+      const singleWarehouse = await request(app)
+        .patch(`/kitchen/dispatches/${singleWarehouseDispatchId}/status`)
+        .set('Authorization', auth(['kitchen.manage']))
+        .send({ status: 'READY' });
+      expect(singleWarehouse.status).toBe(200);
+      expect(await prisma.kitchenInventoryConsumption.findUniqueOrThrow({
+        where: { kitchenDispatchId: singleWarehouseDispatchId },
+        select: { warehouseId: true },
+      })).toEqual({ warehouseId: primaryWarehouse.id });
+
+      const extraWarehouse = await prisma.warehouse.create({
+        data: {
+          name: `Bodega principal duplicada ${sequence}`,
+          isMain: true,
+          active: true,
+        },
+        select: { id: true },
+      });
+      extraWarehouseId = extraWarehouse.id;
+      const duplicateWarehouseDispatchId = await createPreparingDispatch();
+      const duplicateWarehouse = await request(app)
+        .patch(`/kitchen/dispatches/${duplicateWarehouseDispatchId}/status`)
+        .set('Authorization', auth(['kitchen.manage']))
+        .send({ status: 'READY' });
+      expect(duplicateWarehouse.status).toBe(409);
+      expect(duplicateWarehouse.body.code).toBe('KITCHEN_SOURCE_WAREHOUSE_INVALID');
+      expect(await prisma.kitchenDispatch.findUniqueOrThrow({
+        where: { id: duplicateWarehouseDispatchId },
+        select: { status: true },
+      })).toEqual({ status: KitchenDispatchStatus.PREPARING });
+      expect(await prisma.kitchenInventoryConsumption.count({
+        where: { kitchenDispatchId: duplicateWarehouseDispatchId },
+      })).toBe(0);
+    } finally {
+      if (extraWarehouseId !== null) {
+        await prisma.warehouse.delete({ where: { id: extraWarehouseId } });
+      }
+      await prisma.warehouse.update({
+        where: { id: primaryWarehouse.id },
+        data: { active: true, isMain: true },
+      });
+    }
+  });
+
+  it('rechaza unidades incompatibles sin dejar READY ni consumo parcial', async () => {
+    const productRows = await prisma.$queryRaw<Array<{ id: number }>>`
+      INSERT INTO "products" (
+        "internalCode", "name", "presentation", "inputUnit", "inputUnitQuantity",
+        "minStock", "maxStock", "unitCost", "supplierId", "unitOfMeasure"
+      ) VALUES (
+        ${`UNIDAD-INVALIDA-${sequence}`}, 'Ingrediente incompatible', 'Bolsa 1 kg', 'kg', 1,
+        0, 1000, 18000, 1, 'ml'
+      ) RETURNING "id"
+    `;
+    const productId = productRows[0].id;
+    const recipeRows = await prisma.$queryRaw<Array<{ id: number }>>`
+      INSERT INTO "recipes" ("internalCode", "name", "batchQuantity", "portions")
+      VALUES (${`REC-INVALIDA-${sequence}`}, 'Receta incompatible', 1, 1)
+      RETURNING "id"
+    `;
+    const recipeId = recipeRows[0].id;
+    await prisma.$executeRaw`
+      INSERT INTO "recipe_items" (
+        "recipeId", "productId", "quantity", "unitCost", "totalCost"
+      ) VALUES (${recipeId}, ${productId}, 200, 0, 0)
+    `;
+    const menuItem = await createMenuItem(`Plato incompatible ${sequence}`);
+    await prisma.$executeRaw`
+      INSERT INTO "MenuItemComponent" ("menuItemId", "recipeId", "quantity")
+      VALUES (${menuItem.id}, ${recipeId}, 1)
+    `;
+    await createPrice(menuItem.id, '10000');
+
+    const order = await openOrder((await createTable()).id);
+    await addItem(order.id, { menuItemId: menuItem.id, quantity: 1 });
+    const dispatch = await request(app)
+      .post(`/sales/orders/${order.id}/send-to-kitchen`)
+      .set('Authorization', auth(['sales.manage']))
+      .send({});
+    const statusRoute = `/kitchen/dispatches/${dispatch.body.id}/status`;
+    await request(app)
+      .patch(statusRoute)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'PREPARING' });
+
+    const rejected = await request(app)
+      .patch(statusRoute)
+      .set('Authorization', auth(['kitchen.manage']))
+      .send({ status: 'READY' });
+    expect(rejected.status).toBe(422);
+    expect(rejected.body).toMatchObject({ code: 'INVALID_KITCHEN_PRODUCT_UNIT' });
+    expect(await prisma.kitchenDispatch.findUniqueOrThrow({
+      where: { id: dispatch.body.id },
+      select: { status: true, readyAt: true },
+    })).toEqual({ status: KitchenDispatchStatus.PREPARING, readyAt: null });
+    expect(await prisma.kitchenInventoryConsumption.count({
+      where: { kitchenDispatchId: dispatch.body.id },
+    })).toBe(0);
+    expect(await prisma.inventoryMovement.count({ where: { productId } })).toBe(0);
   });
 
   it('serializa transiciones concurrentes y conserva un único actor/timestamp por etapa', async () => {
@@ -1802,11 +2290,11 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       expect(delivery.body.code).toBe('ORDER_CANCELLED');
     } else {
       expect(persistedDispatch.deliveredAt).toEqual(expect.any(Date));
-      expect(cancellation.body.code).toBe('ORDER_HAS_DELIVERED_DISPATCHES');
+      expect(cancellation.body.code).toBe('ORDER_HAS_READY_DISPATCHES');
     }
   });
 
-  it('cancela una orden sin entregas, alerta a Cocina y acusa una sola vez', async () => {
+  it('cancela una orden antes de READY, alerta a Cocina y acusa una sola vez', async () => {
     const order = await openOrder((await createTable()).id);
     await addItem(order.id, { menuItemId: standardItemId, quantity: 1 });
     const dispatch = await request(app)
@@ -1817,11 +2305,6 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
       .set('Authorization', auth(['kitchen.manage']))
       .send({ status: 'PREPARING' });
-    const ready = await request(app)
-      .patch(`/kitchen/dispatches/${dispatch.body.id}/status`)
-      .set('Authorization', auth(['kitchen.manage']))
-      .send({ status: 'READY' });
-
     const cancelRoute = `/sales/orders/${order.id}/cancel`;
     expect((await request(app)
       .post(cancelRoute)
@@ -1851,13 +2334,13 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       kitchenDispatches: [{
         id: dispatch.body.id,
         dispatchNumber: dispatch.body.id,
-        status: 'READY',
+        status: 'PREPARING',
         dispatchedAt: expect.any(String),
         dispatchedBy: { id: actorId, fullName: 'Mesero de prueba' },
         startedAt: preparing.body.startedAt,
         startedBy: { id: actorId, fullName: 'Mesero de prueba' },
-        readyAt: ready.body.readyAt,
-        readyBy: { id: actorId, fullName: 'Mesero de prueba' },
+        readyAt: null,
+        readyBy: null,
         deliveredAt: null,
         deliveredBy: null,
       }],
@@ -1868,7 +2351,7 @@ describe('backend de mesas y pedidos SALES-02D', () => {
     });
     expect(persistedBeforeAck).toEqual({
       startedAt: new Date(preparing.body.startedAt),
-      readyAt: new Date(ready.body.readyAt),
+      readyAt: null,
       deliveredAt: null,
     });
 
@@ -1887,7 +2370,7 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       expect.objectContaining({
         orderId: order.id,
         cancellationReason: 'Cliente se retiró',
-        affectedDispatches: [{ id: dispatch.body.id, status: 'READY' }],
+        affectedDispatches: [{ id: dispatch.body.id, status: 'PREPARING' }],
       }),
     ]);
 
@@ -1975,11 +2458,6 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       .patch(`/kitchen/dispatches/${dispatchIds[2]}/status`)
       .set('Authorization', auth(['kitchen.manage']))
       .send({ status: 'PREPARING' });
-    await request(app)
-      .patch(`/kitchen/dispatches/${dispatchIds[2]}/status`)
-      .set('Authorization', auth(['kitchen.manage']))
-      .send({ status: 'READY' });
-
     const beforeCancellation = await prisma.kitchenDispatch.findMany({
       where: { id: { in: dispatchIds } },
       orderBy: { id: 'asc' },
@@ -2003,7 +2481,7 @@ describe('backend de mesas y pedidos SALES-02D', () => {
     expect(queue.body.cancellations[0].affectedDispatches).toEqual([
       { id: dispatchIds[0], status: 'NEXT' },
       { id: dispatchIds[1], status: 'PREPARING' },
-      { id: dispatchIds[2], status: 'READY' },
+      { id: dispatchIds[2], status: 'PREPARING' },
     ]);
     expect(await prisma.kitchenDispatch.findMany({
       where: { id: { in: dispatchIds } },
@@ -2077,7 +2555,7 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       .set('Authorization', auth(['sales.manage']))
       .send({ reason: 'Cliente se retiró' });
     expect(rejected.status).toBe(409);
-    expect(rejected.body.code).toBe('ORDER_HAS_DELIVERED_DISPATCHES');
+    expect(rejected.body.code).toBe('ORDER_HAS_READY_DISPATCHES');
     expect(await prisma.salesOrder.findUnique({
       where: { id: order.id },
       select: { status: true, voidedAt: true, cancellationReason: true },
