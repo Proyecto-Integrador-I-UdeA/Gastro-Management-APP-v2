@@ -27,6 +27,9 @@ export default function CreateWarehousePage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isMain, setIsMain] = useState(false);
+  const [purchaseReceiving, setPurchaseReceiving] = useState(false);
+  const [kitchenConsumption, setKitchenConsumption] = useState(false);
+  const [barConsumption, setBarConsumption] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -44,6 +47,9 @@ export default function CreateWarehousePage() {
         description: description.trim() || null,
         active: true,
         isMain,
+        purchaseReceiving,
+        kitchenConsumption,
+        barConsumption,
       });
       showSuccess('Bodega creada');
       void router.push(ROUTES.transfers.warehouses);
@@ -84,11 +90,22 @@ export default function CreateWarehousePage() {
             <span>
               <span className="font-medium text-gray-800">Bodega principal</span>
               <span className="block text-gray-600 mt-0.5">
-                Las entradas por compra se registran aquí. Solo puede haber una bodega principal; al
-                marcar esta, se quita la marca en las demás.
+                Referencia administrativa general. Los procesos automáticos usan la configuración
+                independiente de Usos operativos.
               </span>
             </span>
           </label>
+          <fieldset className="rounded-lg border border-gray-300 bg-white/60 p-4">
+            <legend className="px-1 text-sm font-semibold text-gray-800">Usos operativos</legend>
+            <p className="mb-3 text-sm text-gray-600">
+              Los usos operativos determinan qué bodega utiliza el sistema automáticamente para cada proceso.
+            </p>
+            <div className="space-y-2 text-sm">
+              <label className="flex items-center gap-2"><input type="checkbox" checked={purchaseReceiving} onChange={e => setPurchaseReceiving(e.target.checked)} />Recepción de compras</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={kitchenConsumption} onChange={e => setKitchenConsumption(e.target.checked)} />Consumo de Cocina</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={barConsumption} onChange={e => setBarConsumption(e.target.checked)} />Consumo de Bar</label>
+            </div>
+          </fieldset>
           <div className="flex gap-2">
             <Button type="submit" disabled={submitting}>
               {submitting ? 'Guardando…' : 'Guardar'}

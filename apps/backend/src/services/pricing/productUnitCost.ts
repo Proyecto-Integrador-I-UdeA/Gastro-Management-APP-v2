@@ -108,3 +108,15 @@ export function ingredientCost(
 
   return quantityBase.mul(costPerBaseUnit(product));
 }
+
+/** Convierte una cantidad expresada en unidades de registro a la unidad base. */
+export function quantityToBaseUnits(
+  quantity: DecimalValue,
+  product: Pick<ProductCostInput, 'inputUnit' | 'unitOfMeasure' | 'inputUnitQuantity'>,
+): Prisma.Decimal {
+  const amount = decimal(quantity, 'quantity');
+  if (amount.lt(0)) {
+    throw new InvalidCostComponentError('quantity no puede ser negativa');
+  }
+  return amount.mul(registrationAmountBase(product));
+}

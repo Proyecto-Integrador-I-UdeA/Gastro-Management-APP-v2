@@ -57,6 +57,10 @@ function kitchenErrorMessage(error: unknown, fallback: string): string {
     ORDER_CANCELLED: "El pedido fue cancelado. Confirma la alerta de cancelación.",
     KITCHEN_CANCELLATION_NOT_FOUND:
       "La cancelación ya fue confirmada en otra pantalla.",
+    KITCHEN_CONSUMPTION_WAREHOUSE_NOT_CONFIGURED:
+      "No hay una bodega configurada para consumo de Cocina. Configure una desde Bodegas.",
+    KITCHEN_CONSUMPTION_WAREHOUSE_AMBIGUOUS:
+      "Hay varias bodegas activas configuradas para consumo de Cocina. Corrija la configuración desde Bodegas.",
   };
   return (apiError.body?.code && messages[apiError.body.code])
     || apiError.message

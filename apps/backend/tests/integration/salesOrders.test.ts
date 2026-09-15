@@ -57,6 +57,17 @@ const inventoryConsumptionMigrationStatements = inventoryConsumptionMigrationSql
   .split(';')
   .map(statement => statement.trim())
   .filter(Boolean);
+const operationalWarehouseMigrationSql = readFileSync(
+  resolve(
+    process.cwd(),
+    'prisma/migrations/20260915170000_operational_warehouse_routing/migration.sql',
+  ),
+  'utf8',
+);
+const operationalWarehouseMigrationStatements = operationalWarehouseMigrationSql
+  .split(';')
+  .map(statement => statement.trim())
+  .filter(Boolean);
 
 let app: Express;
 let prisma: PrismaClient;
@@ -390,6 +401,9 @@ beforeAll(async () => {
   for (const statement of inventoryConsumptionMigrationStatements) {
     await prisma.$executeRawUnsafe(statement);
   }
+  for (const statement of operationalWarehouseMigrationStatements) {
+    await prisma.$executeRawUnsafe(statement);
+  }
 
   process.env.DATABASE_URL = schemaUrl.toString();
   app = (await import('../../src/app')).default;
@@ -405,7 +419,13 @@ beforeAll(async () => {
   });
   actorId = actor.id;
   await prisma.warehouse.create({
-    data: { name: 'Bodega Principal', isMain: true, active: true },
+    data: {
+      name: 'Bodega Principal',
+      isMain: true,
+      active: true,
+      purchaseReceiving: true,
+      kitchenConsumption: true,
+    },
   });
   activeCategoryId = (await createCategory('Platos activos')).id;
   inactiveCategoryId = (await createCategory('Categoría inactiva', false)).id;
@@ -1537,7 +1557,11 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       where: { kitchenDispatchId: dispatch.body.id },
       select: { warehouseId: true, issues: true, items: true },
     });
-    expect(consumptionWithoutRecipe.warehouseId).toBeNull();
+    const configuredKitchenWarehouse = await prisma.warehouse.findFirstOrThrow({
+      where: { active: true, kitchenConsumption: true },
+      select: { id: true },
+    });
+    expect(consumptionWithoutRecipe.warehouseId).toBe(configuredKitchenWarehouse.id);
     expect(consumptionWithoutRecipe.items).toEqual([]);
     expect(consumptionWithoutRecipe.issues).toEqual([{
       code: 'MENU_ITEM_WITHOUT_CONSUMABLE_COMPONENTS',
@@ -1661,7 +1685,9 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       VALUES (${preparedMenuItem.id}, ${recipeId}, 1)
     `;
     await createPrice(preparedMenuItem.id, '10000');
-    const warehouse = await prisma.warehouse.findFirstOrThrow({ where: { isMain: true } });
+    const warehouse = await prisma.warehouse.findFirstOrThrow({
+      where: { active: true, kitchenConsumption: true },
+    });
     await prisma.inventory.create({
       data: { productId, warehouseId: warehouse.id, quantity: 150 },
     });
@@ -1786,7 +1812,11 @@ describe('backend de mesas y pedidos SALES-02D', () => {
     })).toBe(1);
   });
 
-  it('exige exactamente una bodega principal activa para consumir inventario en READY', async () => {
+  it('resuelve READY únicamente desde la bodega operativa de Cocina y rechaza configuración inválida', async () => {
+    await prisma.globalWasteConfig.update({
+      where: { id: 1 },
+      data: { wastePercent: 0 },
+    });
     const productRows = await prisma.$queryRaw<Array<{ id: number }>>`
       INSERT INTO "products" (
         "internalCode", "name", "presentation", "inputUnit", "inputUnitQuantity",
@@ -1821,19 +1851,20 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       return dispatch.body.id as number;
     };
 
+    let kitchenWarehouseId: number | null = null;
     let extraWarehouseId: number | null = null;
     try {
       const withoutWarehouseDispatchId = await createPreparingDispatch();
       await prisma.warehouse.update({
         where: { id: primaryWarehouse.id },
-        data: { active: false },
+        data: { active: false, kitchenConsumption: true },
       });
       const withoutWarehouse = await request(app)
         .patch(`/kitchen/dispatches/${withoutWarehouseDispatchId}/status`)
         .set('Authorization', auth(['kitchen.manage']))
         .send({ status: 'READY' });
       expect(withoutWarehouse.status).toBe(409);
-      expect(withoutWarehouse.body.code).toBe('KITCHEN_SOURCE_WAREHOUSE_INVALID');
+      expect(withoutWarehouse.body.code).toBe('KITCHEN_CONSUMPTION_WAREHOUSE_NOT_CONFIGURED');
       expect(await prisma.kitchenDispatch.findUniqueOrThrow({
         where: { id: withoutWarehouseDispatchId },
         select: { status: true },
@@ -1841,27 +1872,79 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       expect(await prisma.kitchenInventoryConsumption.count({
         where: { kitchenDispatchId: withoutWarehouseDispatchId },
       })).toBe(0);
+      expect(await prisma.inventoryMovement.count({
+        where: { notes: { contains: `dispatch #${withoutWarehouseDispatchId}` } },
+      })).toBe(0);
 
       await prisma.warehouse.update({
         where: { id: primaryWarehouse.id },
-        data: { active: true, isMain: true },
+        data: { active: true, isMain: true, kitchenConsumption: false },
       });
-      const singleWarehouseDispatchId = await createPreparingDispatch();
-      const singleWarehouse = await request(app)
-        .patch(`/kitchen/dispatches/${singleWarehouseDispatchId}/status`)
+      const kitchenWarehouse = await prisma.warehouse.create({
+        data: {
+          name: `Bodega Cocina ${sequence}`,
+          isMain: false,
+          active: true,
+          kitchenConsumption: true,
+        },
+      });
+      kitchenWarehouseId = kitchenWarehouse.id;
+      await prisma.inventory.createMany({
+        data: [
+          { productId, warehouseId: primaryWarehouse.id, quantity: 500 },
+          { productId, warehouseId: kitchenWarehouse.id, quantity: 50 },
+        ],
+      });
+      const kitchenDispatchId = await createPreparingDispatch();
+      const readyFromKitchen = await request(app)
+        .patch(`/kitchen/dispatches/${kitchenDispatchId}/status`)
         .set('Authorization', auth(['kitchen.manage']))
         .send({ status: 'READY' });
-      expect(singleWarehouse.status).toBe(200);
+      expect(readyFromKitchen.status).toBe(200);
       expect(await prisma.kitchenInventoryConsumption.findUniqueOrThrow({
-        where: { kitchenDispatchId: singleWarehouseDispatchId },
+        where: { kitchenDispatchId },
         select: { warehouseId: true },
-      })).toEqual({ warehouseId: primaryWarehouse.id });
+      })).toEqual({ warehouseId: kitchenWarehouse.id });
+      expect((await prisma.inventory.findUniqueOrThrow({
+        where: { productId_warehouseId: { productId, warehouseId: primaryWarehouse.id } },
+      })).quantity).toBe(500);
+      expect((await prisma.inventory.findUniqueOrThrow({
+        where: { productId_warehouseId: { productId, warehouseId: kitchenWarehouse.id } },
+      })).quantity).toBe(-50);
+      const movement = await prisma.inventoryMovement.findFirstOrThrow({
+        where: { notes: { contains: `dispatch #${kitchenDispatchId}` } },
+      });
+      expect(movement).toMatchObject({
+        type: MovementType.CONSUMPTION,
+        sourceWarehouseId: kitchenWarehouse.id,
+        destinationWarehouseId: null,
+        quantity: 100,
+      });
+      const listed = await request(app)
+        .get('/inventory-movements?type=CONSUMPTION')
+        .set('Authorization', auth(['inventory.read']));
+      expect(listed.status).toBe(200);
+      expect(listed.body.items).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: movement.id, sourceWarehouseId: kitchenWarehouse.id }),
+      ]));
+
+      await clearOrders();
+      await prisma.warehouse.update({
+        where: { id: kitchenWarehouse.id },
+        data: { kitchenConsumption: false },
+      });
+      await prisma.warehouse.update({
+        where: { id: primaryWarehouse.id },
+        data: { kitchenConsumption: true },
+      });
+      await prisma.$executeRawUnsafe('DROP INDEX "warehouses_one_active_kitchen_consumption_idx"');
 
       const extraWarehouse = await prisma.warehouse.create({
         data: {
-          name: `Bodega principal duplicada ${sequence}`,
-          isMain: true,
+          name: `Bodega Cocina ambigua ${sequence}`,
+          isMain: false,
           active: true,
+          kitchenConsumption: true,
         },
         select: { id: true },
       });
@@ -1872,7 +1955,7 @@ describe('backend de mesas y pedidos SALES-02D', () => {
         .set('Authorization', auth(['kitchen.manage']))
         .send({ status: 'READY' });
       expect(duplicateWarehouse.status).toBe(409);
-      expect(duplicateWarehouse.body.code).toBe('KITCHEN_SOURCE_WAREHOUSE_INVALID');
+      expect(duplicateWarehouse.body.code).toBe('KITCHEN_CONSUMPTION_WAREHOUSE_AMBIGUOUS');
       expect(await prisma.kitchenDispatch.findUniqueOrThrow({
         where: { id: duplicateWarehouseDispatchId },
         select: { status: true },
@@ -1880,13 +1963,25 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       expect(await prisma.kitchenInventoryConsumption.count({
         where: { kitchenDispatchId: duplicateWarehouseDispatchId },
       })).toBe(0);
+      expect(await prisma.inventoryMovement.count({
+        where: { notes: { contains: `dispatch #${duplicateWarehouseDispatchId}` } },
+      })).toBe(0);
     } finally {
+      await clearOrders();
       if (extraWarehouseId !== null) {
         await prisma.warehouse.delete({ where: { id: extraWarehouseId } });
       }
+      await prisma.$executeRawUnsafe(`
+        CREATE UNIQUE INDEX IF NOT EXISTS "warehouses_one_active_kitchen_consumption_idx"
+        ON "warehouses" ("kitchenConsumption")
+        WHERE "active" = true AND "kitchenConsumption" = true
+      `);
+      if (kitchenWarehouseId !== null) {
+        await prisma.warehouse.delete({ where: { id: kitchenWarehouseId } });
+      }
       await prisma.warehouse.update({
         where: { id: primaryWarehouse.id },
-        data: { active: true, isMain: true },
+        data: { active: true, isMain: true, kitchenConsumption: true },
       });
     }
   });

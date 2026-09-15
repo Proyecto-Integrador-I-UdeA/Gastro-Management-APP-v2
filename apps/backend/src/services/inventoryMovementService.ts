@@ -1,4 +1,6 @@
 import { MovementType, Prisma } from '@prisma/client';
+import { InvalidCostComponentError } from './pricing/pricingErrors';
+import { quantityToBaseUnits } from './pricing/productUnitCost';
 
 export class KardexError extends Error {
   statusCode: number;
@@ -12,6 +14,7 @@ export class KardexError extends Error {
 
 export type MovementPayload = {
   productId: number;
+  /** Cantidad canónica en la unidad base del producto. */
   quantity: number;
   /** Obligatorio para PURCHASE; ignorado en otros tipos */
   unitCost?: number | null;
@@ -21,6 +24,8 @@ export type MovementPayload = {
   destinationWarehouseId?: number | null;
   /** Solo para consumos automáticos que reflejan producción física ya realizada. */
   allowNegativeStock?: boolean;
+  /** Uso interno exclusivo del posting de conteos físicos. */
+  adjustmentTargetQuantity?: number;
 };
 
 /**
@@ -42,9 +47,39 @@ export async function applyInventoryMovement(
     sourceWarehouseId,
     destinationWarehouseId,
     allowNegativeStock = false,
+    adjustmentTargetQuantity,
   } = payload;
 
-  if (quantity <= 0) {
+  if (type === MovementType.ADJUSTMENT) {
+    if (
+      !Number.isFinite(quantity) || quantity === 0 ||
+      adjustmentTargetQuantity === undefined ||
+      !Number.isFinite(adjustmentTargetQuantity) || adjustmentTargetQuantity < 0 ||
+      !sourceWarehouseId
+    ) {
+      throw new KardexError('Ajuste físico inválido');
+    }
+    const movement = await tx.inventoryMovement.create({
+      data: {
+        type,
+        quantity,
+        unitCost: null,
+        expirationDate: null,
+        notes: notes ?? null,
+        productId,
+        sourceWarehouseId: quantity < 0 ? sourceWarehouseId : null,
+        destinationWarehouseId: quantity > 0 ? sourceWarehouseId : null,
+        userId,
+      },
+    });
+    await tx.inventory.update({
+      where: { productId_warehouseId: { productId, warehouseId: sourceWarehouseId } },
+      data: { quantity: adjustmentTargetQuantity },
+    });
+    return movement;
+  }
+
+  if (!Number.isFinite(quantity) || quantity <= 0) {
     throw new KardexError('La cantidad debe ser mayor a cero');
   }
 
@@ -373,7 +408,20 @@ export async function updateTransferMovementInTransaction(
   }
 
   const q1 = mov.quantity;
-  const q2 = updates.quantity;
+  const product = await tx.product.findUnique({
+    where: { id: mov.productId },
+    select: { inputUnit: true, inputUnitQuantity: true, unitOfMeasure: true },
+  });
+  if (!product) throw new KardexError('Producto no encontrado', 404);
+  let q2: number;
+  try {
+    q2 = quantityToBaseUnits(updates.quantity, product).toNumber();
+  } catch (error) {
+    if (error instanceof InvalidCostComponentError) {
+      throw new KardexError(`Unidad/cantidad inválida: ${error.message}`, 400);
+    }
+    throw error;
+  }
   if (q2 <= 0) {
     throw new KardexError('La cantidad debe ser mayor a cero');
   }

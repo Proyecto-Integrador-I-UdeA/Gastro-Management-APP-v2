@@ -27,6 +27,9 @@ export default function EditWarehousePage() {
   const [description, setDescription] = useState('');
   const [active, setActive] = useState(true);
   const [isMain, setIsMain] = useState(false);
+  const [purchaseReceiving, setPurchaseReceiving] = useState(false);
+  const [kitchenConsumption, setKitchenConsumption] = useState(false);
+  const [barConsumption, setBarConsumption] = useState(false);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -43,6 +46,9 @@ export default function EditWarehousePage() {
         setDescription(w.description ?? '');
         setActive(w.active);
         setIsMain(Boolean(w.isMain));
+        setPurchaseReceiving(Boolean(w.purchaseReceiving));
+        setKitchenConsumption(Boolean(w.kitchenConsumption));
+        setBarConsumption(Boolean(w.barConsumption));
       } catch (e) {
         if (isUnauthorized(e)) {
           void router.push('/login');
@@ -71,6 +77,9 @@ export default function EditWarehousePage() {
         description: description.trim() || null,
         active,
         isMain,
+        purchaseReceiving,
+        kitchenConsumption,
+        barConsumption,
       });
       showSuccess('Bodega actualizada');
       void router.push(ROUTES.transfers.warehouses);
@@ -116,11 +125,22 @@ export default function EditWarehousePage() {
               <span>
                 <span className="font-medium text-gray-800">Bodega principal</span>
                 <span className="block text-gray-600 mt-0.5">
-                  Entradas por compra van a la bodega principal. Solo puede haber una; al marcar esta,
-                  se quita la marca en las demás.
+                  Referencia administrativa general. Los procesos automáticos usan la configuración
+                  independiente de Usos operativos.
                 </span>
               </span>
             </label>
+            <fieldset className="rounded-lg border border-gray-300 bg-white/60 p-4">
+              <legend className="px-1 text-sm font-semibold text-gray-800">Usos operativos</legend>
+              <p className="mb-3 text-sm text-gray-600">
+                Los usos operativos determinan qué bodega utiliza el sistema automáticamente para cada proceso.
+              </p>
+              <div className="space-y-2 text-sm">
+                <label className="flex items-center gap-2"><input type="checkbox" checked={purchaseReceiving} onChange={e => setPurchaseReceiving(e.target.checked)} />Recepción de compras</label>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={kitchenConsumption} onChange={e => setKitchenConsumption(e.target.checked)} />Consumo de Cocina</label>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={barConsumption} onChange={e => setBarConsumption(e.target.checked)} />Consumo de Bar</label>
+              </div>
+            </fieldset>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
