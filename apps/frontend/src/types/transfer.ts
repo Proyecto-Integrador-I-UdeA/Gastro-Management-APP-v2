@@ -8,10 +8,15 @@ export type WarehouseSummary = {
   id: number;
   name: string;
   description: string | null;
-  /** Solo una debería ser true; entradas por compra usan esta bodega */
+  /** Referencia administrativa heredada; no determina los usos operativos. */
   isMain?: boolean;
+  purchaseReceiving?: boolean;
+  kitchenConsumption?: boolean;
+  barConsumption?: boolean;
   active: boolean;
 };
+
+export type InventoryMovementType = 'PURCHASE' | 'TRANSFER' | 'WASTE' | 'CONSUMPTION' | 'ADJUSTMENT';
 
 export type MovementProductSummary = {
   id: number;
@@ -32,7 +37,7 @@ export type MovementUserSummary = {
 
 export type InventoryMovementRow = {
   id: number;
-  type: string;
+  type: InventoryMovementType;
   quantity: number;
   /** Costo de la línea (compras); Prisma Decimal como string en JSON */
   unitCost?: string | number | null;
@@ -48,6 +53,11 @@ export type InventoryMovementRow = {
   sourceWarehouse?: WarehouseSummary | null;
   destinationWarehouse?: WarehouseSummary | null;
   user?: MovementUserSummary;
+  physicalCountItem?: {
+    physicalCountId: number;
+    unitCostSnapshot: string;
+    estimatedValueVariance: string | null;
+  } | null;
 };
 
 export type CreateTransferPayload = {

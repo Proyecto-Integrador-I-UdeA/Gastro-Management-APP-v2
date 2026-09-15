@@ -3,20 +3,24 @@ import type {
   CreateTransferModulePayload,
   InventoryMovementsListResponse,
   InventoryMovementRow,
+  InventoryMovementType,
 } from '@/types/transfer';
 
-/** Traslados + entradas por compra (módulo Traslados) */
-export async function fetchTransferMovements(params?: {
+export async function fetchInventoryMovements(params?: {
   skip?: number;
   take?: number;
+  types?: InventoryMovementType[];
 }): Promise<InventoryMovementsListResponse> {
   const search = new URLSearchParams();
-  search.set('types', 'TRANSFER,PURCHASE');
+  if (params?.types?.length) search.set('types', params.types.join(','));
   if (params?.skip != null) search.set('skip', String(params.skip));
   if (params?.take != null) search.set('take', String(params.take));
   const q = search.toString();
   return apiFetch<InventoryMovementsListResponse>(`/inventory-movements?${q}`);
 }
+
+/** Compatibilidad para consumidores anteriores del módulo de traslados. */
+export const fetchTransferMovements = fetchInventoryMovements;
 
 export async function createInventoryMovementRequest(
   payload: CreateTransferModulePayload

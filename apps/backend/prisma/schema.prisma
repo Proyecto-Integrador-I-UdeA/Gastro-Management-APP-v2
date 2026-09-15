@@ -70,6 +70,7 @@ model Product {
   inventories        Inventory[]
   inventoryMovements InventoryMovement[]
   kitchenConsumptionItems KitchenInventoryConsumptionItem[]
+  physicalCountItems InventoryPhysicalCountItem[]
   catalog            IngredientCatalog?  @relation(fields: [catalogId], references: [id])
   supplier           Supplier            @relation(fields: [supplierId], references: [id])
   recipeItems        RecipeItem[]        @relation("ProductRecipeItems")
@@ -81,8 +82,11 @@ model Warehouse {
   id                Int                 @id @default(autoincrement())
   name              String              @unique
   description       String?
-  /// Solo una bodega puede ser principal (entradas por compra).
+  /// Referencia administrativa heredada; no determina los usos operativos.
   isMain            Boolean             @default(false)
+  purchaseReceiving Boolean             @default(false)
+  kitchenConsumption Boolean            @default(false)
+  barConsumption    Boolean             @default(false)
   active            Boolean             @default(true)
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @default(now()) @updatedAt
@@ -90,6 +94,7 @@ model Warehouse {
   movementsAsDest   InventoryMovement[] @relation("DestinationWarehouse")
   movementsAsSource InventoryMovement[] @relation("SourceWarehouse")
   kitchenConsumptions KitchenInventoryConsumption[]
+  physicalCounts InventoryPhysicalCount[]
 
   @@map("warehouses")
 }
@@ -126,6 +131,7 @@ model InventoryMovement {
   sourceWarehouse        Warehouse?   @relation("SourceWarehouse", fields: [sourceWarehouseId], references: [id])
   user                   User         @relation(fields: [userId], references: [id])
   kitchenConsumptionItem KitchenInventoryConsumptionItem?
+  physicalCountItem InventoryPhysicalCountItem?
 
   @@map("inventory_movements")
 }
@@ -153,6 +159,10 @@ model User {
   deliveredKitchenDispatches KitchenDispatch[] @relation("KitchenDispatchDeliveredBy")
   updatedGlobalWasteConfigs           GlobalWasteConfig[]      @relation("GlobalWasteConfigUpdatedBy")
   globalWasteConfigAudits             GlobalWasteConfigAudit[] @relation("GlobalWasteConfigAuditChangedBy")
+  createdPhysicalCounts InventoryPhysicalCount[] @relation("PhysicalCountCreatedBy")
+  updatedPhysicalCounts InventoryPhysicalCount[] @relation("PhysicalCountUpdatedBy")
+  postedPhysicalCounts InventoryPhysicalCount[] @relation("PhysicalCountPostedBy")
+  cancelledPhysicalCounts InventoryPhysicalCount[] @relation("PhysicalCountCancelledBy")
   role                  Role?               @relation(fields: [roleId], references: [id])
 
   @@map("users")
@@ -618,6 +628,61 @@ enum MovementType {
   TRANSFER
   WASTE
   CONSUMPTION
+  ADJUSTMENT
+}
+
+enum InventoryPhysicalCountStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+}
+
+model InventoryPhysicalCount {
+  id Int @id @default(autoincrement())
+  warehouseId Int
+  status InventoryPhysicalCountStatus @default(DRAFT)
+  reason String @default("PHYSICAL_COUNT")
+  notes String?
+  createdById Int
+  updatedById Int
+  postedById Int?
+  cancelledById Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  postedAt DateTime?
+  cancelledAt DateTime?
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  createdBy User @relation("PhysicalCountCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy User @relation("PhysicalCountUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  postedBy User? @relation("PhysicalCountPostedBy", fields: [postedById], references: [id], onDelete: Restrict)
+  cancelledBy User? @relation("PhysicalCountCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  items InventoryPhysicalCountItem[]
+
+  @@index([warehouseId, createdAt])
+  @@index([status, createdAt])
+  @@map("inventory_physical_counts")
+}
+
+model InventoryPhysicalCountItem {
+  id Int @id @default(autoincrement())
+  physicalCountId Int
+  productId Int
+  systemQuantitySnapshot Float
+  countedQuantity Float?
+  varianceQuantity Float?
+  unit ProductBaseUnit
+  // Provisional en DRAFT; se fija con el costo autoritativo al publicar.
+  unitCostSnapshot Decimal @db.Decimal(24, 12)
+  estimatedValueVariance Decimal? @db.Decimal(30, 12)
+  inventoryMovementId Int? @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  physicalCount InventoryPhysicalCount @relation(fields: [physicalCountId], references: [id], onDelete: Restrict)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  inventoryMovement InventoryMovement? @relation(fields: [inventoryMovementId], references: [id], onDelete: Restrict)
+
+  @@unique([physicalCountId, productId])
+  @@map("inventory_physical_count_items")
 }
 
 /// Coincide con el tipo PostgreSQL `ProductBaseUnit` creado en `20260326160000_product_unit_base_enum`.

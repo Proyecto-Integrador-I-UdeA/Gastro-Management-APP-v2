@@ -75,15 +75,15 @@ export default function CreateTransferPage() {
     [products, productId]
   );
 
-  const principalWarehouse = useMemo(
-    () => warehouses.find((w) => Boolean(w.isMain)),
+  const purchaseReceivingWarehouse = useMemo(
+    () => warehouses.find((w) => Boolean(w.purchaseReceiving)),
     [warehouses]
   );
 
   useEffect(() => {
-    if (mode !== 'purchase' || !principalWarehouse) return;
-    setDestinationWarehouseId(String(principalWarehouse.id));
-  }, [mode, principalWarehouse]);
+    if (mode !== 'purchase' || !purchaseReceivingWarehouse) return;
+    setDestinationWarehouseId(String(purchaseReceivingWarehouse.id));
+  }, [mode, purchaseReceivingWarehouse]);
 
   /** En compra, precargar costo unitario desde el catálogo del producto (unitCost). */
   useEffect(() => {
@@ -117,16 +117,16 @@ export default function CreateTransferPage() {
 
     let dst: number;
     if (mode === 'purchase') {
-      if (!principalWarehouse) {
+      if (!purchaseReceivingWarehouse) {
         const msg =
-          'No hay bodega principal. Marca una en Bodegas (editar bodega → «Bodega principal») antes de registrar compras.';
+          'No hay una bodega configurada para recepción de compras. Configúrela desde Bodegas antes de registrar compras.';
         setFormError(msg);
         showError(msg);
         return;
       }
-      dst = Number(principalWarehouse.id);
+      dst = Number(purchaseReceivingWarehouse.id);
       if (!Number.isFinite(dst) || dst < 1) {
-        const msg = 'La bodega principal no tiene un identificador válido. Recarga la página o revisa las bodegas.';
+        const msg = 'La bodega de recepción de compras no tiene un identificador válido. Recargue la página o revise las bodegas.';
         setFormError(msg);
         showError(msg);
         return;
@@ -283,7 +283,7 @@ export default function CreateTransferPage() {
         ) : (
           <p className="text-sm text-gray-600 mb-4">
             Ingresa stock recibido de un proveedor u origen externo. La entrada se registra siempre en
-            la <strong>bodega principal</strong> (configurada en Bodegas). El costo unitario queda en el
+            la bodega configurada para <strong>recepción de compras</strong>. El costo unitario queda en el
             movimiento (Kardex).
           </p>
         )}
@@ -341,24 +341,24 @@ export default function CreateTransferPage() {
             {mode === 'purchase' ? (
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-gray-700">Bodega destino</label>
-                {principalWarehouse ? (
+                {purchaseReceivingWarehouse ? (
                   <input
                     type="text"
                     readOnly
                     disabled
-                    value={principalWarehouse.name}
+                    value={purchaseReceivingWarehouse.name}
                     className="border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-gray-100 cursor-not-allowed"
                   />
                 ) : (
                   <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                    No hay bodega principal entre las bodegas activas.{' '}
+                    No hay una bodega activa configurada para recepción de compras.{' '}
                     <Link
                       href={ROUTES.transfers.warehouses}
                       className="underline font-medium text-amber-900"
                     >
                       Ir a Bodegas
                     </Link>{' '}
-                    y marca una como principal, o{' '}
+                    y asígnele el uso Recepción de compras, o{' '}
                     <Link
                       href={ROUTES.transfers.warehousesCreate}
                       className="underline font-medium text-amber-900"
@@ -414,6 +414,15 @@ export default function CreateTransferPage() {
               onChange={(e) => setQuantity(e.target.value)}
               required
             />
+
+            {selectedProduct && (
+              <p className="-mt-2 text-xs text-gray-600">
+                La cantidad se ingresa en la unidad de registro del catálogo (
+                {formatProductInputUnitLabel(selectedProduct.inputUnit)};{' '}
+                {selectedProduct.inputUnitQuantity ?? 1} por unidad). El inventario se guarda en{' '}
+                {selectedProduct.unitOfMeasure}, su unidad base.
+              </p>
+            )}
 
             {selectedProduct && (
               <>
@@ -480,7 +489,7 @@ export default function CreateTransferPage() {
               <Button
                 type="submit"
                 disabled={
-                  submitting || (mode === 'purchase' && !principalWarehouse)
+                  submitting || (mode === 'purchase' && !purchaseReceivingWarehouse)
                 }
               >
                 {submitting

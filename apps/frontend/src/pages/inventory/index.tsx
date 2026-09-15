@@ -119,9 +119,10 @@ export default function InventoryPage() {
               />
             </div>
           </div>
-          <Button type="button" variant="secondary" onClick={() => void load()}>
-            Actualizar
-          </Button>
+          <div className="flex gap-2">
+            <Link href={ROUTES.inventory.counts} className="rounded-md bg-[#001F3F] px-4 py-2 font-semibold text-white">Conteos físicos</Link>
+            <Button type="button" variant="secondary" onClick={() => void load()}>Actualizar</Button>
+          </div>
         </div>
 
         {error && (
@@ -148,7 +149,7 @@ export default function InventoryPage() {
                   <th className="py-2 pr-3">Código</th>
                   <th className="py-2 pr-3">Producto</th>
                   <th className="py-2 pr-3">Proveedor</th>
-                  <th className="py-2 pr-3 text-right">Cantidad</th>
+                  <th className="py-2 pr-3 text-right">Existencia (unidad base)</th>
                   <th
                     className="py-2 pr-3"
                     title="Cuánto representa cada unidad de la cantidad (catálogo del producto)"
@@ -182,7 +183,10 @@ export default function InventoryPage() {
                         <td className="py-2 pr-3 text-gray-600">
                           {r.product.supplier?.name ?? '—'}
                         </td>
-                        <td className="py-2 pr-3 text-right tabular-nums">{r.quantity}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums">
+                          {Number(r.quantity).toLocaleString('es-CO', { maximumFractionDigits: 6 })}{' '}
+                          {r.product.unitOfMeasure}
+                        </td>
                         <td className="py-2 pr-3 whitespace-nowrap text-gray-700">
                           {formatInventoryEntryUnitDescriptor(
                             r.product.inputUnit,

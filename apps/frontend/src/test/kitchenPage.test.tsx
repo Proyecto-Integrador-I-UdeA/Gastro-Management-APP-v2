@@ -296,6 +296,28 @@ describe("pantalla operativa de Cocina", () => {
     expect(screen.getByRole("button", { name: "Reintentar" })).toBeInTheDocument();
   });
 
+  it("explica cómo corregir la ausencia de bodega de consumo de Cocina", async () => {
+    queue = [dispatch(2, "PREPARING", 5)];
+    mocks.apiFetch.mockImplementation((path: string, options?: RequestInit) => {
+      if (path === "/kitchen/dispatches" && !options?.method) {
+        return Promise.resolve({ dispatches: queue, cancellations: [] });
+      }
+      if (path === "/kitchen/dispatches/2/status" && options?.method === "PATCH") {
+        return Promise.reject(Object.assign(new Error("Request failed"), {
+          body: { code: "KITCHEN_CONSUMPTION_WAREHOUSE_NOT_CONFIGURED" },
+        }));
+      }
+      return Promise.reject(new Error("Ruta inesperada"));
+    });
+    const user = userEvent.setup();
+    render(<KitchenPage />);
+    await user.click(await screen.findByRole("button", { name: "Marcar como listo" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No hay una bodega configurada para consumo de Cocina. Configure una desde Bodegas.",
+    );
+    expect(screen.getByLabelText("Ticket de cocina 2")).toBeInTheDocument();
+  });
+
   it("actualiza la cola cada diez segundos sin recargar la página", async () => {
     vi.useFakeTimers();
     const { unmount } = render(<KitchenPage />);

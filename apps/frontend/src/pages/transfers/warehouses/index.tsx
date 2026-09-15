@@ -119,6 +119,7 @@ export default function TransferWarehousesPage() {
                   <th className="py-2 pr-3">Nombre</th>
                   <th className="py-2 pr-3">Descripción</th>
                   <th className="py-2 pr-3">Principal</th>
+                  <th className="py-2 pr-3">Usos operativos</th>
                   <th className="py-2 pr-3">Estado</th>
                   <th className="py-2">Acciones</th>
                 </tr>
@@ -126,7 +127,7 @@ export default function TransferWarehousesPage() {
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center py-8 text-gray-500">
+                    <td colSpan={6} className="text-center py-8 text-gray-500">
                       No hay bodegas.{' '}
                       {canCreate && (
                         <Link
@@ -153,6 +154,14 @@ export default function TransferWarehousesPage() {
                         ) : (
                           <span className="text-gray-400">—</span>
                         )}
+                      </td>
+                      <td className="py-2 pr-3">
+                        <div className="flex max-w-xs flex-wrap gap-1">
+                          {w.purchaseReceiving && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800">Recepción de compras</span>}
+                          {w.kitchenConsumption && <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs text-orange-800">Consumo de Cocina</span>}
+                          {w.barConsumption && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-800">Consumo de Bar</span>}
+                          {!w.purchaseReceiving && !w.kitchenConsumption && !w.barConsumption && <span className="text-gray-400">—</span>}
+                        </div>
                       </td>
                       <td className="py-2 pr-3">
                         <span

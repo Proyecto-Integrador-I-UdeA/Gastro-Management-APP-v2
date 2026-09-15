@@ -269,15 +269,23 @@ export async function consumeKitchenDispatchInventory(
     }
   }
 
-  const warehouses = prepared.length === 0 ? [] : await transaction.warehouse.findMany({
-    where: { isMain: true, active: true },
+  const warehouses = await transaction.warehouse.findMany({
+    where: { kitchenConsumption: true, active: true },
     select: { id: true },
+    take: 2,
   });
-  if (prepared.length > 0 && warehouses.length !== 1) {
+  if (warehouses.length === 0) {
     throw new SalesOperationError(
-      'KITCHEN_SOURCE_WAREHOUSE_INVALID',
+      'KITCHEN_CONSUMPTION_WAREHOUSE_NOT_CONFIGURED',
       409,
-      'Debe existir exactamente una bodega principal activa para registrar el consumo de cocina',
+      'No hay una bodega configurada para consumo de Cocina. Configure una desde Bodegas.',
+    );
+  }
+  if (warehouses.length > 1) {
+    throw new SalesOperationError(
+      'KITCHEN_CONSUMPTION_WAREHOUSE_AMBIGUOUS',
+      409,
+      'Hay varias bodegas activas configuradas para consumo de Cocina. Corrija la configuración desde Bodegas.',
     );
   }
 
@@ -292,7 +300,7 @@ export async function consumeKitchenDispatchInventory(
   const consumption = await transaction.kitchenInventoryConsumption.create({
     data: {
       kitchenDispatchId,
-      warehouseId: warehouses[0]?.id ?? null,
+      warehouseId: warehouses[0].id,
       wastePercentSnapshot: wastePercent,
       theoreticalCost,
       wasteCost: totalCost.minus(theoreticalCost),

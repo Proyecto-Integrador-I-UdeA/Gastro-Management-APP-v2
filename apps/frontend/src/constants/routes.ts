@@ -25,6 +25,8 @@ export const ROUTES = {
   },
   inventory: {
     list: '/inventory',
+    counts: '/inventory/counts',
+    newCount: '/inventory/counts/new',
   },
   reports: {
     root: '/reports',

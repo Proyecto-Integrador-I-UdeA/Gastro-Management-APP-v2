@@ -12,17 +12,60 @@ import {
   reverseTransferInventory,
   updateTransferMovementInTransaction,
 } from '../../services/inventoryMovementService';
+import { InvalidCostComponentError } from '../../services/pricing/pricingErrors';
+import { quantityToBaseUnits } from '../../services/pricing/productUnitCost';
 
 interface AuthRequest extends Request {
   user?: { id: number; email: string; role: string; permissions?: string[] };
 }
 
-const movementInclude = {
-  product: { include: { supplier: true } },
-  sourceWarehouse: true,
-  destinationWarehouse: true,
+const movementListInclude = {
+  product: {
+    select: {
+      id: true,
+      internalCode: true,
+      name: true,
+      unitOfMeasure: true,
+      inputUnit: true,
+      inputUnitQuantity: true,
+    },
+  },
+  sourceWarehouse: {
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      isMain: true,
+      active: true,
+      purchaseReceiving: true,
+      kitchenConsumption: true,
+      barConsumption: true,
+    },
+  },
+  destinationWarehouse: {
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      isMain: true,
+      active: true,
+      purchaseReceiving: true,
+      kitchenConsumption: true,
+      barConsumption: true,
+    },
+  },
   user: {
     select: { id: true, email: true, fullName: true },
+  },
+} as const;
+
+const movementDetailInclude = {
+  ...movementListInclude,
+  product: {
+    select: {
+      ...movementListInclude.product.select,
+      supplier: { select: { id: true, name: true } },
+    },
   },
 } as const;
 
@@ -76,7 +119,7 @@ export const listInventoryMovements = async (req: Request, res: Response) => {
         orderBy: { createdAt: 'desc' },
         skip: Number.isNaN(skip) ? 0 : Math.max(0, skip),
         take: Number.isNaN(take) ? 50 : take,
-        include: movementInclude,
+        include: movementListInclude,
       }),
       prisma.inventoryMovement.count({ where }),
     ]);
@@ -96,7 +139,7 @@ export const getInventoryMovementById = async (req: Request, res: Response) => {
   try {
     const row = await prisma.inventoryMovement.findUnique({
       where: { id },
-      include: movementInclude,
+      include: movementDetailInclude,
     });
     if (!row) {
       return res.status(404).json({ error: 'Movimiento no encontrado' });
@@ -124,12 +167,27 @@ export const createInventoryMovement = async (req: AuthRequest, res: Response) =
 
   const data = validation.data;
 
-  const product = await prisma.product.findUnique({ where: { id: data.productId } });
+  const product = await prisma.product.findUnique({
+    where: { id: data.productId },
+    select: { id: true, active: true, inputUnit: true, inputUnitQuantity: true, unitOfMeasure: true },
+  });
   if (!product) {
     return res.status(400).json({ error: 'Producto no encontrado' });
   }
   if (!product.active) {
     return res.status(400).json({ error: 'El producto está inactivo' });
+  }
+
+  let quantityBase = data.quantity;
+  if (data.type === MovementType.PURCHASE || data.type === MovementType.TRANSFER || data.type === MovementType.WASTE) {
+    try {
+      quantityBase = quantityToBaseUnits(data.quantity, product).toNumber();
+    } catch (error) {
+      if (error instanceof InvalidCostComponentError) {
+        return res.status(400).json({ error: `Unidad/cantidad inválida: ${error.message}` });
+      }
+      throw error;
+    }
   }
 
   const warehouseIds = new Set<number>();
@@ -166,7 +224,7 @@ export const createInventoryMovement = async (req: AuthRequest, res: Response) =
         data.type,
         {
           productId: data.productId,
-          quantity: data.quantity,
+          quantity: quantityBase,
           unitCost:
             data.type === MovementType.PURCHASE ? (data.unitCost ?? null) : null,
           expirationDate,
@@ -180,7 +238,7 @@ export const createInventoryMovement = async (req: AuthRequest, res: Response) =
 
     const full = await prisma.inventoryMovement.findUnique({
       where: { id: movement.id },
-      include: movementInclude,
+      include: movementDetailInclude,
     });
 
     res.status(201).json(full);
@@ -218,7 +276,7 @@ export const patchTransferMovement = async (req: AuthRequest, res: Response) => 
 
     const full = await prisma.inventoryMovement.findUnique({
       where: { id },
-      include: movementInclude,
+      include: movementDetailInclude,
     });
     res.json(full);
   } catch (e: unknown) {

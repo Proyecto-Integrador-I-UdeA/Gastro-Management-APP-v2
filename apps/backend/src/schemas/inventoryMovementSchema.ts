@@ -1,7 +1,13 @@
 import { z } from 'zod';
 import { MovementType } from '@prisma/client';
 
-const movementTypeSchema = z.nativeEnum(MovementType);
+// ADJUSTMENT se reserva al posting transaccional de conteos físicos.
+const movementTypeSchema = z.enum([
+  MovementType.PURCHASE,
+  MovementType.TRANSFER,
+  MovementType.WASTE,
+  MovementType.CONSUMPTION,
+]);
 
 /** Acepta número o string numérico; null / vacío → undefined. */
 const optionalPositiveInt = z.preprocess((val) => {
@@ -14,6 +20,8 @@ const optionalPositiveInt = z.preprocess((val) => {
 export const createInventoryMovementSchema = z
   .object({
     type: movementTypeSchema,
+    // El endpoint recibe cantidades en la unidad de registro del producto;
+    // el controlador las normaliza a la unidad base antes de persistirlas.
     quantity: z.coerce.number().positive(),
     unitCost: z.preprocess(
       (val) => (val === '' || val === undefined || val === null ? undefined : val),

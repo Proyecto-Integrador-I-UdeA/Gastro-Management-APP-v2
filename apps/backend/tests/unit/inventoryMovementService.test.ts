@@ -10,6 +10,7 @@ function transaction(stock: number | null) {
     inventory: {
       findUnique: vi.fn().mockResolvedValue(stock === null ? null : { quantity: stock }),
       upsert: vi.fn().mockResolvedValue({}),
+      update: vi.fn().mockResolvedValue({}),
     },
     inventoryMovement: {
       create: vi.fn().mockResolvedValue({ id: 10 }),
@@ -46,5 +47,17 @@ describe('salida de inventario', () => {
       create: expect.objectContaining({ quantity: -6 }),
       update: { quantity: { decrement: 6 } },
     }));
+  });
+
+  it('aplica un ajuste físico firmado y fija exactamente el saldo contado', async () => {
+    const tx = transaction(10);
+    await applyInventoryMovement(
+      tx as never,
+      MovementType.ADJUSTMENT,
+      { productId: 1, quantity: -2, sourceWarehouseId: 2, adjustmentTargetQuantity: 8, notes: 'Conteo físico #1' },
+      3,
+    );
+    expect(tx.inventoryMovement.create).toHaveBeenCalledWith({ data: expect.objectContaining({ type: 'ADJUSTMENT', quantity: -2, sourceWarehouseId: 2, destinationWarehouseId: null }) });
+    expect(tx.inventory.update).toHaveBeenCalledWith({ where: { productId_warehouseId: { productId: 1, warehouseId: 2 } }, data: { quantity: 8 } });
   });
 });

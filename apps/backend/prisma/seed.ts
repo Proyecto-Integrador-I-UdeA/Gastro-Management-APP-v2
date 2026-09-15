@@ -60,6 +60,7 @@ async function main() {
       description: 'Almacén general',
       active: true,
       isMain: warehouseCount === 0,
+      purchaseReceiving: warehouseCount === 0,
     },
   });
 

@@ -14,7 +14,7 @@ import { getApiErrorMessage, isUnauthorized } from '@/lib/apiError';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
 import { showSuccess } from '@/utils/toast';
 import type { MovementProductSummary } from '@/types/transfer';
-import { formatProductInputUnitLabel } from '@/lib/productUnits';
+import { formatProductInputUnitLabel, productRegistrationAmountBase } from '@/lib/productUnits';
 
 export default function EditTransferPage() {
   useAuthGuard('transfers.update');
@@ -50,7 +50,15 @@ export default function EditTransferPage() {
           return;
         }
         setMovementType(m.type);
-        setQuantity(String(m.quantity));
+        const registrationAmount = m.product
+          ? productRegistrationAmountBase({
+              inputUnit: m.product.inputUnit ?? 'g',
+              inputUnitQuantity: Number(m.product.inputUnitQuantity ?? 1),
+              unitOfMeasure: m.product.unitOfMeasure,
+              unitCost: 0,
+            })
+          : 1;
+        setQuantity(String(m.quantity / registrationAmount));
         setNotes(m.notes ?? '');
         setExpirationDate(
           m.type === 'PURCHASE' && m.expirationDate
@@ -183,15 +191,23 @@ export default function EditTransferPage() {
             )}
 
             {movementType === 'TRANSFER' ? (
-              <Input
-                label="Cantidad *"
-                type="number"
-                step="any"
-                min="0"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                required
-              />
+              <>
+                <Input
+                  label="Cantidad *"
+                  type="number"
+                  step="any"
+                  min="0"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  required
+                />
+                {product && (
+                  <p className="-mt-2 text-xs text-gray-600">
+                    Se ingresa en {formatProductInputUnitLabel(product.inputUnit ?? 'g')} y se guarda en la
+                    unidad base {product.unitOfMeasure}.
+                  </p>
+                )}
+              </>
             ) : (
               <Input
                 label="Cantidad registrada"

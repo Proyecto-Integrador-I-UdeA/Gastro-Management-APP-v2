@@ -18,6 +18,9 @@ export type CreateWarehousePayload = {
   description?: string | null;
   active?: boolean;
   isMain?: boolean;
+  purchaseReceiving?: boolean;
+  kitchenConsumption?: boolean;
+  barConsumption?: boolean;
 };
 
 export async function createWarehouseRequest(
@@ -30,6 +33,9 @@ export async function createWarehouseRequest(
       description: payload.description ?? null,
       active: payload.active ?? true,
       isMain: payload.isMain ?? false,
+      purchaseReceiving: payload.purchaseReceiving ?? false,
+      kitchenConsumption: payload.kitchenConsumption ?? false,
+      barConsumption: payload.barConsumption ?? false,
     },
   });
 }
@@ -39,6 +45,9 @@ export type UpdateWarehousePayload = {
   description?: string | null;
   active?: boolean;
   isMain?: boolean;
+  purchaseReceiving?: boolean;
+  kitchenConsumption?: boolean;
+  barConsumption?: boolean;
 };
 
 export async function updateWarehouseRequest(
