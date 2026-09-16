@@ -18,6 +18,7 @@ import menuMediaRoutes from './routes/menu-media';
 import salesRoutes from './routes/sales';
 import kitchenRoutes from './routes/kitchen';
 import ingredientCatalogRoutes from "./routes/catalog/ingredientCatalog.routes";
+import cashRoutes from './routes/cash';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -80,6 +81,7 @@ app.use('/menu-items', menuRoutes);
 app.use('/menu-categories', menuCategoryRoutes);
 app.use('/menu-media', menuMediaRoutes);
 app.use('/sales', salesRoutes);
+app.use('/cash', cashRoutes);
 app.use('/kitchen', kitchenRoutes);
 app.use("/ingredient-catalog", ingredientCatalogRoutes);
 
