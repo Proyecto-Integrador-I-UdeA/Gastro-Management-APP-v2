@@ -404,6 +404,10 @@ beforeAll(async () => {
   for (const statement of operationalWarehouseMigrationStatements) {
     await prisma.$executeRawUnsafe(statement);
   }
+  const cashMigration = readFileSync(resolve(process.cwd(), 'prisma/migrations/20260916120000_cash_01a_cash_register_mvp/migration.sql'), 'utf8');
+  for (const statement of cashMigration.split(';').map(part => part.trim()).filter(Boolean)) {
+    await prisma.$executeRawUnsafe(statement);
+  }
 
   process.env.DATABASE_URL = schemaUrl.toString();
   app = (await import('../../src/app')).default;

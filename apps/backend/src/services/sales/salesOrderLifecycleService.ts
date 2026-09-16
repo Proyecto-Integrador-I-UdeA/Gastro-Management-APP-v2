@@ -187,6 +187,9 @@ export async function cancelSalesOrder(
       throw new SalesOperationError('ORDER_NOT_OPEN', 409, 'La orden ya no está abierta');
     }
 
+    const payment = await transaction.cashPayment.findFirst({ where: { preInvoice: { salesOrderId: orderId } }, select: { id: true } });
+    if (payment) throw new SalesOperationError('ORDER_HAS_PAYMENTS', 409, 'La orden tiene pagos registrados y no puede cancelarse por el flujo ordinario');
+
     const prepared = await transaction.kitchenDispatch.findFirst({
       where: {
         salesOrderId: orderId,

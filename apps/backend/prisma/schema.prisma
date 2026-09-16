@@ -150,6 +150,7 @@ model User {
   uploadedMediaAssets   MediaAsset[]
   openedSalesOrders     SalesOrder[]        @relation("SalesOrderOpenedBy")
   settledSalesOrders    SalesOrder[]        @relation("SalesOrderSettledBy")
+  accountRequestedSalesOrders SalesOrder[]  @relation("SalesOrderAccountRequestedBy")
   cancelledSalesOrders  SalesOrder[]        @relation("SalesOrderCancelledBy")
   acknowledgedSalesOrderCancellations SalesOrder[] @relation("SalesOrderCancellationAcknowledgedBy")
   addedSalesOrderItems  SalesOrderItem[]     @relation("SalesOrderItemAddedBy")
@@ -157,6 +158,12 @@ model User {
   startedKitchenDispatches KitchenDispatch[] @relation("KitchenDispatchStartedBy")
   readiedKitchenDispatches KitchenDispatch[] @relation("KitchenDispatchReadyBy")
   deliveredKitchenDispatches KitchenDispatch[] @relation("KitchenDispatchDeliveredBy")
+  generatedSalesPreInvoices SalesPreInvoice[] @relation("SalesPreInvoiceGeneratedBy")
+  openedCashSessions CashSession[] @relation("CashSessionOpenedBy")
+  closedCashSessions CashSession[] @relation("CashSessionClosedBy")
+  receivedCashPayments CashPayment[] @relation("CashPaymentReceivedBy")
+  updatedCashServiceConfigs CashServiceConfig[] @relation("CashServiceConfigUpdatedBy")
+  cashServiceConfigAudits CashServiceConfigAudit[] @relation("CashServiceConfigAuditChangedBy")
   updatedGlobalWasteConfigs           GlobalWasteConfig[]      @relation("GlobalWasteConfigUpdatedBy")
   globalWasteConfigAudits             GlobalWasteConfigAudit[] @relation("GlobalWasteConfigAuditChangedBy")
   createdPhysicalCounts InventoryPhysicalCount[] @relation("PhysicalCountCreatedBy")
@@ -464,6 +471,10 @@ model SalesOrder {
   billRequestedAt DateTime?
   settledAt       DateTime?
   settledById     Int?
+  paymentStatus   SalesPaymentStatus @default(UNPAID)
+  accountRequestedAt DateTime?
+  accountRequestedById Int?
+  suggestedServicePercentSnapshot Decimal? @db.Decimal(5, 2)
   voidedAt        DateTime?
   cancelledById   Int?
   cancellationReason String?             @db.VarChar(500)
@@ -474,15 +485,121 @@ model SalesOrder {
   diningTable     DiningTable       @relation(fields: [diningTableId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   openedBy        User              @relation("SalesOrderOpenedBy", fields: [openedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   settledBy       User?             @relation("SalesOrderSettledBy", fields: [settledById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  accountRequestedBy User?          @relation("SalesOrderAccountRequestedBy", fields: [accountRequestedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   cancelledBy     User?             @relation("SalesOrderCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   cancellationAcknowledgedBy User?  @relation("SalesOrderCancellationAcknowledgedBy", fields: [cancellationAcknowledgedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   items           SalesOrderItem[]
   kitchenDispatches KitchenDispatch[]
+  preInvoices     SalesPreInvoice[]
 
   @@index([diningTableId])
   @@index([status])
   @@index([status, cancellationAcknowledgedAt])
   @@map("sales_orders")
+}
+
+model SalesPreInvoice {
+  id                         Int              @id @default(autoincrement())
+  salesOrderId               Int
+  subtotalSnapshot           Decimal          @db.Decimal(14, 2)
+  salesAmountSnapshot        Decimal          @db.Decimal(14, 2)
+  consumptionTaxAmountSnapshot Decimal        @db.Decimal(14, 2)
+  suggestedServicePercentSnapshot Decimal      @db.Decimal(5, 2)
+  serviceAccepted            Boolean
+  servicePercentSnapshot     Decimal          @db.Decimal(5, 2)
+  serviceAmountSnapshot      Decimal          @db.Decimal(14, 2)
+  totalSnapshot              Decimal          @db.Decimal(14, 2)
+  status                     SalesPreInvoiceStatus @default(ACTIVE)
+  generatedById              Int
+  generatedAt                DateTime         @default(now())
+  replacedAt                 DateTime?
+  salesOrder                 SalesOrder      @relation(fields: [salesOrderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  generatedBy                User             @relation("SalesPreInvoiceGeneratedBy", fields: [generatedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  payments                   CashPayment[]
+
+  @@index([salesOrderId, status], map: "sales_pre_invoices_order_status_idx")
+  @@map("sales_pre_invoices")
+}
+
+model CashRegister {
+  id          Int           @id @default(autoincrement())
+  name        String        @unique
+  active      Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @default(now()) @updatedAt
+  sessions    CashSession[]
+
+  @@map("cash_registers")
+}
+
+model CashSession {
+  id             Int             @id @default(autoincrement())
+  cashRegisterId Int
+  status         CashSessionStatus @default(OPEN)
+  openedById     Int
+  openedAt       DateTime        @default(now())
+  openingCash    Decimal         @db.Decimal(14, 2)
+  closedById     Int?
+  closedAt       DateTime?
+  expectedCash   Decimal?        @db.Decimal(14, 2)
+  countedCash    Decimal?        @db.Decimal(14, 2)
+  difference     Decimal?        @db.Decimal(14, 2)
+  cashRegister   CashRegister    @relation(fields: [cashRegisterId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  openedBy       User            @relation("CashSessionOpenedBy", fields: [openedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  closedBy       User?           @relation("CashSessionClosedBy", fields: [closedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  payments       CashPayment[]
+
+  @@index([cashRegisterId, status], map: "cash_sessions_register_status_idx")
+  @@map("cash_sessions")
+}
+
+model CashPayment {
+  id             Int          @id @default(autoincrement())
+  preInvoiceId   Int
+  cashSessionId  Int
+  method         CashPaymentMethod
+  amount         Decimal      @db.Decimal(14, 2)
+  salesAmount    Decimal      @db.Decimal(14, 2)
+  consumptionTaxAmount Decimal @db.Decimal(14, 2)
+  serviceAmount  Decimal      @db.Decimal(14, 2)
+  amountTendered Decimal?     @db.Decimal(14, 2)
+  change         Decimal      @default(0) @db.Decimal(14, 2)
+  idempotencyKey String       @unique @db.VarChar(120)
+  receivedById   Int
+  receivedAt     DateTime     @default(now())
+  preInvoice     SalesPreInvoice @relation(fields: [preInvoiceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cashSession    CashSession  @relation(fields: [cashSessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  receivedBy     User         @relation("CashPaymentReceivedBy", fields: [receivedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([preInvoiceId, receivedAt], map: "cash_payments_invoice_receivedAt_idx")
+  @@index([cashSessionId, method, receivedAt], map: "cash_payments_session_method_receivedAt_idx")
+  @@map("cash_payments")
+}
+
+model CashServiceConfig {
+  id            Int      @id @default(1)
+  servicePercent Decimal  @default(0) @db.Decimal(5, 2)
+  updatedById   Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+  updatedBy     User?    @relation("CashServiceConfigUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  audits        CashServiceConfigAudit[]
+
+  @@map("cash_service_config")
+}
+
+model CashServiceConfigAudit {
+  id             Int              @id @default(autoincrement())
+  configId       Int
+  previousPercent Decimal         @db.Decimal(5, 2)
+  newPercent     Decimal          @db.Decimal(5, 2)
+  changedById    Int
+  changedAt      DateTime         @default(now())
+  config         CashServiceConfig @relation(fields: [configId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  changedBy      User             @relation("CashServiceConfigAuditChangedBy", fields: [changedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([configId, changedAt], map: "cash_service_config_audits_config_changedAt_idx")
+  @@map("cash_service_config_audits")
 }
 
 model SalesOrderItem {
@@ -494,6 +611,8 @@ model SalesOrderItem {
   quantity            Int
   specialInstructions String?       @db.VarChar(500)
   unitPriceSnapshot   Decimal       @db.Decimal(12, 2)
+  unitSalesAmountSnapshot Decimal   @db.Decimal(12, 2)
+  unitConsumptionTaxAmountSnapshot Decimal @db.Decimal(12, 2)
   currencySnapshot    String        @db.VarChar(3)
   taxIncludedSnapshot Boolean
   addedById           Int
@@ -707,6 +826,29 @@ enum SalesOrderStatus {
   OPEN
   SETTLED
   VOIDED
+}
+
+enum SalesPaymentStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+}
+
+enum SalesPreInvoiceStatus {
+  ACTIVE
+  REPLACED
+}
+
+enum CashSessionStatus {
+  OPEN
+  CLOSED
+}
+
+enum CashPaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+  OTHER
 }
 
 enum KitchenDispatchStatus {

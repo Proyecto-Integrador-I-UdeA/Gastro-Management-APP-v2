@@ -335,6 +335,23 @@ async function lockOpenOrder(transaction: Prisma.TransactionClient, orderId: num
   }
 }
 
+async function ensureOrderNotAccountRequested(
+  transaction: Prisma.TransactionClient,
+  orderId: number,
+) {
+  const order = await transaction.salesOrder.findUnique({
+    where: { id: orderId },
+    select: { accountRequestedAt: true },
+  });
+  if (order?.accountRequestedAt) {
+    throw new SalesOperationError(
+      'ORDER_ACCOUNT_REQUESTED',
+      409,
+      'La cuenta ya fue generada y el pedido no puede modificarse',
+    );
+  }
+}
+
 type ResolvedCommercialItem = {
   id: number;
   name: string;
@@ -344,6 +361,7 @@ type ResolvedCommercialItem = {
     amount: Prisma.Decimal;
     currency: string;
     taxIncluded: boolean;
+    taxAmount: Prisma.Decimal;
   };
 };
 
@@ -370,6 +388,7 @@ async function resolveCommercialItem(
           amount: true,
           currency: true,
           taxIncluded: true,
+          taxAmount: true,
         },
       },
     },
@@ -470,6 +489,12 @@ function createLineData(
     quantity,
     specialInstructions: specialInstructions ?? null,
     unitPriceSnapshot: item.price.amount,
+    unitConsumptionTaxAmountSnapshot: item.price.taxIncluded
+      ? Prisma.Decimal.min(item.price.amount, item.price.taxAmount.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP))
+      : new Prisma.Decimal(0),
+    unitSalesAmountSnapshot: item.price.amount.sub(item.price.taxIncluded
+      ? Prisma.Decimal.min(item.price.amount, item.price.taxAmount.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP))
+      : new Prisma.Decimal(0)),
     currencySnapshot: item.price.currency,
     taxIncludedSnapshot: item.price.taxIncluded,
     addedById: actorId,
@@ -749,6 +774,7 @@ export async function addSalesOrderItem(
 ) {
   return prisma.$transaction(async transaction => {
     await lockOpenOrder(transaction, orderId);
+    await ensureOrderNotAccountRequested(transaction, orderId);
     const principal = await resolveCommercialItem(
       transaction,
       input.menuItemId,
@@ -803,6 +829,7 @@ export async function addSalesOrderItemAddition(
 ) {
   return prisma.$transaction(async transaction => {
     await lockOpenOrder(transaction, orderId);
+    await ensureOrderNotAccountRequested(transaction, orderId);
     const parent = await transaction.salesOrderItem.findFirst({
       where: { id: itemId, salesOrderId: orderId },
       select: { id: true, quantity: true, parentItemId: true },
@@ -851,6 +878,7 @@ export async function updateSalesOrderItem(
 ) {
   return prisma.$transaction(async transaction => {
     await lockOpenOrder(transaction, orderId);
+    await ensureOrderNotAccountRequested(transaction, orderId);
     const item = await transaction.salesOrderItem.findFirst({
       where: { id: itemId, salesOrderId: orderId },
       select: { id: true, parentItemId: true },
@@ -879,6 +907,7 @@ export async function updateSalesOrderItem(
 export async function deleteSalesOrderItem(orderId: number, itemId: number) {
   return prisma.$transaction(async transaction => {
     await lockOpenOrder(transaction, orderId);
+    await ensureOrderNotAccountRequested(transaction, orderId);
     const item = await transaction.salesOrderItem.findFirst({
       where: { id: itemId, salesOrderId: orderId },
       select: { id: true, parentItemId: true },
@@ -905,6 +934,7 @@ export async function updateSalesOrderGuestCount(
 ) {
   return prisma.$transaction(async transaction => {
     await lockOpenOrder(transaction, orderId);
+    await ensureOrderNotAccountRequested(transaction, orderId);
     await transaction.salesOrder.update({
       where: { id: orderId },
       data: { guestCount },
