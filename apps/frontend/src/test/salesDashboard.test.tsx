@@ -33,7 +33,8 @@ describe('dashboard del módulo de Ventas', () => {
     expect(screen.getByRole('button', { name: /Menú y precios/ })).toBeEnabled();
     expect(screen.queryByRole('button', { name: /Caja/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Reservas y eventos/ })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /^Ventas / })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /Analítica de ventas/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Ventas / })).not.toBeInTheDocument();
   });
 
   it('muestra Caja para usuarios con cash.read y navega al submódulo', async () => {
@@ -69,6 +70,16 @@ describe('dashboard del módulo de Ventas', () => {
     await user.click(await screen.findByRole('button', { name: /Mesas y pedidos/ }));
 
     expect(mocks.push).toHaveBeenCalledWith('/sales/orders');
+  });
+
+  it('habilita el módulo Ventas para reports.read y navega a analítica', async () => {
+    const user = userEvent.setup();
+    mocks.getUserPermissions.mockReturnValue(['sales.read', 'reports.read']);
+    render(<SalesDashboardPage />);
+    const salesButton = await screen.findByRole('button', { name: /^Ventas / });
+    expect(salesButton).toBeEnabled();
+    await user.click(salesButton);
+    expect(mocks.push).toHaveBeenCalledWith('/sales/analytics');
   });
 
   it('protege también el dashboard cuando falta sales.read', async () => {
