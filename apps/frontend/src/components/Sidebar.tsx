@@ -366,6 +366,16 @@ export default function Sidebar() {
                   <span className="text-lg">Caja</span>
                 </button>
               )}
+              {can("reports.read") && (
+                <button
+                  type="button"
+                  className={itemClass(safePath.startsWith("/sales/analytics"))}
+                  onClick={() => handleNavigate("/sales/analytics", "reports.read")}
+                >
+                  <span className="text-xl">📊</span>
+                  <span className="text-lg">Analítica de ventas</span>
+                </button>
+              )}
               <button
                 type="button"
                 className="flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E] text-white/80"

@@ -356,6 +356,10 @@ type ResolvedCommercialItem = {
   id: number;
   name: string;
   kind: MenuItemKind;
+  category: {
+    id: number;
+    name: string;
+  } | null;
   price: {
     id: number;
     amount: Prisma.Decimal;
@@ -378,7 +382,7 @@ async function resolveCommercialItem(
       active: true,
       available: true,
       kind: true,
-      category: { select: { active: true } },
+      category: { select: { id: true, name: true, active: true } },
       prices: {
         where: currentPublishedMenuItemPriceWhere,
         orderBy: [{ validFrom: 'desc' }, { id: 'desc' }],
@@ -444,6 +448,9 @@ async function resolveCommercialItem(
     id: item.id,
     name: item.name,
     kind: item.kind,
+    category: item.category
+      ? { id: item.category.id, name: item.category.name }
+      : null,
     price: item.prices[0],
   };
 }
@@ -486,6 +493,8 @@ function createLineData(
     menuItemId: item.id,
     menuItemPriceId: item.price.id,
     menuItemNameSnapshot: item.name,
+    menuCategoryIdSnapshot: item.category?.id ?? null,
+    menuCategoryNameSnapshot: item.category?.name ?? null,
     quantity,
     specialInstructions: specialInstructions ?? null,
     unitPriceSnapshot: item.price.amount,

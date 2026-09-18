@@ -69,8 +69,9 @@ const moduleGroups: Array<{
       {
         title: "Ventas",
         description: "Consulta ventas, documentos y canales.",
-        path: "/sales/operations",
-        available: false,
+        path: "/sales/analytics",
+        available: true,
+        requiredPermission: "reports.read",
       },
     ],
   },

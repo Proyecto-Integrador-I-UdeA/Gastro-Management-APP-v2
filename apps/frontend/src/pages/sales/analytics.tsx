@@ -1,0 +1,77 @@
+"use client";
+
+import { useCallback, useEffect, useState } from 'react';
+import DashboardLayout from '@/components/layouts/DashboardLayout';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
+import { fetchSalesAnalytics } from '@/lib/salesAnalyticsApi';
+import type { SalesAnalyticsCurrency, SalesAnalyticsPeriod, SalesAnalyticsResponse } from '@/types/salesAnalytics';
+
+const periodLabels: Record<SalesAnalyticsPeriod, string> = { day: 'Día', week: 'Semana', month: 'Mes', year: 'Año', custom: 'Personalizado' };
+
+function todayInBogota() { return new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString().slice(0, 10); }
+function isoDate(value: string) { const [year, month, day] = value.split('-').map(Number); return new Date(Date.UTC(year, month - 1, day)); }
+function isoDateValue(value: Date) { return value.toISOString().slice(0, 10); }
+function addDays(value: string, days: number) { const date = isoDate(value); date.setUTCDate(date.getUTCDate() + days); return isoDateValue(date); }
+function mondayOf(value: string) { const date = isoDate(value); date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7)); return isoDateValue(date); }
+function isoWeek(value: string) { const monday = isoDate(mondayOf(value)); const firstMonday = isoDate(mondayOf(`${monday.getUTCFullYear()}-01-04`)); return Math.round((monday.getTime() - firstMonday.getTime()) / 86_400_000 / 7) + 1; }
+function money(value: string | number | undefined, currency = 'COP') { const safeCurrency = /^[A-Z]{3}$/.test(currency) ? currency : 'COP'; return new Intl.NumberFormat('es-CO', { style: 'currency', currency: safeCurrency, maximumFractionDigits: 2 }).format(Number(value ?? 0)); }
+function dateLabel(value: string) { const [year, month, day] = value.split('-').map(Number); return new Intl.DateTimeFormat('es-CO', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Bogota' }).format(new Date(Date.UTC(year, month - 1, day, 12))); }
+function monthLabel(value: string) { const [year, month] = value.split('-').map(Number); return new Intl.DateTimeFormat('es-CO', { month: 'long', year: 'numeric', timeZone: 'America/Bogota' }).format(new Date(Date.UTC(year, month - 1, 15))); }
+
+function SummaryCards({ data, title, includeOperational = true }: { data: SalesAnalyticsCurrency; title: string; includeOperational?: boolean }) {
+  const cards = [['Ventas', money(data.summary.salesAmount, data.currency), 'from-[#0f274a] to-[#1f4770]'], ['Impuesto al consumo', money(data.summary.consumptionTaxAmount, data.currency), 'from-[#164e63] to-[#0e7490]'], ['Servicio voluntario', money(data.summary.serviceAmount, data.currency), 'from-[#365314] to-[#4d7c0f]'], ['Total recaudado', money(data.summary.totalCollected, data.currency), 'from-[#713f12] to-[#a16207]'], ...(includeOperational ? [['Pedidos cerrados', String(data.summary.closedOrders), 'from-slate-700 to-slate-600'], ['Unidades vendidas', String(data.summary.unitsSold), 'from-slate-700 to-slate-600']] : [])];
+  return <section aria-label={title} className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200"><div className="flex items-center justify-between gap-3"><h2 className="text-xl font-bold text-[#001F3F]">{title}</h2><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{data.currency}</span></div><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{cards.map(([label, value, gradient]) => <div key={label} className={`rounded-xl bg-gradient-to-br ${gradient} p-4 text-white shadow-sm`}><p className="text-sm text-white/80">{label}</p><p className="mt-1 text-2xl font-bold">{value}</p></div>)}</div></section>;
+}
+
+function AnalyticsTable({ title, rows, currency }: { title: string; rows: Array<{ menuItemId: number; name: string; quantity: number; salesAmount: string; consumptionTaxAmount: string; consumptionSubtotal: string }>; currency: string }) {
+  return <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200"><h2 className="text-xl font-bold text-[#001F3F]">{title}</h2>{rows.length === 0 ? <p className="mt-3 text-slate-600">No hay resultados para este periodo.</p> : <div className="mt-3 overflow-x-auto"><table className="min-w-full text-left text-sm"><thead><tr className="border-b text-slate-600"><th className="p-2">Producto</th><th className="p-2">Cantidad</th><th className="p-2">Ventas</th><th className="p-2">Impuesto</th><th className="p-2">Subtotal consumo</th></tr></thead><tbody>{rows.map(row => <tr key={`${row.menuItemId}-${row.name}`} className="border-b last:border-0"><td className="p-2 font-medium text-slate-800">{row.name}</td><td className="p-2">{row.quantity}</td><td className="p-2">{money(row.salesAmount, currency)}</td><td className="p-2">{money(row.consumptionTaxAmount, currency)}</td><td className="p-2">{money(row.consumptionSubtotal, currency)}</td></tr>)}</tbody></table></div>}</section>;
+}
+
+function CategoryTable({ data }: { data: SalesAnalyticsCurrency }) {
+  return <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200"><h2 className="text-xl font-bold text-[#001F3F]">Ventas por categoría · {data.currency}</h2>{data.categories.length === 0 ? <p className="mt-3 text-slate-600">No hay resultados para este periodo.</p> : <div className="mt-3 overflow-x-auto"><table className="min-w-full text-left text-sm"><thead><tr className="border-b text-slate-600"><th className="p-2">Categoría</th><th className="p-2">Cantidad</th><th className="p-2">Ventas</th><th className="p-2">Impuesto</th><th className="p-2">Subtotal consumo</th></tr></thead><tbody>{data.categories.map(row => <tr key={`${row.categoryId ?? 'none'}-${row.categoryName}`} className="border-b last:border-0"><td className="p-2 font-medium text-slate-800">{row.categoryName}</td><td className="p-2">{row.quantity}</td><td className="p-2">{money(row.salesAmount, data.currency)}</td><td className="p-2">{money(row.consumptionTaxAmount, data.currency)}</td><td className="p-2">{money(row.consumptionSubtotal, data.currency)}</td></tr>)}</tbody></table></div>}</section>;
+}
+
+function DetailTable({ data }: { data: SalesAnalyticsCurrency }) {
+  return <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200"><h2 className="text-xl font-bold text-[#001F3F]">Detalle de ventas · {data.currency}</h2>{data.details.length === 0 ? <p className="mt-3 text-slate-600">No hay ventas cerradas para este periodo.</p> : <div className="mt-3 overflow-x-auto"><table className="min-w-full text-left text-sm"><thead><tr className="border-b text-slate-600"><th className="p-2">Fecha</th><th className="p-2">Pedido</th><th className="p-2">Mesa</th><th className="p-2">Productos</th><th className="p-2">Ventas</th><th className="p-2">Impuesto</th><th className="p-2">Servicio</th><th className="p-2">Total</th></tr></thead><tbody>{data.details.map(row => <tr key={row.orderId} className="border-b last:border-0"><td className="p-2">{new Date(row.settledAt).toLocaleString('es-CO', { timeZone: 'America/Bogota' })}</td><td className="p-2 font-semibold">#{row.orderId}</td><td className="p-2">{row.table}</td><td className="p-2">{row.items.map(item => `${item.name} × ${item.quantity}`).join(', ')}</td><td className="p-2">{money(row.salesAmount, data.currency)}</td><td className="p-2">{money(row.consumptionTaxAmount, data.currency)}</td><td className="p-2">{money(row.serviceAmount, data.currency)}</td><td className="p-2 font-semibold">{money(row.totalCollected, data.currency)}</td></tr>)}</tbody></table></div>}</section>;
+}
+
+export default function SalesAnalyticsPage() {
+  useAuthGuard('reports.read');
+  const initialDate = todayInBogota();
+  const [period, setPeriod] = useState<SalesAnalyticsPeriod>('day');
+  const [date, setDate] = useState(initialDate);
+  const [week, setWeek] = useState(initialDate);
+  const [month, setMonth] = useState(initialDate.slice(0, 7));
+  const [year, setYear] = useState(initialDate.slice(0, 4));
+  const [from, setFrom] = useState(initialDate);
+  const [to, setTo] = useState(initialDate);
+  const [menuItemId, setMenuItemId] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [data, setData] = useState<SalesAnalyticsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [ytdExpanded, setYtdExpanded] = useState(false);
+
+  const load = useCallback(async () => {
+    if (period === 'custom' && (!from || !to)) return;
+    setLoading(true); setError('');
+    try {
+      setData(await fetchSalesAnalytics({ period, date: period === 'day' ? date : undefined, week: period === 'week' ? week : undefined, month: period === 'month' ? month : undefined, year: period === 'year' ? year : undefined, from: period === 'custom' ? from : undefined, to: period === 'custom' ? to : undefined, menuItemId: menuItemId ? Number(menuItemId) : undefined, categoryId: categoryId ? Number(categoryId) : undefined }));
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'No fue posible cargar la analítica de ventas.'); } finally { setLoading(false); }
+  }, [categoryId, date, from, menuItemId, month, period, to, week, year]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const products = data?.filterOptions.products ?? [];
+  const categories = data?.filterOptions.categories ?? [];
+  const years = data?.filterOptions.years ?? [Number(initialDate.slice(0, 4))];
+  const weekMonday = mondayOf(week);
+  const weekSunday = addDays(weekMonday, 6);
+  const periodDescription = period === 'day' ? dateLabel(date) : period === 'week' ? `Semana ${isoWeek(week)} de ${week.slice(0, 4)} · ${dateLabel(weekMonday)} → ${dateLabel(weekSunday)}` : period === 'month' ? monthLabel(month) : period === 'year' ? year : `${dateLabel(from)} → ${dateLabel(to)}`;
+  const renderCurrency = (currency: SalesAnalyticsCurrency) => <div key={currency.currency} className="space-y-4"><SummaryCards data={currency} title="Periodo seleccionado" /><div className="grid gap-4 xl:grid-cols-2"><AnalyticsTable title="Productos vendidos" rows={currency.products} currency={currency.currency} /><AnalyticsTable title="Adiciones vendidas" rows={currency.additions} currency={currency.currency} /></div><CategoryTable data={currency} /><DetailTable data={currency} /></div>;
+
+  return <DashboardLayout><div className="space-y-5 p-4 sm:p-6"><header className="rounded-2xl bg-gradient-to-r from-[#001F3F] to-[#1b4770] p-6 text-white shadow-lg"><p className="text-sm font-semibold uppercase tracking-wider text-blue-100">Ventas</p><h1 className="mt-1 text-3xl font-bold">Analítica de ventas</h1><p className="mt-2 max-w-2xl text-blue-100">Consulta qué se vendió usando snapshots históricos de pedidos cerrados.</p></header>
+    <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200"><h2 className="text-lg font-bold text-[#001F3F]">Periodo</h2><div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Periodo de analítica">{(Object.keys(periodLabels) as SalesAnalyticsPeriod[]).map(value => <button key={value} type="button" onClick={() => setPeriod(value)} className={`rounded-lg border px-4 py-2 text-sm font-semibold transition ${period === value ? 'border-[#001F3F] bg-[#001F3F] text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-[#001F3F]'}`}>{periodLabels[value]}</button>)}</div><div className="mt-4 flex flex-wrap items-end gap-4 rounded-xl bg-slate-50 p-4"><div className="min-w-[220px] flex-1"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Selección actual</p><p className="mt-1 text-lg font-bold capitalize text-[#001F3F]">{periodDescription}</p></div>{period === 'day' && <label className="text-sm font-semibold text-slate-700">Día<input aria-label="Día seleccionado" type="date" value={date} onChange={event => setDate(event.target.value)} className="mt-1 block rounded-lg border border-slate-300 p-2" /></label>}{period === 'week' && <label className="text-sm font-semibold text-slate-700">Semana de referencia<input aria-label="Semana seleccionada" type="date" value={week} onChange={event => setWeek(event.target.value)} className="mt-1 block rounded-lg border border-slate-300 p-2" /></label>}{period === 'month' && <label className="text-sm font-semibold text-slate-700">Mes<input aria-label="Mes seleccionado" type="month" value={month} onChange={event => setMonth(event.target.value)} className="mt-1 block rounded-lg border border-slate-300 p-2" /></label>}{period === 'year' && <label className="text-sm font-semibold text-slate-700">Año<select aria-label="Año seleccionado" value={year} onChange={event => setYear(event.target.value)} className="mt-1 block rounded-lg border border-slate-300 bg-white p-2">{years.map(value => <option key={value} value={value}>{value}</option>)}</select></label>}{period === 'custom' && <div className="flex flex-wrap gap-3"><label className="text-sm font-semibold text-slate-700">Desde<input aria-label="Desde" type="date" value={from} onChange={event => setFrom(event.target.value)} className="mt-1 block rounded-lg border border-slate-300 p-2" /></label><label className="text-sm font-semibold text-slate-700">Hasta<input aria-label="Hasta" type="date" value={to} onChange={event => setTo(event.target.value)} className="mt-1 block rounded-lg border border-slate-300 p-2" /></label></div>}</div><div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-700">Producto<select aria-label="Producto" value={menuItemId} onChange={event => setMenuItemId(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2"><option value="">Todos los productos</option>{products.map(product => <option key={product.menuItemId} value={product.menuItemId}>{product.name}</option>)}</select></label><label className="text-sm font-semibold text-slate-700">Categoría<select aria-label="Categoría" value={categoryId} onChange={event => setCategoryId(event.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2"><option value="">Todas las categorías</option>{categories.map(category => <option key={category.categoryId} value={category.categoryId}>{category.name}</option>)}</select></label></div></section>
+    {loading && <p className="rounded-xl bg-white p-5 text-slate-600 shadow-sm">Cargando analítica…</p>}{error && <p role="alert" className="rounded-xl bg-red-50 p-5 text-red-800">{error}</p>}{!loading && !error && data && <><section className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200"><button type="button" aria-expanded={ytdExpanded} onClick={() => setYtdExpanded(value => !value)} className="flex w-full items-center justify-between p-5 text-left"><span className="text-lg font-bold text-[#001F3F]">{ytdExpanded ? '▼' : '▶'} Acumulado del año {data.yearToDate.from.slice(0, 4)}</span><span className="text-sm text-slate-500">{dateLabel(data.yearToDate.from)} → hoy</span></button>{ytdExpanded && <div className="space-y-4 border-t border-slate-200 p-5">{data.yearToDate.currencies.map(currency => <SummaryCards key={currency.currency} data={currency} title="Acumulado del año" includeOperational={false} />)}</div>}</section>{data.currencies.length === 0 ? <p className="rounded-xl bg-white p-5 text-slate-600 shadow-sm">No hay ventas cerradas para los filtros seleccionados.</p> : data.currencies.map(renderCurrency)}</>}
+  </div></DashboardLayout>;
+}

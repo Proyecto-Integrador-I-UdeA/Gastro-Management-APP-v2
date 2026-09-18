@@ -19,8 +19,11 @@ import {
   updateTable,
 } from '../../controllers/sales/salesOrderController';
 import { authenticate, authorize } from '../../middlewares/auth';
+import { getAnalytics } from '../../controllers/sales/salesAnalyticsController';
 
 const router = Router();
+
+router.get('/analytics', authenticate, authorize(['reports.read']), getAnalytics);
 
 router.get(
   '/menu-catalog',

@@ -608,6 +608,8 @@ model SalesOrderItem {
   menuItemId          Int
   menuItemPriceId     Int
   menuItemNameSnapshot String
+  menuCategoryIdSnapshot Int?
+  menuCategoryNameSnapshot String?
   quantity            Int
   specialInstructions String?       @db.VarChar(500)
   unitPriceSnapshot   Decimal       @db.Decimal(12, 2)
@@ -629,6 +631,7 @@ model SalesOrderItem {
 
   @@index([salesOrderId])
   @@index([menuItemId])
+  @@index([menuCategoryIdSnapshot])
   @@index([parentItemId])
   @@map("sales_order_items")
 }

@@ -68,6 +68,17 @@ const operationalWarehouseMigrationStatements = operationalWarehouseMigrationSql
   .split(';')
   .map(statement => statement.trim())
   .filter(Boolean);
+const categorySnapshotMigrationSql = readFileSync(
+  resolve(
+    process.cwd(),
+    'prisma/migrations/20260918120000_sales_01a_category_snapshots/migration.sql',
+  ),
+  'utf8',
+);
+const categorySnapshotMigrationStatements = categorySnapshotMigrationSql
+  .split(';')
+  .map(statement => statement.trim())
+  .filter(Boolean);
 
 let app: Express;
 let prisma: PrismaClient;
@@ -402,6 +413,9 @@ beforeAll(async () => {
     await prisma.$executeRawUnsafe(statement);
   }
   for (const statement of operationalWarehouseMigrationStatements) {
+    await prisma.$executeRawUnsafe(statement);
+  }
+  for (const statement of categorySnapshotMigrationStatements) {
     await prisma.$executeRawUnsafe(statement);
   }
   const cashMigration = readFileSync(resolve(process.cwd(), 'prisma/migrations/20260916120000_cash_01a_cash_register_mvp/migration.sql'), 'utf8');
@@ -810,6 +824,13 @@ describe('backend de mesas y pedidos SALES-02D', () => {
     expect(storedLines).toHaveLength(2);
     expect(storedLines.every(line => line.addedById === actorId)).toBe(true);
     expect(storedLines[1].parentItemId).toBe(storedLines[0].id);
+    expect(storedLines.map(line => ({
+      categoryId: line.menuCategoryIdSnapshot,
+      categoryName: line.menuCategoryNameSnapshot,
+    }))).toEqual([
+      { categoryId: activeCategoryId, categoryName: 'Platos activos' },
+      { categoryId: activeCategoryId, categoryName: 'Platos activos' },
+    ]);
 
     await prisma.menuItem.update({
       where: { id: standardItemId },
