@@ -21,7 +21,7 @@ vi.mock('@/components/layouts/DashboardLayout', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.getUserPermissions.mockReturnValue(['sales.read']);
+  mocks.getUserPermissions.mockReturnValue(['sales.read', 'reservations.read']);
 });
 
 describe('dashboard del módulo de Ventas', () => {
@@ -32,7 +32,7 @@ describe('dashboard del módulo de Ventas', () => {
     expect(screen.queryByRole('button', { name: /Cocina/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Menú y precios/ })).toBeEnabled();
     expect(screen.queryByRole('button', { name: /Caja/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Reservas y eventos/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Reservas y eventos/ })).toBeEnabled();
     expect(screen.queryByRole('button', { name: /Analítica de ventas/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Ventas / })).not.toBeInTheDocument();
   });
@@ -70,6 +70,15 @@ describe('dashboard del módulo de Ventas', () => {
     await user.click(await screen.findByRole('button', { name: /Mesas y pedidos/ }));
 
     expect(mocks.push).toHaveBeenCalledWith('/sales/orders');
+  });
+
+  it('reutiliza una sola tarjeta de Reservas y navega con reservations.read', async () => {
+    const user = userEvent.setup();
+    render(<SalesDashboardPage />);
+    const reservations = await screen.findAllByRole('button', { name: /Reservas y eventos/ });
+    expect(reservations).toHaveLength(1);
+    await user.click(reservations[0]);
+    expect(mocks.push).toHaveBeenCalledWith('/sales/reservations');
   });
 
   it('habilita el módulo Ventas para reports.read y navega a analítica', async () => {

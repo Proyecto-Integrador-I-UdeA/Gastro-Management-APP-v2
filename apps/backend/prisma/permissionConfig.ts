@@ -46,6 +46,8 @@ export const businessPermissions: readonly PermissionDefinition[] = [
   { name: 'sales.read', description: 'Ver ventas' },
   { name: 'sales.manage', description: 'Administrar mesas y pedidos de venta' },
   { name: 'sales.tables.manage', description: 'Configurar mesas del restaurante' },
+  { name: 'reservations.read', description: 'Consultar reservas y eventos' },
+  { name: 'reservations.manage', description: 'Administrar reservas y eventos' },
   { name: 'cash.read', description: 'Consultar sesión y cuentas pendientes de Caja' },
   { name: 'cash.operate', description: 'Operar cuentas, prefacturas y pagos de Caja' },
   { name: 'cash.configure', description: 'Configurar servicio voluntario y cajas' },

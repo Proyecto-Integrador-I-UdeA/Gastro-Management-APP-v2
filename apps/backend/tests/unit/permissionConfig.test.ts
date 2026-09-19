@@ -10,6 +10,7 @@ const menuPermissions = ['menu.read', 'menu.manage', 'menu.availability.manage']
 const salePricePermissions = ['costs.prices.read', 'costs.prices.manage'];
 const salesPermissions = ['sales.read', 'sales.manage'];
 const tableAdministrationPermission = 'sales.tables.manage';
+const reservationPermissions = ['reservations.read', 'reservations.manage'];
 const kitchenPermissions = ['kitchen.read', 'kitchen.manage'];
 
 describe('configuración de permisos por rol', () => {
@@ -81,6 +82,18 @@ describe('configuración de permisos por rol', () => {
     for (const permission of kitchenPermissions) {
       expect(rolePermissions.accounting).not.toContain(permission);
       expect(rolePermissions.purchases).not.toContain(permission);
+    }
+  });
+
+  it('asigna reservas únicamente a admin y super entre los roles actuales', () => {
+    expect(businessPermissions.map(permission => permission.name))
+      .toEqual(expect.arrayContaining(reservationPermissions));
+    expect(rolePermissions.admin).toEqual(expect.arrayContaining(reservationPermissions));
+    expect(rolePermissions.super).toEqual(expect.arrayContaining(reservationPermissions));
+    for (const permission of reservationPermissions) {
+      expect(rolePermissions.chef).not.toContain(permission);
+      expect(rolePermissions.purchases).not.toContain(permission);
+      expect(rolePermissions.accounting).not.toContain(permission);
     }
   });
 
