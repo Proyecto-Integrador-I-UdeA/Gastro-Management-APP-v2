@@ -64,7 +64,8 @@ const moduleGroups: Array<{
         title: "Reservas y eventos",
         description: "Agenda reservas, mesas y eventos privados.",
         path: "/sales/reservations",
-        available: false,
+        available: true,
+        requiredPermission: "reservations.read",
       },
       {
         title: "Ventas",

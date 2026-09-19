@@ -36,6 +36,16 @@ describe("navegación de Cocina", () => {
     expect(mocks.push).toHaveBeenCalledWith("/kitchen");
   });
 
+  it("muestra Reservas dentro de Ventas únicamente con reservations.read", async () => {
+    const user = userEvent.setup();
+    mocks.router.asPath = "/sales";
+    localStorage.setItem("token", tokenWithPermissions(["reservations.read"]));
+    render(<Sidebar />);
+
+    await user.click(await screen.findByRole("button", { name: /Reservas y eventos/ }));
+    expect(mocks.push).toHaveBeenCalledWith("/sales/reservations");
+  });
+
   it("no expone Cocina sin kitchen.read", async () => {
     mocks.router.asPath = "/sales";
     localStorage.setItem("token", tokenWithPermissions(["sales.read"]));

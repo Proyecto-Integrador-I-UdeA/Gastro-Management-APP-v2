@@ -50,6 +50,8 @@ export const ROUTES = {
     root: '/sales',
     orders: '/sales/orders',
     menu: '/sales/menu',
+    reservations: '/sales/reservations',
+    newReservation: '/sales/reservations/new',
     cash: '/sales/cash',
   },
 } as const;

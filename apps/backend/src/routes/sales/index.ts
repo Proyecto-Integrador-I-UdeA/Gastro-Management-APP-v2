@@ -20,10 +20,33 @@ import {
 } from '../../controllers/sales/salesOrderController';
 import { authenticate, authorize } from '../../middlewares/auth';
 import { getAnalytics } from '../../controllers/sales/salesAnalyticsController';
+import {
+  cancel as cancelReservation,
+  complete as completeReservation,
+  confirm as confirmReservation,
+  create as createReservation,
+  detail as getReservation,
+  list as listReservations,
+  references as getReservationReferences,
+  reschedule as rescheduleReservation,
+  summary as getReservationSummary,
+  update as updateReservation,
+} from '../../controllers/sales/reservationController';
 
 const router = Router();
 
 router.get('/analytics', authenticate, authorize(['reports.read']), getAnalytics);
+
+router.get('/reservations', authenticate, authorize(['reservations.read']), listReservations);
+router.get('/reservations/summary', authenticate, authorize(['reservations.read']), getReservationSummary);
+router.get('/reservations/references', authenticate, authorize(['reservations.manage']), getReservationReferences);
+router.get('/reservations/:id', authenticate, authorize(['reservations.read']), getReservation);
+router.post('/reservations', authenticate, authorize(['reservations.manage']), createReservation);
+router.patch('/reservations/:id', authenticate, authorize(['reservations.manage']), updateReservation);
+router.post('/reservations/:id/confirm', authenticate, authorize(['reservations.manage']), confirmReservation);
+router.post('/reservations/:id/reschedule', authenticate, authorize(['reservations.manage']), rescheduleReservation);
+router.post('/reservations/:id/cancel', authenticate, authorize(['reservations.manage']), cancelReservation);
+router.post('/reservations/:id/complete', authenticate, authorize(['reservations.manage']), completeReservation);
 
 router.get(
   '/menu-catalog',

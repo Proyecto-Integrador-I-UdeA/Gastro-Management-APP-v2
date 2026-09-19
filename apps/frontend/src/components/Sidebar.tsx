@@ -356,6 +356,16 @@ export default function Sidebar() {
                   <span className="text-lg">Menú y precios</span>
                 </button>
               )}
+              {can("reservations.read") && (
+                <button
+                  type="button"
+                  className={itemClass(safePath.startsWith("/sales/reservations"))}
+                  onClick={() => handleNavigate("/sales/reservations", "reservations.read")}
+                >
+                  <span className="text-xl">📅</span>
+                  <span className="text-lg">Reservas y eventos</span>
+                </button>
+              )}
               {can("cash.read") && (
                 <button
                   type="button"
