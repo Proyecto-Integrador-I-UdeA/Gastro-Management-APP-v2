@@ -358,6 +358,35 @@ model CostCategory {
   @@map("cost_categories")
 }
 
+enum FinanceExpenseKind {
+  FIXED
+  VARIABLE
+}
+
+enum FinanceExpensePeriodicity {
+  MONTHLY
+  BIMONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+model FinanceExpenseItem {
+  id          Int                        @id @default(autoincrement())
+  kind        FinanceExpenseKind
+  month       String
+  concept     String
+  periodicity FinanceExpensePeriodicity?
+  base        String?
+  amount      Decimal                    @db.Decimal(14, 2)
+  active      Boolean                    @default(true)
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @default(now()) @updatedAt
+
+  @@unique([kind, month, concept])
+  @@index([kind, month])
+  @@map("finance_expense_items")
+}
+
 model MenuCategory {
   id             Int        @id @default(autoincrement())
   name           String
