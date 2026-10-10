@@ -167,16 +167,16 @@ export default function Dashboard() {
                 );
               })()}
 
-              {/* CONTABILIDAD */}
+              {/* GESTIÓN FINANCIERA */}
               {(() => {
                 const allowed = can("accounting.read");
                 return (
                   <div
-                    onClick={() => allowed && handleNavigate("/accounting")}
+                    onClick={() => allowed && handleNavigate(ROUTES.finance.root)}
                     className={`${baseCard} ${allowed ? activeCard : disabledCard}`}
                   >
-                    <h2>CONTABILIDAD</h2>
-                    <p>Registra tu Actividad Contable</p>
+                    <h2>GESTIÓN FINANCIERA</h2>
+                    <p>Controla tesorería, gastos y rentabilidad</p>
                   </div>
                 );
               })()}
