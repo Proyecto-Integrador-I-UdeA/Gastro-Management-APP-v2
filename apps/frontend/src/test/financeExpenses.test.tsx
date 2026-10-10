@@ -15,6 +15,18 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/financeExpensesApi", () => mocks.api);
+vi.mock("@/lib/financeLedgerApi", () => ({
+  fetchFinanceLedger: vi.fn().mockResolvedValue({
+    month: "2026-10",
+    payables: [],
+    receivables: [],
+    suppliers: [],
+  }),
+  createFinanceLedger: vi.fn(),
+  updateFinanceLedger: vi.fn(),
+  deleteFinanceLedger: vi.fn(),
+  createFinanceLedgerPayment: vi.fn(),
+}));
 vi.mock("@/utils/permissions", () => ({
   getUserPermissions: mocks.permissions,
 }));
@@ -73,7 +85,7 @@ describe("pantalla de gastos financieros", () => {
     expect(screen.queryByRole("columnheader", { name: "Tendencia" })).not.toBeInTheDocument();
 
     const addButtons = await screen.findAllByRole("button", { name: "+ Agregar" });
-    await user.click(addButtons[0]);
+    await user.click(addButtons[2]);
     await user.type(screen.getByRole("textbox", { name: "Concepto" }), "Arriendo local");
     await user.type(screen.getByRole("spinbutton", { name: "Valor" }), "8500000");
     await user.click(screen.getByRole("button", { name: "Guardar rubro" }));

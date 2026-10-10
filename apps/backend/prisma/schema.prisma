@@ -20,6 +20,7 @@ model Supplier {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @default(now()) @updatedAt
   products      Product[]
+  financePayables FinanceLedgerDocument[]
 
   @@map("suppliers")
 }
@@ -385,6 +386,44 @@ model FinanceExpenseItem {
   @@unique([kind, month, concept])
   @@index([kind, month])
   @@map("finance_expense_items")
+}
+
+enum FinanceLedgerSide {
+  PAYABLE
+  RECEIVABLE
+}
+
+model FinanceLedgerDocument {
+  id             Int                  @id @default(autoincrement())
+  side           FinanceLedgerSide
+  supplierId     Int?
+  partyName      String?
+  documentNumber String
+  invoiceNumber  String?
+  issuedAt       DateTime
+  dueAt          DateTime
+  amount         Decimal              @db.Decimal(14, 2)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @default(now()) @updatedAt
+  supplier       Supplier?            @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  payments       FinanceLedgerPayment[]
+
+  @@unique([side, documentNumber])
+  @@index([side, dueAt])
+  @@map("finance_ledger_documents")
+}
+
+model FinanceLedgerPayment {
+  id         Int                    @id @default(autoincrement())
+  documentId Int
+  amount     Decimal                @db.Decimal(14, 2)
+  paidAt     DateTime               @default(now())
+  note       String?
+  createdAt  DateTime               @default(now())
+  document   FinanceLedgerDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([documentId, paidAt])
+  @@map("finance_ledger_payments")
 }
 
 model MenuCategory {

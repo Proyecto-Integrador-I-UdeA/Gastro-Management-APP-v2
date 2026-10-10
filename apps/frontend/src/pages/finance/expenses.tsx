@@ -15,6 +15,7 @@ import {
   type FinanceExpensePeriodicity,
   type FinanceExpensesResponse,
 } from "@/lib/financeExpensesApi";
+import FinanceLedgerSection from "@/components/finance/FinanceLedgerSection";
 import { getUserPermissions } from "@/utils/permissions";
 
 const periodicityLabels: Record<FinanceExpensePeriodicity, string> = {
@@ -160,7 +161,7 @@ export default function FinanceExpensesPage() {
           <div>
             <h1 className="text-3xl font-bold text-[#001F3F]">Gastos</h1>
             <p className="mt-2 text-gray-600">
-              Registra los gastos fijos y los costos indirectos variables del periodo.
+              Rubros del periodo y documentos por pagar o por cobrar con vencimiento en ese mes.
             </p>
           </div>
           <label className="block text-sm font-semibold text-gray-700">
@@ -184,10 +185,12 @@ export default function FinanceExpensesPage() {
           </div>
         )}
 
+        <FinanceLedgerSection month={month} canUpdate={canUpdate} />
+
         {formKind && canUpdate && (
           <form
             onSubmit={save}
-            className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+            className="mb-6 mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
           >
             <h2 className="text-lg font-semibold text-[#001F3F]">
               {editingId ? "Editar rubro" : "Nuevo rubro"} · {formKind === "FIXED" ? "Gasto fijo" : "Costo variable"}
@@ -270,9 +273,9 @@ export default function FinanceExpensesPage() {
         )}
 
         {loading ? (
-          <div className="rounded-xl bg-white p-6 text-gray-600 shadow-sm">Cargando gastos…</div>
+          <div className="mt-6 rounded-xl bg-white p-6 text-gray-600 shadow-sm">Cargando gastos…</div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
             <ExpenseTable
               title="Gastos fijos"
               emptyLabel="No hay gastos fijos en este periodo."
