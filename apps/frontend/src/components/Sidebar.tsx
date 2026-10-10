@@ -27,6 +27,7 @@ function sidebarImageSrc(safePath: string): string {
   if (safePath.includes("/products")) return "/images/sidebar-productos.jpg";
   if (safePath.includes("/inventory")) return "/images/sidebar-dashboard.jpg";
   if (safePath.includes("/reports")) return "/images/sidebar-dashboard.jpg";
+  if (safePath.includes("/finance")) return "/images/sidebar-dashboard.jpg";
   if (safePath.includes("/transfers")) return "/images/sidebar-dashboard.jpg";
   if (safePath.includes("/users/create")) return "/images/sidebar-users-create.jpg";
   if (safePath.includes("/users/edit")) return "/images/sidebar-users-edit.jpg";
@@ -66,6 +67,7 @@ export default function Sidebar() {
   const inInventoryModule = safePath.startsWith("/inventory");
   const inReportsModule = safePath.startsWith("/reports");
   const inSalesModule = safePath.startsWith("/sales") || safePath === "/kitchen";
+  const inFinanceModule = safePath.startsWith("/finance");
   const reportsProductsActive =
     safePath === "/reports/products" || safePath.startsWith("/reports/products");
   const reportsSuppliersActive =
@@ -392,6 +394,44 @@ export default function Sidebar() {
                 onClick={() => handleNavigate("/dashboard")}
               >
                 📊 <span className="text-lg">Dashboard</span>
+              </button>
+            </>
+          ) : inFinanceModule ? (
+            <>
+              {can("accounting.read") && (
+                <>
+                  <button
+                    type="button"
+                    className={itemClass(safePath === "/finance")}
+                    onClick={() => handleNavigate("/finance", "accounting.read")}
+                  >
+                    <span className="text-xl">💼</span>
+                    <span className="text-lg">Inicio financiero</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={itemClass(safePath.startsWith("/finance/expenses"))}
+                    onClick={() => handleNavigate("/finance/expenses", "accounting.read")}
+                  >
+                    <span className="text-xl">🧾</span>
+                    <span className="text-lg">Gastos</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={itemClass(safePath.startsWith("/finance/payroll"))}
+                    onClick={() => handleNavigate("/finance/payroll", "accounting.read")}
+                  >
+                    <span className="text-xl">👥</span>
+                    <span className="text-lg">Nómina</span>
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                className="flex items-center gap-4 px-6 py-4 text-left w-full hover:bg-[#33566E] text-white/80"
+                onClick={() => handleNavigate("/dashboard")}
+              >
+                📈 <span className="text-lg">Dashboard</span>
               </button>
             </>
           ) : (

@@ -33,5 +33,15 @@ describe("jerarquía del dashboard principal", () => {
 
     expect(await screen.findByRole("heading", { name: "VENTAS" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "COCINA" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "CONTABILIDAD" })).not.toBeInTheDocument();
+  });
+
+  it("muestra Gestión financiera en lugar de Contabilidad", async () => {
+    localStorage.setItem("token", tokenWithPermissions(["accounting.read"]));
+
+    render(<Dashboard />);
+
+    expect(await screen.findByRole("heading", { name: "GESTIÓN FINANCIERA" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "CONTABILIDAD" })).not.toBeInTheDocument();
   });
 });

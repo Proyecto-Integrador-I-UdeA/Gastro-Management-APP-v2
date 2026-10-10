@@ -62,9 +62,9 @@ export default function DashboardLayout({
    parentRoute = "/transfers";
    parentLabel = "Traslados";
  }
-  if (path.startsWith("/accounting") && path !== "/accounting") {
-   parentRoute = "/accounting";
-   parentLabel = "Contabilidad";
+  if (path.startsWith("/finance") && path !== "/finance") {
+   parentRoute = "/finance";
+   parentLabel = "Gestión financiera";
  }
   if (path.startsWith("/sales") && path !== "/sales") {
    parentRoute = "/sales";
