@@ -426,6 +426,71 @@ model FinanceLedgerPayment {
   @@map("finance_ledger_payments")
 }
 
+enum FinancePayrollArea {
+  KITCHEN
+  SERVICE
+  ADMIN
+  SUPPORT
+}
+
+enum FinancePayrollPeriodStatus {
+  OPEN
+  CLOSED
+}
+
+model FinanceEmployee {
+  id             Int                 @id @default(autoincrement())
+  fullName       String
+  nationalId     String              @unique
+  area           FinancePayrollArea
+  position       String
+  hiredAt        DateTime
+  monthlySalary  Decimal             @db.Decimal(14, 2)
+  active         Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @default(now()) @updatedAt
+  entries        FinancePayrollEntry[]
+
+  @@index([active, area])
+  @@map("finance_employees")
+}
+
+model FinancePayrollPeriod {
+  id        Int                         @id @default(autoincrement())
+  month     String                      @unique
+  status    FinancePayrollPeriodStatus  @default(OPEN)
+  note      String?
+  closedAt  DateTime?
+  createdAt DateTime                    @default(now())
+  updatedAt DateTime                    @default(now()) @updatedAt
+  entries   FinancePayrollEntry[]
+
+  @@map("finance_payroll_periods")
+}
+
+model FinancePayrollEntry {
+  id          Int                   @id @default(autoincrement())
+  periodId    Int
+  employeeId  Int
+  fullName    String
+  nationalId  String
+  area        FinancePayrollArea
+  position    String
+  salary      Decimal               @db.Decimal(14, 2)
+  extras      Decimal               @db.Decimal(14, 2) @default(0)
+  deductions  Decimal               @db.Decimal(14, 2) @default(0)
+  benefits    Decimal               @db.Decimal(14, 2) @default(0)
+  note        String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @default(now()) @updatedAt
+  period      FinancePayrollPeriod  @relation(fields: [periodId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  employee    FinanceEmployee       @relation(fields: [employeeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([periodId, employeeId])
+  @@index([periodId, area])
+  @@map("finance_payroll_entries")
+}
+
 model MenuCategory {
   id             Int        @id @default(autoincrement())
   name           String

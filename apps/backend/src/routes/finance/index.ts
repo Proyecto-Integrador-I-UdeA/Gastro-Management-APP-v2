@@ -12,6 +12,18 @@ import {
   listLedger,
   updateLedger,
 } from '../../controllers/finance/financeLedgerController';
+import {
+  closePayroll,
+  createEmployee,
+  deleteEmployee,
+  deletePayrollEntry,
+  generatePayroll,
+  listEmployees,
+  listPayroll,
+  reopenPayroll,
+  updateEmployee,
+  updatePayrollEntry,
+} from '../../controllers/finance/financePayrollController';
 import { authenticate, authorize } from '../../middlewares/auth';
 
 const router = Router();
@@ -26,5 +38,17 @@ router.post('/ledger', authenticate, authorize(['accounting.update']), createLed
 router.put('/ledger/:id', authenticate, authorize(['accounting.update']), updateLedger);
 router.delete('/ledger/:id', authenticate, authorize(['accounting.update']), deleteLedger);
 router.post('/ledger/:id/payments', authenticate, authorize(['accounting.update']), createLedgerPayment);
+
+router.get('/employees', authenticate, authorize(['accounting.read']), listEmployees);
+router.post('/employees', authenticate, authorize(['accounting.update']), createEmployee);
+router.put('/employees/:id', authenticate, authorize(['accounting.update']), updateEmployee);
+router.delete('/employees/:id', authenticate, authorize(['accounting.update']), deleteEmployee);
+
+router.get('/payroll', authenticate, authorize(['accounting.read']), listPayroll);
+router.post('/payroll/generate', authenticate, authorize(['accounting.update']), generatePayroll);
+router.put('/payroll/entries/:id', authenticate, authorize(['accounting.update']), updatePayrollEntry);
+router.delete('/payroll/entries/:id', authenticate, authorize(['accounting.update']), deletePayrollEntry);
+router.post('/payroll/:id/close', authenticate, authorize(['accounting.update']), closePayroll);
+router.post('/payroll/:id/reopen', authenticate, authorize(['accounting.update']), reopenPayroll);
 
 export default router;
