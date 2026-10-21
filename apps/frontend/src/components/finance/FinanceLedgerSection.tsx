@@ -452,6 +452,10 @@ function LedgerTable({
           </tbody>
         </table>
       </div>
+      <div className="mt-4 flex justify-between text-sm font-semibold text-gray-700">
+        <span>Total</span>
+        <span>{formatCurrency(rows.reduce((total, item) => total + item.balance, 0))}</span>
+      </div>
     </section>
   );
 }
