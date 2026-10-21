@@ -32,7 +32,7 @@ const moduleGroups: Array<{
       },
       {
         title: "Nómina",
-        description: "Salarios, prestaciones y costo laboral por área.",
+        description: "Colaboradores y corrida mensual por área.",
         path: "/finance/payroll",
       },
     ],

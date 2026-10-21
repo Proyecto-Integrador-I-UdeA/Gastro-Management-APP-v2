@@ -113,6 +113,7 @@ export function createRolePermissions(
     ],
 
     accounting: [
+      'accounting.read', 'accounting.update',
       'costs.read', 'costs.update',
       'costs.prices.read',
       'sales.read',
