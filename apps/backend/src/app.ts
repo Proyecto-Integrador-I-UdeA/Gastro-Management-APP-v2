@@ -90,7 +90,7 @@ app.use("/ingredient-catalog", ingredientCatalogRoutes);
 
 // 🔥 HEALTH CHECK
 app.get('/', (req, res) => {
-  res.json({ message: '¡Backend de Gastro Management API funcionando!' });
+  res.json({ message: '¡Backend de Gastro Management API funcionando.!' });
 });
 
 // 🔥 START SERVER
