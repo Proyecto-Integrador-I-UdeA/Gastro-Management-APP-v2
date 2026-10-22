@@ -37,3 +37,10 @@ prisma/dev.db-journal
 
 
 
+
+# Scripts de demo y temporales
+*.tsbuildinfo
+diagnostico.txt
+check-users.sql
+cleanup-demo.sql
+seed-demo.sql

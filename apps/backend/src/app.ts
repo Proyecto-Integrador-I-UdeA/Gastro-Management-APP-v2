@@ -19,6 +19,7 @@ import salesRoutes from './routes/sales';
 import kitchenRoutes from './routes/kitchen';
 import ingredientCatalogRoutes from "./routes/catalog/ingredientCatalog.routes";
 import cashRoutes from './routes/cash';
+import financeRouter from './routes/finance';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -83,6 +84,7 @@ app.use('/menu-media', menuMediaRoutes);
 app.use('/sales', salesRoutes);
 app.use('/cash', cashRoutes);
 app.use('/kitchen', kitchenRoutes);
+app.use('/finance', financeRouter);
 app.use("/ingredient-catalog", ingredientCatalogRoutes);
 
 // 🔥 HEALTH CHECK

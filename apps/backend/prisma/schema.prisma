@@ -176,8 +176,13 @@ model User {
   cancelledReservations   Reservation[]        @relation("ReservationCancelledBy")
   completedReservations   Reservation[]        @relation("ReservationCompletedBy")
   reservationHistory      ReservationHistory[] @relation("ReservationHistoryActor")
-  role                  Role?               @relation(fields: [roleId], references: [id])
+  role                    Role?               @relation(fields: [roleId], references: [id])
+  
 
+  manualMovementsCreated    FinanceManualMovement[]  @relation("ManualMovementCreatedBy")
+  manualMovementsCancelled  FinanceManualMovement[]  @relation("ManualMovementCancelledBy")
+  transfersCreated          FinanceTransfer[]        @relation("TransferCreatedBy")
+  payablesCreated           FinancePayable[]         @relation("PayableCreatedBy")
   @@map("users")
 }
 
@@ -947,4 +952,161 @@ enum ReservationHistoryAction {
   RESCHEDULED
   CANCELLED
   COMPLETED
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FINANCE · Tesorería (movimientos, transferencias, medios, CxP)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum FinancePaymentMethodKind {
+  CASH
+  BANK
+  GATEWAY
+  OTHER
+}
+
+enum FinanceCounterpartyKind {
+  SUPPLIER
+  CUSTOMER
+  EMPLOYEE
+  OTHER
+}
+
+enum FinanceMovementKind {
+  INCOME
+  EXPENSE
+}
+
+enum FinanceMovementStatus {
+  POSTED
+  PENDING
+  CANCELLED
+}
+
+enum FinancePayableStatus {
+  OPEN
+  PAID
+  CANCELLED
+}
+
+model FinancePaymentMethod {
+  id             Int                       @id @default(autoincrement())
+  name           String                    @unique
+  kind           FinancePaymentMethodKind
+  currency       String                    @default("COP") @db.VarChar(3)
+  currentBalance Decimal                   @default(0) @db.Decimal(14, 2)
+  active         Boolean                   @default(true)
+  notes          String?                   @db.VarChar(500)
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @default(now()) @updatedAt
+
+  movementsAsSource  FinanceManualMovement[]  @relation("MovementSource")
+  transfersAsSource  FinanceTransfer[]        @relation("TransferSource")
+  transfersAsTarget  FinanceTransfer[]        @relation("TransferTarget")
+  payables           FinancePayable[]
+
+  @@map("finance_payment_methods")
+}
+
+model FinanceCounterparty {
+  id        Int                       @id @default(autoincrement())
+  name      String
+  kind      FinanceCounterpartyKind
+  taxId     String?                   @db.VarChar(50)
+  email     String?                   @db.VarChar(320)
+  phone     String?                   @db.VarChar(50)
+  active    Boolean                   @default(true)
+  createdAt DateTime                  @default(now())
+  updatedAt DateTime                  @default(now()) @updatedAt
+
+  movements FinanceManualMovement[]
+  payables  FinancePayable[]
+
+  @@index([kind, active])
+  @@map("finance_counterparties")
+}
+
+model FinanceManualMovement {
+  id             Int                   @id @default(autoincrement())
+  kind           FinanceMovementKind
+  status         FinanceMovementStatus @default(POSTED)
+  occurredAt     DateTime
+  concept        String                @db.VarChar(300)
+  amount         Decimal               @db.Decimal(14, 2)
+  currency       String                @default("COP") @db.VarChar(3)
+  documentNumber String?               @db.VarChar(120)
+
+  counterpartyId  Int?
+  paymentMethodId Int
+
+  createdById        Int
+  cancelledById      Int?
+  cancelledAt        DateTime?
+  cancellationReason String?             @db.VarChar(500)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  counterparty  FinanceCounterparty? @relation(fields: [counterpartyId], references: [id], onDelete: Restrict)
+  paymentMethod FinancePaymentMethod @relation("MovementSource", fields: [paymentMethodId], references: [id], onDelete: Restrict)
+  createdBy     User                 @relation("ManualMovementCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  cancelledBy   User?                @relation("ManualMovementCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+
+  @@index([kind, occurredAt])
+  @@index([paymentMethodId, occurredAt])
+  @@index([counterpartyId])
+  @@index([status, occurredAt])
+  @@map("finance_manual_movements")
+}
+
+model FinanceTransfer {
+  id             Int                   @id @default(autoincrement())
+  occurredAt     DateTime
+  sourceMethodId Int
+  targetMethodId Int
+  amount         Decimal               @db.Decimal(14, 2)
+  currency       String                @default("COP") @db.VarChar(3)
+  description    String                @db.VarChar(300)
+  documentNumber String?               @db.VarChar(120)
+
+  createdById Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  sourceMethod FinancePaymentMethod @relation("TransferSource", fields: [sourceMethodId], references: [id], onDelete: Restrict)
+  targetMethod FinancePaymentMethod @relation("TransferTarget", fields: [targetMethodId], references: [id], onDelete: Restrict)
+  createdBy    User                 @relation("TransferCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([occurredAt])
+  @@index([sourceMethodId, occurredAt])
+  @@index([targetMethodId, occurredAt])
+  @@map("finance_transfers")
+}
+
+model FinancePayable {
+  id              Int                  @id @default(autoincrement())
+  concept         String               @db.VarChar(300)
+  amount          Decimal              @db.Decimal(14, 2)
+  currency        String               @default("COP") @db.VarChar(3)
+  dueDate         DateTime
+  status          FinancePayableStatus @default(OPEN)
+
+  counterpartyId  Int
+  paymentMethodId Int?
+
+  createdById    Int
+  paidAt         DateTime?
+  paidMovementId Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  counterparty  FinanceCounterparty   @relation(fields: [counterpartyId], references: [id], onDelete: Restrict)
+  paymentMethod FinancePaymentMethod? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  createdBy     User                  @relation("PayableCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([status, dueDate])
+  @@index([counterpartyId])
+  @@map("finance_payables")
 }

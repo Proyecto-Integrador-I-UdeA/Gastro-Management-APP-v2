@@ -69,6 +69,17 @@ export const businessPermissions: readonly PermissionDefinition[] = [
   { name: 'warehouses.create', description: 'Crear bodegas' },
   { name: 'warehouses.update', description: 'Editar bodegas' },
 
+    // FINANCIERO
+  { name: 'finance.income.view', description: 'Consultar ingresos del restaurante' },
+  { name: 'finance.profitability.view', description: 'Consultar rentabilidad del restaurante' },
+  { name: 'finance.income_statement.view', description: 'Consultar estado de resultados e indicadores' },
+  { name: 'finance.movements.read', description: 'Consultar movimientos manuales de tesorería' },
+  { name: 'finance.movements.create', description: 'Registrar ingresos y egresos manuales' },
+  { name: 'finance.movements.update', description: 'Editar movimientos manuales' },
+  { name: 'finance.movements.cancel', description: 'Cancelar movimientos manuales' },
+  { name: 'finance.transfers.read', description: 'Consultar transferencias entre medios de pago' },
+  { name: 'finance.transfers.create', description: 'Registrar transferencias entre medios de pago' },
+
   // PERFIL
   { name: 'profile.update', description: 'Cambiar contraseña' },
 ];
@@ -117,6 +128,15 @@ export function createRolePermissions(
       'costs.prices.read',
       'sales.read',
       'reports.read',
+      'finance.income.view',
+      'finance.profitability.view',
+      'finance.income_statement.view',
+      'finance.movements.read',      
+      'finance.movements.create',    
+      'finance.movements.update',    
+      'finance.movements.cancel',
+      'finance.transfers.read',       
+      'finance.transfers.create',   
       'profile.update',
     ],
   };

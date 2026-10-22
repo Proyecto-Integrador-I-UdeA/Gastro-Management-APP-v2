@@ -18,8 +18,29 @@ const moduleGroups: Array<{
 }> = [
   {
     title: "GESTIÓN BASE",
-    description: "Ingresos, egresos y rentabilidad quedan fuera de esta fase.",
-    modules: [],
+    description: "Ingresos, rentabilidad, movimientos y transferencias del restaurante.",
+    modules: [
+      {
+        title: "Ingresos",
+        description: "Consulta ingresos por devengo o caja con tendencia y ticket promedio.",
+        path: "/finance/income",
+      },
+      {
+        title: "Rentabilidad",
+        description: "Ingresos, COGS, gastos operativos y márgenes del período.",
+        path: "/finance/profitability",
+      },
+      {
+        title: "Movimientos",
+        description: "Registrá ingresos y egresos manuales con concepto, tercero, tipo, medio y valor.",
+        path: "/finance/movements",
+      },
+      {
+        title: "Transferencias",
+        description: "Trasladá dinero entre caja, banco y pasarela para cuadrar tesorería.",
+        path: "/finance/transfers",
+      },
+    ],
   },
   {
     title: "GASTOS Y NÓMINA",
@@ -37,10 +58,21 @@ const moduleGroups: Array<{
       },
     ],
   },
-  {
+    {
     title: "ANÁLISIS FINANCIERO",
-    description: "Estado de resultados e indicadores quedan fuera de esta fase.",
-    modules: [],
+    description: "Dashboard, estado de resultados e indicadores del restaurante.",
+    modules: [
+      {
+        title: "Dashboard",
+        description: "Liquidez, eficiencia y rentabilidad del período en un solo lugar.",
+        path: "/finance/dashboard",
+      },
+      {
+        title: "Estado de resultados",
+        description: "P&L del período con 24 indicadores financieros y operativos.",
+        path: "/finance/income-statement",
+      },
+    ],
   },
 ];
 
@@ -61,7 +93,7 @@ export default function FinanceHomePage() {
             Módulo de Gestión Financiera
           </h1>
           <p className="mt-2 text-gray-600">
-            Controla gastos y nómina. Los demás submódulos se habilitan en fases posteriores.
+            Controla ingresos, rentabilidad, tesorería, gastos, nómina y análisis del restaurante.
           </p>
         </div>
 
