@@ -20,6 +20,7 @@ model Supplier {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @default(now()) @updatedAt
   products      Product[]
+  financePayables FinanceLedgerDocument[]
 
   @@map("suppliers")
 }
@@ -361,6 +362,138 @@ model CostCategory {
   createdAt      DateTime @default(now())
 
   @@map("cost_categories")
+}
+
+enum FinanceExpenseKind {
+  FIXED
+  VARIABLE
+}
+
+enum FinanceExpensePeriodicity {
+  MONTHLY
+  BIMONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+model FinanceExpenseItem {
+  id          Int                        @id @default(autoincrement())
+  kind        FinanceExpenseKind
+  month       String
+  concept     String
+  periodicity FinanceExpensePeriodicity?
+  base        String?
+  amount      Decimal                    @db.Decimal(14, 2)
+  active      Boolean                    @default(true)
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @default(now()) @updatedAt
+
+  @@unique([kind, month, concept])
+  @@index([kind, month])
+  @@map("finance_expense_items")
+}
+
+enum FinanceLedgerSide {
+  PAYABLE
+  RECEIVABLE
+}
+
+model FinanceLedgerDocument {
+  id             Int                  @id @default(autoincrement())
+  side           FinanceLedgerSide
+  supplierId     Int?
+  partyName      String?
+  documentNumber String
+  invoiceNumber  String?
+  issuedAt       DateTime
+  dueAt          DateTime
+  amount         Decimal              @db.Decimal(14, 2)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @default(now()) @updatedAt
+  supplier       Supplier?            @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  payments       FinanceLedgerPayment[]
+
+  @@unique([side, documentNumber])
+  @@index([side, dueAt])
+  @@map("finance_ledger_documents")
+}
+
+model FinanceLedgerPayment {
+  id         Int                    @id @default(autoincrement())
+  documentId Int
+  amount     Decimal                @db.Decimal(14, 2)
+  paidAt     DateTime               @default(now())
+  note       String?
+  createdAt  DateTime               @default(now())
+  document   FinanceLedgerDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([documentId, paidAt])
+  @@map("finance_ledger_payments")
+}
+
+enum FinancePayrollArea {
+  KITCHEN
+  SERVICE
+  ADMIN
+  SUPPORT
+}
+
+enum FinancePayrollPeriodStatus {
+  OPEN
+  CLOSED
+}
+
+model FinanceEmployee {
+  id             Int                 @id @default(autoincrement())
+  fullName       String
+  nationalId     String              @unique
+  area           FinancePayrollArea
+  position       String
+  hiredAt        DateTime
+  monthlySalary  Decimal             @db.Decimal(14, 2)
+  active         Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @default(now()) @updatedAt
+  entries        FinancePayrollEntry[]
+
+  @@index([active, area])
+  @@map("finance_employees")
+}
+
+model FinancePayrollPeriod {
+  id        Int                         @id @default(autoincrement())
+  month     String                      @unique
+  status    FinancePayrollPeriodStatus  @default(OPEN)
+  note      String?
+  closedAt  DateTime?
+  createdAt DateTime                    @default(now())
+  updatedAt DateTime                    @default(now()) @updatedAt
+  entries   FinancePayrollEntry[]
+
+  @@map("finance_payroll_periods")
+}
+
+model FinancePayrollEntry {
+  id          Int                   @id @default(autoincrement())
+  periodId    Int
+  employeeId  Int
+  fullName    String
+  nationalId  String
+  area        FinancePayrollArea
+  position    String
+  salary      Decimal               @db.Decimal(14, 2)
+  extras      Decimal               @db.Decimal(14, 2) @default(0)
+  deductions  Decimal               @db.Decimal(14, 2) @default(0)
+  benefits    Decimal               @db.Decimal(14, 2) @default(0)
+  note        String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @default(now()) @updatedAt
+  period      FinancePayrollPeriod  @relation(fields: [periodId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  employee    FinanceEmployee       @relation(fields: [employeeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([periodId, employeeId])
+  @@index([periodId, area])
+  @@map("finance_payroll_entries")
 }
 
 model MenuCategory {

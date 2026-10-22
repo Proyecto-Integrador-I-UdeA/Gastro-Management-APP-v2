@@ -37,6 +37,13 @@ describe('configuración de permisos por rol', () => {
     expect(rolePermissions.purchases).not.toContain('menu.availability.manage');
   });
 
+  it('asigna al rol accounting la lectura y edición de gestión financiera', () => {
+    expect(rolePermissions.accounting).toEqual(expect.arrayContaining([
+      'accounting.read',
+      'accounting.update',
+    ]));
+  });
+
   it('asigna permisos de precios a admin/super y solo lectura a accounting', () => {
     const businessPermissionNames = businessPermissions.map(permission => permission.name);
 

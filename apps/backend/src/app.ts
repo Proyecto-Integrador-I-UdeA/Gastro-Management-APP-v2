@@ -83,6 +83,7 @@ app.use('/menu-categories', menuCategoryRoutes);
 app.use('/menu-media', menuMediaRoutes);
 app.use('/sales', salesRoutes);
 app.use('/cash', cashRoutes);
+
 app.use('/kitchen', kitchenRoutes);
 app.use('/finance', financeRouter);
 app.use("/ingredient-catalog", ingredientCatalogRoutes);
