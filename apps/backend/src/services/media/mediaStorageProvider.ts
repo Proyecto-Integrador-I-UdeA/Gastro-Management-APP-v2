@@ -1,12 +1,8 @@
 import { LocalMediaStorage } from './localMediaStorage';
-import { MediaStorage } from './mediaStorage';
+import { MediaStorage, MediaStorageConfigurationError } from './mediaStorage';
+import { createR2MediaStorage } from './r2MediaStorage';
 
-export class MediaStorageConfigurationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'MediaStorageConfigurationError';
-  }
-}
+export { MediaStorageConfigurationError };
 
 let testStorageOverride: MediaStorage | undefined;
 
@@ -23,6 +19,9 @@ export function getMediaStorage(): MediaStorage {
   if (testStorageOverride) return testStorageOverride;
 
   const driver = (process.env.MEDIA_STORAGE_DRIVER || 'local').trim().toLowerCase();
+  if (driver === 'r2') {
+    return createR2MediaStorage();
+  }
   if (driver !== 'local') {
     throw new MediaStorageConfigurationError(
       `Driver de medios no soportado: ${driver}`,
