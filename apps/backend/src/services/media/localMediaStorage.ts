@@ -2,9 +2,12 @@ import { constants } from 'node:fs';
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { InvalidStorageKeyError, MediaStorage, MediaStoragePutInput } from './mediaStorage';
-
-const STORAGE_KEY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:jpg|png|webp)$/;
+import {
+  assertValidStorageKey,
+  InvalidStorageKeyError,
+  MediaStorage,
+  MediaStoragePutInput,
+} from './mediaStorage';
 
 export const DEFAULT_LOCAL_MEDIA_ROOT = join(
   process.env.LOCALAPPDATA || homedir(),
@@ -26,9 +29,7 @@ export class LocalMediaStorage implements MediaStorage {
   }
 
   private resolveStoragePath(storageKey: string): string {
-    if (!STORAGE_KEY_PATTERN.test(storageKey)) {
-      throw new InvalidStorageKeyError();
-    }
+    assertValidStorageKey(storageKey);
 
     const storagePath = resolve(this.rootDirectory, storageKey);
     if (dirname(storagePath) !== this.rootDirectory) {

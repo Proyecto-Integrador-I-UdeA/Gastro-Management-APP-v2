@@ -1,20 +1,26 @@
 # Almacenamiento de imágenes de menú
 
-La implementación actual usa `MediaStorage` para mantener la lógica de menú
-independiente del proveedor de archivos. El único driver disponible es `local` y
-está destinado exclusivamente al desarrollo.
+La implementación usa `MediaStorage` para mantener la lógica de menú
+independiente del proveedor de archivos. `MEDIA_STORAGE_DRIVER` elige el
+proveedor.
 
-- `MEDIA_STORAGE_DRIVER=local` selecciona el driver local.
+`local` es el driver de desarrollo:
+
 - `MEDIA_LOCAL_ROOT` define un directorio fuera del repositorio.
 - `MEDIA_PUBLIC_BASE_URL` es opcional y antepone el origen público a las rutas
   `/menu-media/files/:storageKey`.
 - Sin `MEDIA_LOCAL_ROOT`, el desarrollo local usa
   `<datos locales del usuario>/GastroManagement/media`, siempre fuera del
   repositorio. Las pruebas inyectan un directorio temporal aislado.
+- Se rechaza cuando `NODE_ENV=production`, porque el disco de Railway es efímero.
 
-El driver local se rechaza cuando `NODE_ENV=production`. Un despliegue productivo
-debe incorporar un driver durable de object storage mediante la misma interfaz;
-el filesystem efímero de Railway no es almacenamiento durable.
+`r2` guarda los archivos en Cloudflare R2 y es el driver de producción:
+
+- `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` y `R2_BUCKET_NAME` son obligatorias.
+- `R2_ENDPOINT`, o en su lugar `R2_ACCOUNT_ID`, define el endpoint S3.
+- `R2_PUBLIC_BASE_URL` es opcional. Si está presente, la URL de la imagen apunta
+  al bucket público. Si falta, la imagen se sirve por `/menu-media/files/:storageKey`
+  y el backend la lee desde R2.
 
 Los archivos JPEG, PNG y WebP se conservan byte a byte: esta fase no recorta,
 redimensiona ni recomprime imágenes. PostgreSQL guarda solamente metadatos,
