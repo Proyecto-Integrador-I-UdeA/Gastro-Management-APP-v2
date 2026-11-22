@@ -443,6 +443,14 @@ enum FinancePayrollPeriodStatus {
   CLOSED
 }
 
+enum FinanceArlRiskClass {
+  I
+  II
+  III
+  IV
+  V
+}
+
 model FinanceEmployee {
   id             Int                 @id @default(autoincrement())
   fullName       String
@@ -451,6 +459,9 @@ model FinanceEmployee {
   position       String
   hiredAt        DateTime
   monthlySalary  Decimal             @db.Decimal(14, 2)
+  transportAidEligible Boolean       @default(true)
+  employerHealthContributionApplies Boolean @default(true)
+  arlRiskClass   FinanceArlRiskClass @default(I)
   active         Boolean             @default(true)
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @default(now()) @updatedAt
@@ -485,6 +496,18 @@ model FinancePayrollEntry {
   extras      Decimal               @db.Decimal(14, 2) @default(0)
   deductions  Decimal               @db.Decimal(14, 2) @default(0)
   benefits    Decimal               @db.Decimal(14, 2) @default(0)
+  dayOvertimeHours      Decimal      @default(0) @db.Decimal(10, 2)
+  nightOvertimeHours    Decimal      @default(0) @db.Decimal(10, 2)
+  nightSurchargeHours   Decimal      @default(0) @db.Decimal(10, 2)
+  restDayDayHours       Decimal      @default(0) @db.Decimal(10, 2)
+  restDayNightHours     Decimal      @default(0) @db.Decimal(10, 2)
+  transportAid          Decimal      @default(0) @db.Decimal(14, 2)
+  healthDeduction       Decimal      @default(0) @db.Decimal(14, 2)
+  pensionDeduction      Decimal      @default(0) @db.Decimal(14, 2)
+  otherDeductions       Decimal      @default(0) @db.Decimal(14, 2)
+  calculationVersion    String?
+  employerHealthContributionApplies Boolean @default(true)
+  arlRiskClass          FinanceArlRiskClass @default(I)
   note        String?
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @default(now()) @updatedAt

@@ -2,6 +2,7 @@ import { apiFetch } from "@/utils/apiFetch";
 
 export type FinancePayrollArea = "KITCHEN" | "SERVICE" | "ADMIN" | "SUPPORT";
 export type FinancePayrollPeriodStatus = "OPEN" | "CLOSED";
+export type FinanceArlRiskClass = "I" | "II" | "III" | "IV" | "V";
 
 export type FinanceEmployee = {
   id: number;
@@ -11,6 +12,9 @@ export type FinanceEmployee = {
   position: string;
   hiredAt: string;
   monthlySalary: number;
+  transportAidEligible: boolean;
+  employerHealthContributionApplies: boolean;
+  arlRiskClass: FinanceArlRiskClass;
   active: boolean;
 };
 
@@ -26,6 +30,43 @@ export type FinancePayrollEntry = {
   extras: number;
   deductions: number;
   benefits: number;
+  dayOvertimeHours: number;
+  dayOvertimePay: number;
+  nightOvertimeHours: number;
+  nightOvertimePay: number;
+  nightSurchargeHours: number;
+  nightSurchargePay: number;
+  restDayDayHours: number;
+  restDayDayPay: number;
+  restDayNightHours: number;
+  restDayNightPay: number;
+  ordinaryHourlyRate: number;
+  transportAid: number;
+  totalAccrued: number;
+  healthDeduction: number;
+  pensionDeduction: number;
+  otherDeductions: number;
+  totalDeductions: number;
+  contributionBase: number;
+  employeeHealthDeduction: number;
+  employerHealthContributionApplies: boolean;
+  employerHealthContribution: number;
+  totalHealthContribution: number;
+  employeePensionDeduction: number;
+  employerPensionContribution: number;
+  totalPensionContribution: number;
+  arlRiskClass: FinanceArlRiskClass;
+  arlRate: number;
+  employerArlContribution: number;
+  totalSocialSecurityPayment: number;
+  employerSocialSecurityCost: number;
+  immediatePayrollCashOutflow: number;
+  prestationsBase: number;
+  primaProvision: number;
+  severanceProvision: number;
+  severanceInterestProvision: number;
+  vacationProvision: number;
+  calculationVersion: string | null;
   note: string | null;
   gross: number;
   net: number;
@@ -37,7 +78,14 @@ export type FinancePayrollAreaSummary = {
   employeeCount: number;
   salaries: number;
   extras: number;
+  transportAid: number;
+  totalAccrued: number;
+  totalDeductions: number;
+  net: number;
   benefits: number;
+  totalSocialSecurityPayment: number;
+  employerSocialSecurityCost: number;
+  immediatePayrollCashOutflow: number;
   total: number;
 };
 
@@ -55,7 +103,16 @@ export type FinancePayrollPeriod = {
     extras: number;
     deductions: number;
     benefits: number;
+    transportAid: number;
+    totalAccrued: number;
+    healthDeduction: number;
+    pensionDeduction: number;
+    otherDeductions: number;
+    totalDeductions: number;
     net: number;
+    totalSocialSecurityPayment: number;
+    employerSocialSecurityCost: number;
+    immediatePayrollCashOutflow: number;
     employerCost: number;
   };
 };
@@ -73,6 +130,9 @@ export type FinanceEmployeePayload = {
   position: string;
   hiredAt: string;
   monthlySalary: number;
+  transportAidEligible: boolean;
+  employerHealthContributionApplies: boolean;
+  arlRiskClass: FinanceArlRiskClass;
   active?: boolean;
 };
 
@@ -81,6 +141,12 @@ export type FinancePayrollEntryPayload = {
   extras?: number;
   deductions?: number;
   benefits?: number;
+  dayOvertimeHours?: number;
+  nightOvertimeHours?: number;
+  nightSurchargeHours?: number;
+  restDayDayHours?: number;
+  restDayNightHours?: number;
+  otherDeductions?: number;
   note?: string | null;
 };
 
