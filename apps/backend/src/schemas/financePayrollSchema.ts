@@ -10,7 +10,13 @@ const moneySchema = z
   .finite()
   .min(0, 'El valor no puede ser negativo');
 
+const hoursSchema = z
+  .number()
+  .finite()
+  .min(0, 'Las horas no pueden ser negativas');
+
 export const financePayrollAreaSchema = z.enum(['KITCHEN', 'SERVICE', 'ADMIN', 'SUPPORT']);
+export const financeArlRiskClassSchema = z.enum(['I', 'II', 'III', 'IV', 'V']);
 
 export const listFinancePayrollQuerySchema = z.object({
   month: financeExpenseMonthSchema,
@@ -23,8 +29,11 @@ export const createFinanceEmployeeSchema = z.object({
   position: z.string().trim().min(1, 'El cargo es obligatorio').max(120),
   hiredAt: dateOnlySchema,
   monthlySalary: z.number().finite().positive('El salario debe ser mayor a 0'),
+  transportAidEligible: z.boolean().optional().default(true),
+  employerHealthContributionApplies: z.boolean().optional().default(true),
+  arlRiskClass: financeArlRiskClassSchema.optional().default('I'),
   active: z.boolean().optional().default(true),
-});
+}).strict();
 
 export const updateFinanceEmployeeSchema = z.object({
   fullName: z.string().trim().min(1, 'El nombre es obligatorio').max(200).optional(),
@@ -33,8 +42,11 @@ export const updateFinanceEmployeeSchema = z.object({
   position: z.string().trim().min(1, 'El cargo es obligatorio').max(120).optional(),
   hiredAt: dateOnlySchema.optional(),
   monthlySalary: z.number().finite().positive('El salario debe ser mayor a 0').optional(),
+  transportAidEligible: z.boolean().optional(),
+  employerHealthContributionApplies: z.boolean().optional(),
+  arlRiskClass: financeArlRiskClassSchema.optional(),
   active: z.boolean().optional(),
-});
+}).strict();
 
 export const generateFinancePayrollSchema = z.object({
   month: financeExpenseMonthSchema,
@@ -45,8 +57,14 @@ export const updateFinancePayrollEntrySchema = z.object({
   extras: moneySchema.optional(),
   deductions: moneySchema.optional(),
   benefits: moneySchema.optional(),
+  dayOvertimeHours: hoursSchema.optional(),
+  nightOvertimeHours: hoursSchema.optional(),
+  nightSurchargeHours: hoursSchema.optional(),
+  restDayDayHours: hoursSchema.optional(),
+  restDayNightHours: hoursSchema.optional(),
+  otherDeductions: moneySchema.optional(),
   note: z.string().trim().max(200).nullable().optional(),
-});
+}).strict();
 
 export type CreateFinanceEmployeeInput = z.infer<typeof createFinanceEmployeeSchema>;
 export type UpdateFinanceEmployeeInput = z.infer<typeof updateFinanceEmployeeSchema>;

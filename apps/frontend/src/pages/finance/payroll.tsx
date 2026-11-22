@@ -2,6 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Button from "@/components/Button";
+import PayrollCostReport from "@/components/finance/PayrollCostReport";
+import PayrollReceipt from "@/components/finance/PayrollReceipt";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { getApiErrorMessage } from "@/lib/apiError";
@@ -15,6 +17,7 @@ import {
   reopenFinancePayroll,
   updateFinanceEmployee,
   updateFinancePayrollEntry,
+  type FinanceArlRiskClass,
   type FinanceEmployee,
   type FinancePayrollArea,
   type FinancePayrollEntry,
@@ -28,6 +31,10 @@ const areaLabels: Record<FinancePayrollArea, string> = {
   ADMIN: "Administración",
   SUPPORT: "Caja y apoyo",
 };
+
+const AUTOMATIC_CALCULATION_VERSION = "CO_BASIC_2026_V1";
+
+const arlRiskClasses: FinanceArlRiskClass[] = ["I", "II", "III", "IV", "V"];
 
 function currentMonth() {
   const now = new Date();
@@ -49,6 +56,9 @@ const emptyEmployeeForm = {
   position: "",
   hiredAt: "",
   monthlySalary: "",
+  transportAidEligible: true,
+  employerHealthContributionApplies: true,
+  arlRiskClass: "I" as FinanceArlRiskClass,
   active: true,
 };
 
@@ -57,6 +67,12 @@ const emptyEntryForm = {
   extras: "",
   deductions: "",
   benefits: "",
+  dayOvertimeHours: "",
+  nightOvertimeHours: "",
+  nightSurchargeHours: "",
+  restDayDayHours: "",
+  restDayNightHours: "",
+  otherDeductions: "",
   note: "",
 };
 
@@ -73,6 +89,8 @@ export default function FinancePayrollPage() {
   const [employeeForm, setEmployeeForm] = useState(emptyEmployeeForm);
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
   const [entryForm, setEntryForm] = useState(emptyEntryForm);
+  const [receiptEntry, setReceiptEntry] = useState<FinancePayrollEntry | null>(null);
+  const [showCostReport, setShowCostReport] = useState(false);
   const canUpdate = useMemo(
     () => getUserPermissions().includes("accounting.update"),
     [],
@@ -97,6 +115,8 @@ export default function FinancePayrollPage() {
 
   const period = data?.period ?? null;
   const isOpen = period?.status === "OPEN";
+  const editingEntry = period?.entries.find((entry) => entry.id === editingEntryId) ?? null;
+  const editingAutomaticEntry = editingEntry?.calculationVersion === AUTOMATIC_CALCULATION_VERSION;
 
   function openCreateEmployee() {
     setShowEmployeeForm(true);
@@ -116,6 +136,9 @@ export default function FinancePayrollPage() {
       position: employee.position,
       hiredAt: employee.hiredAt,
       monthlySalary: String(employee.monthlySalary),
+      transportAidEligible: employee.transportAidEligible,
+      employerHealthContributionApplies: employee.employerHealthContributionApplies,
+      arlRiskClass: employee.arlRiskClass,
       active: employee.active,
     });
     setEditingEntryId(null);
@@ -146,6 +169,9 @@ export default function FinancePayrollPage() {
         position: employeeForm.position.trim(),
         hiredAt: employeeForm.hiredAt,
         monthlySalary,
+        transportAidEligible: employeeForm.transportAidEligible,
+        employerHealthContributionApplies: employeeForm.employerHealthContributionApplies,
+        arlRiskClass: employeeForm.arlRiskClass,
         active: employeeForm.active,
       };
       if (editingEmployeeId) {
@@ -194,6 +220,12 @@ export default function FinancePayrollPage() {
       extras: String(entry.extras),
       deductions: String(entry.deductions),
       benefits: String(entry.benefits),
+      dayOvertimeHours: String(entry.dayOvertimeHours),
+      nightOvertimeHours: String(entry.nightOvertimeHours),
+      nightSurchargeHours: String(entry.nightSurchargeHours),
+      restDayDayHours: String(entry.restDayDayHours),
+      restDayNightHours: String(entry.restDayNightHours),
+      otherDeductions: String(entry.otherDeductions),
       note: entry.note ?? "",
     });
     setError("");
@@ -202,23 +234,48 @@ export default function FinancePayrollPage() {
   async function saveEntry(event: FormEvent) {
     event.preventDefault();
     if (!editingEntryId) return;
-    const salary = Number(entryForm.salary);
-    const extras = Number(entryForm.extras);
-    const deductions = Number(entryForm.deductions);
-    const benefits = Number(entryForm.benefits);
-    if ([salary, extras, deductions, benefits].some((value) => !Number.isFinite(value) || value < 0)) {
-      setError("Los valores de la línea deben ser números mayores o iguales a 0.");
+    const editingEntry = period?.entries.find((entry) => entry.id === editingEntryId);
+    if (!editingEntry) return;
+
+    const automatic = editingEntry.calculationVersion === AUTOMATIC_CALCULATION_VERSION;
+    const automaticValues = [
+      Number(entryForm.dayOvertimeHours),
+      Number(entryForm.nightOvertimeHours),
+      Number(entryForm.nightSurchargeHours),
+      Number(entryForm.restDayDayHours),
+      Number(entryForm.restDayNightHours),
+      Number(entryForm.otherDeductions),
+    ];
+    const legacyValues = [
+      Number(entryForm.salary),
+      Number(entryForm.extras),
+      Number(entryForm.deductions),
+      Number(entryForm.benefits),
+    ];
+    const values = automatic ? automaticValues : legacyValues;
+    if (values.some((value) => !Number.isFinite(value) || value < 0)) {
+      setError(automatic
+        ? "Las horas y otros descuentos deben ser números mayores o iguales a 0."
+        : "Los valores de la línea deben ser números mayores o iguales a 0.");
       return;
     }
 
     setSaving(true);
     setError("");
     try {
-      await updateFinancePayrollEntry(editingEntryId, {
-        salary,
-        extras,
-        deductions,
-        benefits,
+      await updateFinancePayrollEntry(editingEntryId, automatic ? {
+        dayOvertimeHours: automaticValues[0],
+        nightOvertimeHours: automaticValues[1],
+        nightSurchargeHours: automaticValues[2],
+        restDayDayHours: automaticValues[3],
+        restDayNightHours: automaticValues[4],
+        otherDeductions: automaticValues[5],
+        note: entryForm.note.trim() || null,
+      } : {
+        salary: legacyValues[0],
+        extras: legacyValues[1],
+        deductions: legacyValues[2],
+        benefits: legacyValues[3],
         note: entryForm.note.trim() || null,
       });
       setEditingEntryId(null);
@@ -381,6 +438,49 @@ export default function FinancePayrollPage() {
                   className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2"
                 />
               </label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <input
+                  type="checkbox"
+                  aria-label="Aplica auxilio de transporte"
+                  checked={employeeForm.transportAidEligible}
+                  onChange={(event) => setEmployeeForm((current) => ({
+                    ...current,
+                    transportAidEligible: event.target.checked,
+                  }))}
+                />
+                Puede recibir auxilio de transporte
+              </label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <input
+                  type="checkbox"
+                  aria-label="Aplica aporte patronal de salud"
+                  checked={employeeForm.employerHealthContributionApplies}
+                  onChange={(event) => setEmployeeForm((current) => ({
+                    ...current,
+                    employerHealthContributionApplies: event.target.checked,
+                  }))}
+                />
+                Aplica aporte patronal de salud (8,5%)
+              </label>
+              <label className="block text-sm font-semibold text-gray-700">
+                Clase de riesgo ARL
+                <select
+                  aria-label="Clase de riesgo ARL"
+                  value={employeeForm.arlRiskClass}
+                  onChange={(event) => setEmployeeForm((current) => ({
+                    ...current,
+                    arlRiskClass: event.target.value as FinanceArlRiskClass,
+                  }))}
+                  className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2"
+                >
+                  {arlRiskClasses.map((riskClass) => (
+                    <option key={riskClass} value={riskClass}>Clase {riskClass}</option>
+                  ))}
+                </select>
+                <span className="mt-1 block text-xs font-normal text-gray-500">
+                  Selecciona la clase asignada al trabajador o actividad. Este MVP no la determina automáticamente.
+                </span>
+              </label>
               {editingEmployeeId && (
                 <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                   <input
@@ -405,64 +505,29 @@ export default function FinancePayrollPage() {
           <form onSubmit={saveEntry} className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-[#001F3F]">Ajustar línea de nómina</h2>
             <p className="mt-1 text-sm text-gray-600">
-              Neto = salario + extras − deducciones. Costo del restaurante = salario + extras + prestaciones.
+              {editingAutomaticEntry
+                ? "Ingresa las horas y otros descuentos. Los importes son calculados por el servidor."
+                : "Línea histórica: conserva el ajuste manual de salario, extras, deducciones y prestaciones."}
             </p>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <label className="block text-sm font-semibold text-gray-700">
-                Salario del periodo
-                <input
-                  required
-                  aria-label="Salario del periodo"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={entryForm.salary}
-                  onChange={(event) => setEntryForm((current) => ({ ...current, salary: event.target.value }))}
-                  className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2"
-                />
-              </label>
-              <label className="block text-sm font-semibold text-gray-700">
-                Extras
-                <input
-                  required
-                  aria-label="Extras"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={entryForm.extras}
-                  onChange={(event) => setEntryForm((current) => ({ ...current, extras: event.target.value }))}
-                  className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2"
-                />
-                <span className="mt-1 block text-xs font-normal text-gray-500">Horas extra, bonos o propinas.</span>
-              </label>
-              <label className="block text-sm font-semibold text-gray-700">
-                Deducciones
-                <input
-                  required
-                  aria-label="Deducciones"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={entryForm.deductions}
-                  onChange={(event) => setEntryForm((current) => ({ ...current, deductions: event.target.value }))}
-                  className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2"
-                />
-                <span className="mt-1 block text-xs font-normal text-gray-500">Retenciones del colaborador (seguridad social, renta, adelantos).</span>
-              </label>
-              <label className="block text-sm font-semibold text-gray-700">
-                Prestaciones
-                <input
-                  required
-                  aria-label="Prestaciones"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={entryForm.benefits}
-                  onChange={(event) => setEntryForm((current) => ({ ...current, benefits: event.target.value }))}
-                  className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2"
-                />
-                <span className="mt-1 block text-xs font-normal text-gray-500">Cargas a cargo del restaurante.</span>
-              </label>
+              {editingAutomaticEntry ? (
+                <>
+                  <HoursInput label="Horas extra diurnas" value={entryForm.dayOvertimeHours} onChange={(value) => setEntryForm((current) => ({ ...current, dayOvertimeHours: value }))} />
+                  <HoursInput label="Horas extra nocturnas" value={entryForm.nightOvertimeHours} onChange={(value) => setEntryForm((current) => ({ ...current, nightOvertimeHours: value }))} />
+                  <HoursInput label="Horas con recargo nocturno" value={entryForm.nightSurchargeHours} onChange={(value) => setEntryForm((current) => ({ ...current, nightSurchargeHours: value }))} />
+                  <HoursInput label="Horas dominicales/festivas diurnas" value={entryForm.restDayDayHours} onChange={(value) => setEntryForm((current) => ({ ...current, restDayDayHours: value }))} />
+                  <HoursInput label="Horas dominicales/festivas nocturnas" value={entryForm.restDayNightHours} onChange={(value) => setEntryForm((current) => ({ ...current, restDayNightHours: value }))} />
+                  <HoursInput label="Otros descuentos" value={entryForm.otherDeductions} money onChange={(value) => setEntryForm((current) => ({ ...current, otherDeductions: value }))} />
+                  {editingEntry && <PayrollBreakdown entry={editingEntry} />}
+                </>
+              ) : (
+                <>
+                  <LegacyMoneyInput label="Salario del periodo" value={entryForm.salary} onChange={(value) => setEntryForm((current) => ({ ...current, salary: value }))} />
+                  <LegacyMoneyInput label="Extras" value={entryForm.extras} onChange={(value) => setEntryForm((current) => ({ ...current, extras: value }))} />
+                  <LegacyMoneyInput label="Deducciones" value={entryForm.deductions} onChange={(value) => setEntryForm((current) => ({ ...current, deductions: value }))} />
+                  <LegacyMoneyInput label="Prestaciones" value={entryForm.benefits} onChange={(value) => setEntryForm((current) => ({ ...current, benefits: value }))} />
+                </>
+              )}
               <label className="block text-sm font-semibold text-gray-700 md:col-span-2">
                 Nota
                 <input
@@ -540,6 +605,44 @@ export default function FinancePayrollPage() {
 
             <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold text-[#001F3F]">Resumen general del período</h2>
+                {period && (
+                  <Button type="button" variant="secondary" onClick={() => setShowCostReport(true)}>
+                    Informe de costos
+                  </Button>
+                )}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  ["Número de empleados", String(period?.totals.employeeCount ?? 0)],
+                  ["Total salarios", formatCurrency(period?.totals.salaries ?? 0)],
+                  ["Extras y recargos", formatCurrency(period?.totals.extras ?? 0)],
+                  ["Auxilio de transporte", formatCurrency(period?.totals.transportAid ?? 0)],
+                  ["Total devengado", formatCurrency(period?.totals.totalAccrued ?? 0)],
+                  ["Salud trabajador", formatCurrency(period?.totals.healthDeduction ?? 0)],
+                  ["Pensión trabajador", formatCurrency(period?.totals.pensionDeduction ?? 0)],
+                  ["Otros descuentos", formatCurrency(period?.totals.otherDeductions ?? 0)],
+                  ["Total deducciones", formatCurrency(period?.totals.totalDeductions ?? 0)],
+                  ["Total seguridad social a girar", formatCurrency(period?.totals.totalSocialSecurityPayment ?? 0)],
+                  ["Aportes adicionales empresa", formatCurrency(period?.totals.employerSocialSecurityCost ?? 0)],
+                  ["Salida inmediata de nómina", formatCurrency(period?.totals.immediatePayrollCashOutflow ?? 0)],
+                  ["Total provisiones prestacionales", formatCurrency(period?.totals.benefits ?? 0)],
+                  ["Costo estimado total del restaurante", formatCurrency(period?.totals.employerCost ?? 0)],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+                    <p className="mt-1 text-lg font-bold text-slate-900">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 rounded-xl bg-[#001F3F] p-5 text-white">
+                <p className="text-sm font-semibold uppercase tracking-wide">Neto total de nómina</p>
+                <p className="mt-1 text-3xl font-bold">{formatCurrency(period?.totals.net ?? 0)}</p>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-semibold text-[#001F3F]">Nómina del periodo</h2>
                   {period && (
@@ -576,17 +679,19 @@ export default function FinancePayrollPage() {
                       <th className="py-2 pr-3">Área</th>
                       <th className="py-2 pr-3">Salario</th>
                       <th className="py-2 pr-3">Extras</th>
+                      <th className="py-2 pr-3">Auxilio</th>
+                      <th className="py-2 pr-3">Devengado</th>
                       <th className="py-2 pr-3">Deducciones</th>
-                      <th className="py-2 pr-3">Prestaciones</th>
+                      <th className="py-2 pr-3">Provisiones prestacionales</th>
                       <th className="py-2 pr-3">Neto</th>
-                      <th className="py-2 pr-3">Costo</th>
-                      {canUpdate && isOpen && <th className="py-2">Acciones</th>}
+                      <th className="py-2 pr-3">Costo estimado restaurante</th>
+                      <th className="py-2">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
                     {!period || period.entries.length === 0 ? (
                       <tr>
-                        <td colSpan={canUpdate && isOpen ? 9 : 8} className="py-8 text-center text-gray-500">
+                        <td colSpan={11} className="py-8 text-center text-gray-500">
                           {period
                             ? "No hay líneas en este periodo."
                             : "Genera la nómina para copiar los colaboradores activos de este mes."}
@@ -599,20 +704,27 @@ export default function FinancePayrollPage() {
                           <td className="py-2 pr-3">{areaLabels[entry.area]}</td>
                           <td className="py-2 pr-3">{formatCurrency(entry.salary)}</td>
                           <td className="py-2 pr-3">{formatCurrency(entry.extras)}</td>
-                          <td className="py-2 pr-3">{formatCurrency(entry.deductions)}</td>
+                          <td className="py-2 pr-3">{formatCurrency(entry.transportAid)}</td>
+                          <td className="py-2 pr-3">{formatCurrency(entry.totalAccrued)}</td>
+                          <td className="py-2 pr-3">{formatCurrency(entry.totalDeductions)}</td>
                           <td className="py-2 pr-3">{formatCurrency(entry.benefits)}</td>
                           <td className="py-2 pr-3">{formatCurrency(entry.net)}</td>
                           <td className="py-2 pr-3">{formatCurrency(entry.employerCost)}</td>
-                          {canUpdate && isOpen && (
-                            <td className="space-x-3 py-2 whitespace-nowrap">
+                          <td className="space-x-3 py-2 whitespace-nowrap">
+                            <button type="button" className="text-sm text-[#001F3F] hover:underline" onClick={() => setReceiptEntry(entry)}>
+                              Comprobante
+                            </button>
+                            {canUpdate && isOpen && (
+                              <>
                               <button type="button" className="text-sm text-blue-700 hover:underline" onClick={() => openEditEntry(entry)}>
                                 Ajustar
                               </button>
                               <button type="button" className="text-sm text-red-700 hover:underline" onClick={() => void removeEntry(entry)}>
                                 Quitar
                               </button>
-                            </td>
-                          )}
+                              </>
+                            )}
+                          </td>
                         </tr>
                       ))
                     )}
@@ -630,8 +742,9 @@ export default function FinancePayrollPage() {
                       <th className="py-2 pr-3">Área</th>
                       <th className="py-2 pr-3">Empleados</th>
                       <th className="py-2 pr-3">Salarios</th>
-                      <th className="py-2 pr-3">Prestaciones</th>
-                      <th className="py-2 pr-3">Total</th>
+                      <th className="py-2 pr-3">Aportes empresa</th>
+                      <th className="py-2 pr-3">Provisiones prestacionales</th>
+                      <th className="py-2 pr-3">Costo estimado restaurante</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -640,6 +753,7 @@ export default function FinancePayrollPage() {
                         <td className="py-2 pr-3 font-semibold">{areaLabels[row.area]}</td>
                         <td className="py-2 pr-3">{row.employeeCount}</td>
                         <td className="py-2 pr-3">{formatCurrency(row.salaries)}</td>
+                        <td className="py-2 pr-3">{formatCurrency(row.employerSocialSecurityCost)}</td>
                         <td className="py-2 pr-3">{formatCurrency(row.benefits)}</td>
                         <td className="py-2 pr-3">{formatCurrency(row.total)}</td>
                       </tr>
@@ -648,6 +762,7 @@ export default function FinancePayrollPage() {
                       <td className="py-2 pr-3 font-semibold">Total</td>
                       <td className="py-2 pr-3">{period?.totals.employeeCount ?? 0}</td>
                       <td className="py-2 pr-3">{formatCurrency(period?.totals.salaries ?? 0)}</td>
+                      <td className="py-2 pr-3">{formatCurrency(period?.totals.employerSocialSecurityCost ?? 0)}</td>
                       <td className="py-2 pr-3">{formatCurrency(period?.totals.benefits ?? 0)}</td>
                       <td className="py-2 pr-3">{formatCurrency(period?.totals.employerCost ?? 0)}</td>
                     </tr>
@@ -657,7 +772,147 @@ export default function FinancePayrollPage() {
             </section>
           </div>
         )}
+        {receiptEntry && (
+          <PayrollReceipt
+            month={period?.month ?? month}
+            entry={receiptEntry}
+            areaLabel={areaLabels[receiptEntry.area]}
+            onClose={() => setReceiptEntry(null)}
+          />
+        )}
+        {showCostReport && period && (
+          <PayrollCostReport
+            period={period}
+            areaLabels={areaLabels}
+            onClose={() => setShowCostReport(false)}
+          />
+        )}
       </div>
     </DashboardLayout>
+  );
+}
+
+function HoursInput({
+  label,
+  value,
+  money = false,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  money?: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block text-sm font-semibold text-gray-700">
+      {label}
+      <input
+        required
+        aria-label={label}
+        type="number"
+        min="0"
+        step={money ? "0.01" : "0.01"}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2"
+      />
+    </label>
+  );
+}
+
+function LegacyMoneyInput({ label, value, onChange }: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block text-sm font-semibold text-gray-700">
+      {label}
+      <input
+        required
+        aria-label={label}
+        type="number"
+        min="0"
+        step="0.01"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2"
+      />
+    </label>
+  );
+}
+
+function PayrollBreakdown({ entry }: { entry: FinancePayrollEntry }) {
+  const payrollRows = [
+    ["Salario", entry.salary],
+    ["Valor hora ordinaria", entry.ordinaryHourlyRate],
+    ["Horas extra diurnas", entry.dayOvertimePay],
+    ["Horas extra nocturnas", entry.nightOvertimePay],
+    ["Recargo nocturno", entry.nightSurchargePay],
+    ["Dominical/festivo diurno", entry.restDayDayPay],
+    ["Dominical/festivo nocturno", entry.restDayNightPay],
+    ["Auxilio transporte", entry.transportAid],
+    ["Total devengado", entry.totalAccrued],
+    ["Salud", entry.healthDeduction],
+    ["Pensión", entry.pensionDeduction],
+    ["Otros descuentos", entry.otherDeductions],
+    ["Total deducciones", entry.totalDeductions],
+    ["Neto a pagar", entry.net],
+  ] as const;
+  const socialSecurityRows = [
+    ["IBC seguridad social", entry.contributionBase],
+    ["Salud trabajador 4%", entry.employeeHealthDeduction],
+    ["Salud empresa 8,5%", entry.employerHealthContribution],
+    ["Total salud", entry.totalHealthContribution],
+    ["Pensión trabajador 4%", entry.employeePensionDeduction],
+    ["Pensión empresa 12%", entry.employerPensionContribution],
+    ["Total pensión", entry.totalPensionContribution],
+    [`ARL clase ${entry.arlRiskClass} (${(entry.arlRate * 100).toLocaleString("es-CO", { maximumFractionDigits: 3 })}%)`, entry.employerArlContribution],
+    ["Total seguridad social a girar", entry.totalSocialSecurityPayment],
+    ["Aportes adicionales empresa", entry.employerSocialSecurityCost],
+    ["Salida inmediata de nómina", entry.immediatePayrollCashOutflow],
+  ] as const;
+  const provisionRows = [
+    ["Prima de servicios", entry.primaProvision],
+    ["Cesantías", entry.severanceProvision],
+    ["Intereses de cesantías", entry.severanceInterestProvision],
+    ["Vacaciones", entry.vacationProvision],
+    ["Total provisiones", entry.benefits],
+    ["Costo estimado para el restaurante", entry.employerCost],
+  ] as const;
+
+  return (
+    <section className="rounded-xl border border-blue-100 bg-blue-50 p-4 md:col-span-2" aria-label="Desglose calculado">
+      <h3 className="font-semibold text-[#001F3F]">Desglose calculado por backend</h3>
+      <dl className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+        {payrollRows.map(([label, value]) => (
+          <div key={label} className="flex justify-between gap-3 border-b border-blue-100 py-1">
+            <dt>{label}</dt>
+            <dd className="font-semibold tabular-nums">{formatCurrency(value)}</dd>
+          </div>
+        ))}
+      </dl>
+      <h3 className="mt-5 font-semibold text-[#001F3F]">SEGURIDAD SOCIAL</h3>
+      <p className="mt-1 text-xs text-slate-600">
+        El total a girar incluye los descuentos del trabajador y los aportes adicionales de la empresa.
+      </p>
+      <dl className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+        {socialSecurityRows.map(([label, value]) => (
+          <div key={label} className="flex justify-between gap-3 border-b border-blue-100 py-1">
+            <dt>{label}</dt>
+            <dd className="font-semibold tabular-nums">{formatCurrency(value)}</dd>
+          </div>
+        ))}
+      </dl>
+      <h3 className="mt-5 font-semibold text-[#001F3F]">PROVISIONES PRESTACIONALES</h3>
+      <dl className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+        {provisionRows.map(([label, value]) => (
+          <div key={label} className="flex justify-between gap-3 border-b border-blue-100 py-1">
+            <dt>{label}</dt>
+            <dd className="font-semibold tabular-nums">{formatCurrency(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
