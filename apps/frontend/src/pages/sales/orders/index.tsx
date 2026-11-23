@@ -104,12 +104,27 @@ function errorMessage(error: unknown, fallback: string): string {
     ORDER_CURRENCY_MISMATCH: "El producto usa una moneda diferente a la del pedido.",
     NO_PENDING_KITCHEN_ITEMS: "Todos los productos ya fueron enviados a cocina.",
     ORDER_ITEM_ALREADY_SENT_TO_KITCHEN: "Uno de los productos ya fue enviado a cocina.",
+    KITCHEN_DISPATCH_NOT_FOUND: "El despacho de cocina ya no existe para este pedido.",
+    KITCHEN_DISPATCH_NOT_READY: "El despacho todavía no está listo para entregar.",
+    FORBIDDEN: "No tienes permiso para marcar este despacho como entregado.",
     ORDER_HAS_DELIVERED_DISPATCHES:
       "No se puede cancelar completamente un pedido que ya tuvo entregas.",
     ORDER_HAS_READY_DISPATCHES:
       "No se puede cancelar un pedido con productos que ya llegaron a Listo.",
   };
   return (code && messages[code]) || apiError.message || fallback;
+}
+
+function deliveryErrorMessage(error: unknown): string {
+  const apiError = error as ApiError;
+  if (apiError.status === 403) return "No tienes permiso para marcar este despacho como entregado.";
+  if (apiError.status === 404 && !apiError.body?.code) {
+    return "El pedido o despacho de cocina ya no existe.";
+  }
+  if (apiError.status === 409 && !apiError.body?.code) {
+    return "El pedido está cerrado o el despacho todavía no está listo para entregar.";
+  }
+  return errorMessage(error, "No fue posible marcar el despacho como entregado.");
 }
 
 const statusLabels: Record<OperationalStatus, string> = {
@@ -391,6 +406,28 @@ export default function SalesOrdersPage() {
       setMutationError(errorMessage(error, "No fue posible enviar el pedido a cocina."));
       await loadOrder(order.id);
       await refreshAfterMutation();
+    } finally {
+      setMutationKey("");
+    }
+  }
+
+  async function deliverKitchenDispatch(dispatchId: number) {
+    if (!order || !canManage || order.status !== "OPEN" || mutationKey) return;
+    const currentOrderId = order.id;
+    const key = `deliver-${dispatchId}`;
+    setMutationKey(key);
+    setMutationError("");
+    setKitchenFeedback("");
+    try {
+      await apiFetch(`/sales/orders/${currentOrderId}/kitchen-dispatches/${dispatchId}/deliver`, {
+        method: "POST",
+        json: {},
+      });
+      await loadOrder(currentOrderId);
+      await refreshAfterMutation();
+      setKitchenFeedback(`Ticket #${dispatchId} marcado como entregado.`);
+    } catch (error) {
+      setMutationError(deliveryErrorMessage(error));
     } finally {
       setMutationKey("");
     }
@@ -722,6 +759,42 @@ export default function SalesOrdersPage() {
                     </div>
                   ) : (
                     <ul className="my-5 space-y-5">{order.items.map(item => renderOrderItem(item))}</ul>
+                  )}
+                  {canManage && order.status === "OPEN" && order.kitchenDispatches.some(dispatch => (
+                    dispatch.status === "READY" && dispatch.deliveredAt === null
+                  )) && (
+                    <section
+                      aria-label="Despachos listos para entregar"
+                      className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4"
+                    >
+                      <h3 className="font-bold text-emerald-950">Listos para entregar</h3>
+                      <div className="mt-3 space-y-3">
+                        {order.kitchenDispatches
+                          .filter(dispatch => dispatch.status === "READY" && dispatch.deliveredAt === null)
+                          .map(dispatch => {
+                            const deliveryKey = `deliver-${dispatch.id}`;
+                            const marking = mutationKey === deliveryKey;
+                            return (
+                              <div
+                                key={dispatch.id}
+                                className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white p-3"
+                              >
+                                <span className="text-sm font-semibold text-slate-800">
+                                  Ticket #{dispatch.dispatchNumber} · Listo para recoger
+                                </span>
+                                <button
+                                  type="button"
+                                  className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-emerald-400"
+                                  disabled={Boolean(mutationKey)}
+                                  onClick={() => void deliverKitchenDispatch(dispatch.id)}
+                                >
+                                  {marking ? "Marcando..." : "Marcar como entregado"}
+                                </button>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </section>
                   )}
                   <ServiceTraceability
                     dispatches={order.kitchenDispatches}

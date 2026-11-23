@@ -625,7 +625,127 @@ describe('Mesas y pedidos', () => {
     await user.click(await screen.findByRole('button', { name: 'Ver pedido' }));
 
     expect(screen.getByText(/Cocina:.*Listo para recoger/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Marcar como entregado' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancelar pedido' })).not.toBeInTheDocument();
+  });
+
+  it('oculta la entrega manual para dispatches entregados, NEXT o PREPARING', async () => {
+    const nonDeliverableOrder = {
+      ...deliveredOrder,
+      kitchenDispatches: [
+        deliveredTrace,
+        {
+          ...deliveredTrace,
+          id: 13,
+          dispatchNumber: 13,
+          status: 'NEXT',
+          readyAt: null,
+          readyBy: null,
+          deliveredAt: null,
+          deliveredBy: null,
+        },
+        {
+          ...deliveredTrace,
+          id: 14,
+          dispatchNumber: 14,
+          status: 'PREPARING',
+          readyAt: null,
+          readyBy: null,
+          deliveredAt: null,
+          deliveredBy: null,
+        },
+      ],
+    };
+    mocks.apiFetch.mockImplementation((path: string) => {
+      if (path === '/sales/tables') return Promise.resolve(tables);
+      if (path === '/sales/orders/22') return Promise.resolve(nonDeliverableOrder);
+      return Promise.resolve(nonDeliverableOrder);
+    });
+
+    const user = userEvent.setup();
+    render(<SalesOrdersPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ver pedido' }));
+
+    expect(screen.queryByRole('button', { name: 'Marcar como entregado' }))
+      .not.toBeInTheDocument();
+  });
+
+  it('marca un dispatch READY como entregado, evita doble envío y refresca el pedido', async () => {
+    const readyTrace = { ...deliveredTrace, deliveredAt: null, deliveredBy: null };
+    const readyOrder = {
+      ...deliveredOrder,
+      kitchenServiceStatus: 'READY',
+      kitchenDispatches: [readyTrace],
+    };
+    let resolveDelivery!: (value: unknown) => void;
+    const deliveryRequest = new Promise(resolve => {
+      resolveDelivery = resolve;
+    });
+    let delivered = false;
+    mocks.apiFetch.mockImplementation((path: string, options?: RequestInit & { json?: unknown }) => {
+      if (path === '/sales/tables') return Promise.resolve(tables);
+      if (path === '/sales/orders/22/kitchen-dispatches/12/deliver' && options?.method === 'POST') {
+        return deliveryRequest.then(() => {
+          delivered = true;
+          return { dispatchId: 12, deliveredAt: deliveredTrace.deliveredAt };
+        });
+      }
+      if (path === '/sales/orders/22') {
+        return Promise.resolve(delivered ? deliveredOrder : readyOrder);
+      }
+      return Promise.resolve(readyOrder);
+    });
+
+    const user = userEvent.setup();
+    render(<SalesOrdersPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ver pedido' }));
+    const button = screen.getByRole('button', { name: 'Marcar como entregado' });
+    await user.click(button);
+
+    expect(screen.getByRole('button', { name: 'Marcando...' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Marcando...' }));
+    expect(mocks.apiFetch).toHaveBeenCalledTimes(3);
+    expect(mocks.apiFetch).toHaveBeenCalledWith(
+      '/sales/orders/22/kitchen-dispatches/12/deliver',
+      { method: 'POST', json: {} },
+    );
+
+    resolveDelivery({});
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Marcar como entregado' }))
+        .not.toBeInTheDocument();
+    });
+    expect(await screen.findByRole('status')).toHaveTextContent('Ticket #12 marcado como entregado.');
+    expect(mocks.apiFetch).toHaveBeenCalledWith('/sales/orders/22');
+  });
+
+  it('libera el estado de entrega si la petición falla', async () => {
+    const readyOrder = {
+      ...deliveredOrder,
+      kitchenServiceStatus: 'READY',
+      kitchenDispatches: [{ ...deliveredTrace, deliveredAt: null, deliveredBy: null }],
+    };
+    mocks.apiFetch.mockImplementation((path: string, options?: RequestInit & { json?: unknown }) => {
+      if (path === '/sales/tables') return Promise.resolve(tables);
+      if (path === '/sales/orders/22') return Promise.resolve(readyOrder);
+      if (path.endsWith('/kitchen-dispatches/12/deliver') && options?.method === 'POST') {
+        return Promise.reject(Object.assign(new Error('Conflicto'), {
+          status: 409,
+          body: { code: 'KITCHEN_DISPATCH_NOT_READY' },
+        }));
+      }
+      return Promise.resolve(readyOrder);
+    });
+
+    const user = userEvent.setup();
+    render(<SalesOrdersPage />);
+    await user.click(await screen.findByRole('button', { name: 'Ver pedido' }));
+    await user.click(screen.getByRole('button', { name: 'Marcar como entregado' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'El despacho todavía no está listo para entregar.',
+    );
+    expect(screen.getByRole('button', { name: 'Marcar como entregado' })).toBeEnabled();
   });
 
   it('mantiene eliminable una línea pendiente aunque otra línea de la orden ya esté READY', async () => {
