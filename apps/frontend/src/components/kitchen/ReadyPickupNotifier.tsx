@@ -122,6 +122,7 @@ export default function ReadyPickupNotifier() {
     try {
       const response = await apiFetch<ReadyKitchenPickupsResponse>(
         "/sales/kitchen-ready-pickups",
+        { cache: "no-store" },
       );
       if (!mountedRef.current) return;
       setPickups(response.pickups);

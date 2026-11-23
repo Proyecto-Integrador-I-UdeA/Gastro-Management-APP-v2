@@ -85,6 +85,44 @@ describe("notificador global de pedidos listos", () => {
       .not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Marcar como entregado" }))
       .not.toBeInTheDocument();
+    expect(mocks.apiFetch).toHaveBeenCalledWith(
+      "/sales/kitchen-ready-pickups",
+      { cache: "no-store" },
+    );
+  });
+
+  it("mantiene el polling sin falsas alarmas cuando no hay pedidos READY", async () => {
+    mocks.apiFetch.mockResolvedValue({ pickups: [] });
+    render(<ReadyPickupNotifier />);
+
+    await waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith(
+      "/sales/kitchen-ready-pickups",
+      { cache: "no-store" },
+    ));
+    expect(screen.queryByLabelText(/Pedido listo de mesa/)).not.toBeInTheDocument();
+    expect(mocks.speak).not.toHaveBeenCalled();
+  });
+
+  it("libera el polling después de un error y procesa la siguiente respuesta", async () => {
+    vi.useFakeTimers();
+    mocks.apiFetch
+      .mockRejectedValueOnce(new Error("Fallo temporal"))
+      .mockResolvedValue({ pickups: [pickup] });
+    render(<ReadyPickupNotifier />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("Fallo temporal");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(mocks.apiFetch).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Pedido listo de mesa 3")).toBeInTheDocument();
+    expect(mocks.speak).toHaveBeenCalledTimes(1);
   });
 
   it("conserva el aviso visual si el navegador bloquea la voz automática", async () => {

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { NextFunction, Request, Response, Router } from 'express';
 import { listSalesMenuCatalog } from '../../controllers/sales/salesMenuCatalogController';
 import {
   addOrderItem,
@@ -35,6 +35,21 @@ import {
 
 const router = Router();
 
+function disableReadyPickupCaching(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  delete req.headers['if-none-match'];
+  delete req.headers['if-modified-since'];
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    Pragma: 'no-cache',
+    Expires: '0',
+  });
+  next();
+}
+
 router.get('/analytics', authenticate, authorize(['reports.read']), getAnalytics);
 
 router.get('/reservations', authenticate, authorize(['reservations.read']), listReservations);
@@ -58,6 +73,7 @@ router.get(
 router.get('/tables', authenticate, authorize(['sales.read']), listTables);
 router.get(
   '/kitchen-ready-pickups',
+  disableReadyPickupCaching,
   authenticate,
   authorize(['sales.read']),
   listReadyPickups,
