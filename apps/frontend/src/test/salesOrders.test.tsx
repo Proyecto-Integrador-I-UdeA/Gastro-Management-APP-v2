@@ -206,6 +206,119 @@ beforeEach(() => {
 });
 
 describe('Mesas y pedidos', () => {
+  it('muestra carga únicamente mientras obtiene las mesas iniciales', async () => {
+    let resolveTables!: (value: typeof tables) => void;
+    mocks.apiFetch.mockImplementation((path: string) => {
+      if (path === '/sales/tables') {
+        return new Promise<typeof tables>(resolve => {
+          resolveTables = resolve;
+        });
+      }
+      return Promise.resolve(order);
+    });
+
+    render(<SalesOrdersPage />);
+    expect(await screen.findByText('Cargando mesas...')).toBeInTheDocument();
+
+    resolveTables(tables);
+    expect(await screen.findByText('Mesa M-01')).toBeInTheDocument();
+    expect(screen.queryByText('Cargando mesas...')).not.toBeInTheDocument();
+  });
+
+  it('refresca mesas en segundo plano sin indicador y conserva los datos visibles', async () => {
+    let tableRequests = 0;
+    let resolveRefresh!: (value: typeof tables) => void;
+    mocks.apiFetch.mockImplementation((path: string) => {
+      if (path === '/sales/tables') {
+        tableRequests += 1;
+        if (tableRequests === 1) return Promise.resolve(tables);
+        return new Promise<typeof tables>(resolve => {
+          resolveRefresh = resolve;
+        });
+      }
+      return Promise.resolve(order);
+    });
+
+    render(<SalesOrdersPage />);
+    expect(await screen.findByText('Mesa M-01')).toBeInTheDocument();
+    expect(mocks.apiFetch).toHaveBeenCalledWith('/sales/tables', { cache: 'no-store' });
+
+    fireEvent(window, new Event('focus'));
+    await waitFor(() => expect(tableRequests).toBe(2));
+    expect(screen.queryByText('Actualizando...')).not.toBeInTheDocument();
+    expect(screen.getByText('Mesa M-01')).toBeInTheDocument();
+    expect(screen.getByText('Disponible')).toBeInTheDocument();
+
+    resolveRefresh(tables);
+    await waitFor(() => expect(screen.getByText('Mesa M-01')).toBeInTheDocument());
+    expect(screen.queryByText('Actualizando...')).not.toBeInTheDocument();
+  });
+
+  it('aplica cambios reales recibidos por la actualización silenciosa', async () => {
+    const updatedTables = {
+      tables: tables.tables.map(table => (
+        table.id === 1
+          ? { ...table, operationalStatus: 'OUT_OF_SERVICE' }
+          : table
+      )),
+    };
+    let tableRequests = 0;
+    mocks.apiFetch.mockImplementation((path: string) => {
+      if (path === '/sales/tables') {
+        tableRequests += 1;
+        return Promise.resolve(tableRequests === 1 ? tables : updatedTables);
+      }
+      return Promise.resolve(order);
+    });
+
+    render(<SalesOrdersPage />);
+    const initialCard = (await screen.findByText('Mesa M-01')).closest('article');
+    expect(within(initialCard as HTMLElement).getByText('Disponible')).toBeInTheDocument();
+
+    fireEvent(window, new Event('focus'));
+    await waitFor(() => {
+      const updatedCard = screen.getByText('Mesa M-01').closest('article');
+      expect(within(updatedCard as HTMLElement).getByText('Fuera de servicio')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Actualizando...')).not.toBeInTheDocument();
+  });
+
+  it('conserva la página operativa tras un error de actualización en segundo plano', async () => {
+    const updatedTables = {
+      tables: tables.tables.map(table => (
+        table.id === 1
+          ? { ...table, operationalStatus: 'OUT_OF_SERVICE' }
+          : table
+      )),
+    };
+    let tableRequests = 0;
+    mocks.apiFetch.mockImplementation((path: string) => {
+      if (path === '/sales/tables') {
+        tableRequests += 1;
+        if (tableRequests === 1) return Promise.resolve(tables);
+        if (tableRequests === 2) return Promise.reject(new Error('Error de red'));
+        return Promise.resolve(updatedTables);
+      }
+      return Promise.resolve(order);
+    });
+
+    render(<SalesOrdersPage />);
+    expect(await screen.findByText('Mesa M-01')).toBeInTheDocument();
+
+    fireEvent(window, new Event('focus'));
+    await waitFor(() => expect(tableRequests).toBe(2));
+    expect(screen.getByText('Mesa M-01')).toBeInTheDocument();
+    expect(screen.queryByText('Actualizando...')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    fireEvent(window, new Event('focus'));
+    await waitFor(() => {
+      expect(tableRequests).toBe(3);
+      const updatedCard = screen.getByText('Mesa M-01').closest('article');
+      expect(within(updatedCard as HTMLElement).getByText('Fuera de servicio')).toBeInTheDocument();
+    });
+  });
+
   it('muestra estados canónicos, zonas y acciones según permiso', async () => {
     render(<SalesOrdersPage />);
 

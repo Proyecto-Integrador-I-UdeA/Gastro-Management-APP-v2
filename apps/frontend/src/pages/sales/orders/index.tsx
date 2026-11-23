@@ -169,7 +169,6 @@ export default function SalesOrdersPage() {
   const [selectedTableId, setSelectedTableId] = useState<number | null>(null);
   const [order, setOrder] = useState<SalesOrder | null>(null);
   const [loadingTables, setLoadingTables] = useState(true);
-  const [refreshingTables, setRefreshingTables] = useState(false);
   const [loadingOrder, setLoadingOrder] = useState(false);
   const [pageError, setPageError] = useState("");
   const [orderError, setOrderError] = useState("");
@@ -192,18 +191,18 @@ export default function SalesOrdersPage() {
   const loadTables = useCallback(async (background = false) => {
     if (pollingRef.current) return;
     pollingRef.current = true;
-    if (background) setRefreshingTables(true);
-    else setLoadingTables(true);
+    if (!background) setLoadingTables(true);
     try {
-      const response = await apiFetch<SalesTablesResponse>("/sales/tables");
+      const response = await apiFetch<SalesTablesResponse>("/sales/tables", {
+        cache: "no-store",
+      });
       setTables(response.tables);
       setPageError("");
     } catch (error) {
       if (!background) setPageError(errorMessage(error, "No fue posible cargar las mesas."));
     } finally {
       pollingRef.current = false;
-      if (background) setRefreshingTables(false);
-      else setLoadingTables(false);
+      if (!background) setLoadingTables(false);
     }
   }, []);
 
@@ -593,7 +592,6 @@ export default function SalesOrdersPage() {
             <p className="mt-2 text-slate-600">Control operativo del salón y pedidos abiertos.</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            {refreshingTables && <span className="text-sm text-slate-500">Actualizando...</span>}
             {canConfigureTables && (
               <button
                 type="button"
