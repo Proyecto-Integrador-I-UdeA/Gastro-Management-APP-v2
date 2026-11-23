@@ -2227,6 +2227,10 @@ describe('backend de mesas y pedidos SALES-02D', () => {
       .get('/sales/kitchen-ready-pickups')
       .set('Authorization', auth(['sales.read']));
     expect(ownPickups.status).toBe(200);
+    expect(ownPickups.headers['cache-control'])
+      .toBe('no-store, no-cache, must-revalidate, proxy-revalidate');
+    expect(ownPickups.headers.pragma).toBe('no-cache');
+    expect(ownPickups.headers.expires).toBe('0');
     expect(ownPickups.body.pickups).toEqual([
       expect.objectContaining({
         dispatchId: dispatch.body.id,
@@ -2237,6 +2241,13 @@ describe('backend de mesas y pedidos SALES-02D', () => {
         cancelled: false,
       }),
     ]);
+    const conditionalPickups = await request(app)
+      .get('/sales/kitchen-ready-pickups')
+      .set('Authorization', auth(['sales.read']))
+      .set('If-None-Match', ownPickups.headers.etag ?? '"stale-ready-pickups"')
+      .set('If-Modified-Since', new Date().toUTCString());
+    expect(conditionalPickups.status).toBe(200);
+    expect(conditionalPickups.body.pickups).toEqual(ownPickups.body.pickups);
     const unrelatedPickups = await request(app)
       .get('/sales/kitchen-ready-pickups')
       .set('Authorization', `Bearer ${createIntegrationToken(
