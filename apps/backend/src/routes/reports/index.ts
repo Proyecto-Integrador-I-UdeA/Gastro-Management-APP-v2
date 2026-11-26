@@ -5,6 +5,8 @@ import { getSuppliersCatalogReport } from '../../controllers/reports/reportsSupp
 import { getTransfersReport } from '../../controllers/reports/reportsTransfersController';
 import { getProductionReport } from '../../controllers/reports/reportsProductionController';
 import { getCostsReport } from '../../controllers/reports/reportsCostsController';
+import { productionCostsReportController } from '../../controllers/reports/productionCostsReportController';
+import { salesReportController } from '../../controllers/reports/salesReportController';
 
 const router = Router();
 
@@ -41,6 +43,18 @@ router.get(
   authenticate,
   authorize(['reports.read']),
   getCostsReport
+);
+
+router.get(
+  '/production-costs',
+  authenticate,
+  productionCostsReportController.get,
+);
+
+router.get(
+  '/sales',
+  authenticate,
+  salesReportController.get,
 );
 
 export default router;
