@@ -44,3 +44,6 @@ diagnostico.txt
 check-users.sql
 cleanup-demo.sql
 seed-demo.sql
+
+# TypeScript build cache
+*.tsbuildinfo

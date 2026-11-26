@@ -77,7 +77,7 @@ export function generateProductionCostsPdf(data: ProductionCostsReportResponse, 
     ...buildTableStyles(),
     columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } },
   });
-  // @ts-expect-error lastAutoTable
+  // @ts-ignore
   y = (doc as any).lastAutoTable.finalY + 6;
 
   // ── 03 Insumos más consumidos ───────────────────────────────────
@@ -97,7 +97,7 @@ export function generateProductionCostsPdf(data: ProductionCostsReportResponse, 
       ...buildTableStyles(),
       columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 3: { halign: 'right' }, 4: { halign: 'right' } },
     });
-    // @ts-expect-error lastAutoTable
+    // @ts-ignore
     y = (doc as any).lastAutoTable.finalY + 6;
   }
 
@@ -118,7 +118,7 @@ export function generateProductionCostsPdf(data: ProductionCostsReportResponse, 
       ...buildTableStyles(),
       columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 2: { halign: 'right' }, 3: { halign: 'right' } },
     });
-    // @ts-expect-error lastAutoTable
+    // @ts-ignore
     y = (doc as any).lastAutoTable.finalY + 6;
   }
 
@@ -139,7 +139,7 @@ export function generateProductionCostsPdf(data: ProductionCostsReportResponse, 
       ...buildTableStyles(),
       columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 3: { halign: 'right' }, 4: { halign: 'right' } },
     });
-    // @ts-expect-error lastAutoTable
+    // @ts-ignore
     y = (doc as any).lastAutoTable.finalY + 6;
   }
 
@@ -163,7 +163,7 @@ export function generateProductionCostsPdf(data: ProductionCostsReportResponse, 
       ...buildTableStyles(),
       columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 5: { halign: 'right' } },
     });
-    // @ts-expect-error lastAutoTable
+    // @ts-ignore
     y = (doc as any).lastAutoTable.finalY + 6;
   }
 
@@ -184,7 +184,7 @@ export function generateProductionCostsPdf(data: ProductionCostsReportResponse, 
       ...buildTableStyles(),
       columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' } },
     });
-    // @ts-expect-error lastAutoTable
+    // @ts-ignore
     y = (doc as any).lastAutoTable.finalY + 6;
   }
 
@@ -204,7 +204,7 @@ export function generateProductionCostsPdf(data: ProductionCostsReportResponse, 
       ...buildTableStyles(),
       columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 3: { halign: 'right' }, 4: { halign: 'right' } },
     });
-    // @ts-expect-error lastAutoTable
+    // @ts-ignore
     y = (doc as any).lastAutoTable.finalY + 6;
   }
 
@@ -231,7 +231,7 @@ export function generateProductionCostsPdf(data: ProductionCostsReportResponse, 
       ...buildTableStyles(),
       columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } },
     });
-    // @ts-expect-error lastAutoTable
+    // @ts-ignore
     y = (doc as any).lastAutoTable.finalY + 6;
   }
 
@@ -254,7 +254,7 @@ export function generateProductionCostsPdf(data: ProductionCostsReportResponse, 
       ...buildTableStyles(),
       columnStyles: { 1: { halign: 'right' } },
     });
-    // @ts-expect-error lastAutoTable
+    // @ts-ignore
     y = (doc as any).lastAutoTable.finalY + 6;
   }
 
@@ -273,7 +273,7 @@ export function generateProductionCostsPdf(data: ProductionCostsReportResponse, 
       ...buildTableStyles(),
       columnStyles: { 2: { halign: 'right' } },
     });
-    // @ts-expect-error lastAutoTable
+    // @ts-ignore
     y = (doc as any).lastAutoTable.finalY + 6;
   }
 
@@ -309,7 +309,7 @@ export function generateProductionCostsPdf(data: ProductionCostsReportResponse, 
           4: { halign: 'right' }, 5: { halign: 'right' },
         },
       });
-      // @ts-expect-error lastAutoTable
+      // @ts-ignore
       y = (doc as any).lastAutoTable.finalY + 6;
     }
 
@@ -340,7 +340,7 @@ export function generateProductionCostsPdf(data: ProductionCostsReportResponse, 
           6: { halign: 'right' },
         },
       });
-      // @ts-expect-error lastAutoTable
+      // @ts-ignore
       y = (doc as any).lastAutoTable.finalY + 6;
     }
   }
@@ -362,7 +362,7 @@ export function generateProductionCostsPdf(data: ProductionCostsReportResponse, 
       ...buildTableStyles(),
       columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 2: { halign: 'right' }, 3: { halign: 'right' } },
     });
-    // @ts-expect-error lastAutoTable
+    // @ts-ignore
     y = (doc as any).lastAutoTable.finalY + 8;
   }
 
